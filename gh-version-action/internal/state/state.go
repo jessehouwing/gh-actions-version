@@ -1,0 +1,338 @@
+// Package state is the domain model (port of lib/StateModel.ps1).
+package state
+
+import (
+	"context"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// Issue statuses.
+const (
+	StatusPending           = "pending"
+	StatusFixed             = "fixed"
+	StatusFailed            = "failed"
+	StatusManualFixRequired = "manual_fix_required"
+	StatusUnfixable         = "unfixable"
+)
+
+const (
+	SeverityError   = "error"
+	SeverityWarning = "warning"
+)
+
+const (
+	TypeTag    = "tag"
+	TypeBranch = "branch"
+)
+
+var semverRe = regexp.MustCompile(`^\d+(\.\d+){0,2}$`)
+
+// VersionRef is a tag or branch with parsed version info. Suffixes such as -beta are not supported.
+type VersionRef struct {
+	Version   string // e.g. v1.0.0
+	Ref       string // e.g. refs/tags/v1.0.0
+	Sha       string
+	Type      string // TypeTag or TypeBranch
+	IsPatch   bool
+	IsMinor   bool
+	IsMajor   bool
+	IsIgnored bool
+	Major     int
+	Minor     int
+	Patch     int
+}
+
+// NewVersionRef parses version and returns the ref.
+func NewVersionRef(version, ref, sha, typ string) *VersionRef {
+	v := &VersionRef{Version: version, Ref: ref, Sha: sha, Type: typ}
+	s := strings.TrimPrefix(version, "v")
+	if !semverRe.MatchString(s) {
+		return v
+	}
+	parts := strings.Split(s, ".")
+	v.Major, _ = strconv.Atoi(parts[0])
+	switch len(parts) {
+	case 3:
+		v.IsPatch = true
+		v.Minor, _ = strconv.Atoi(parts[1])
+		v.Patch, _ = strconv.Atoi(parts[2])
+	case 2:
+		v.IsMinor = true
+		v.Minor, _ = strconv.Atoi(parts[1])
+	case 1:
+		v.IsMajor = true
+	}
+	return v
+}
+
+func (v *VersionRef) String() string { return v.Version + " -> " + v.Sha + " (" + v.Type + ")" }
+
+// ReleaseInfo is a GitHub release. IsPrerelease comes from the Release API only.
+type ReleaseInfo struct {
+	TagName      string
+	Sha          string
+	IsDraft      bool
+	IsPrerelease bool
+	IsImmutable  bool
+	IsIgnored    bool
+	IsLatest     bool
+	ID           int64
+	HtmlUrl      string
+}
+
+func (r *ReleaseInfo) String() string {
+	var st []string
+	if r.IsDraft {
+		st = append(st, "draft")
+	}
+	if r.IsPrerelease {
+		st = append(st, "prerelease")
+	}
+	if !r.IsImmutable {
+		st = append(st, "mutable")
+	}
+	if r.IsLatest {
+		st = append(st, "latest")
+	}
+	if len(st) == 0 {
+		return r.TagName
+	}
+	return r.TagName + " [" + strings.Join(st, ", ") + "]"
+}
+
+// MarketplaceMetadata describes the action metadata required for Marketplace publication.
+type MarketplaceMetadata struct {
+	ActionFileExists bool
+	ActionFilePath   string
+	HasName          bool
+	HasDescription   bool
+	HasBrandingIcon  bool
+	HasBrandingColor bool
+	ReadmeExists     bool
+	Name             string
+	Description      string
+	BrandingIcon     string
+	BrandingColor    string
+	ValidationErrors []string
+}
+
+func (m *MarketplaceMetadata) IsValid() bool {
+	return m.ActionFileExists && m.HasName && m.HasDescription && m.HasBrandingIcon && m.HasBrandingColor && m.ReadmeExists
+}
+
+func (m *MarketplaceMetadata) MissingRequirements() []string {
+	var out []string
+	if !m.HasName {
+		out = append(out, "name property in action.yaml")
+	}
+	if !m.HasDescription {
+		out = append(out, "description property in action.yaml")
+	}
+	if !m.HasBrandingIcon {
+		out = append(out, "branding.icon property in action.yaml")
+	}
+	if !m.HasBrandingColor {
+		out = append(out, "branding.color property in action.yaml")
+	}
+	if !m.ReadmeExists {
+		out = append(out, "README.md file in repository root")
+	}
+	return out
+}
+
+// Action is a remediation action (port of RemediationAction).
+type Action interface {
+	Description() string
+	Version() string
+	Priority() int
+	ManualCommandsLanguage() string // "bash" or "yaml"
+	// Execute applies the fix. It returns true on success and may update the matching issue status.
+	Execute(ctx context.Context, st *State, c Client) bool
+	ManualCommands(st *State) []string
+}
+
+// Issue is a validation problem.
+type Issue struct {
+	Type             string
+	Severity         string
+	Message          string
+	Version          string
+	CurrentSha       string
+	ExpectedSha      string
+	ManualFixCommand string
+	Action           Action
+	Status           string
+}
+
+func NewIssue(typ, severity, message string) *Issue {
+	return &Issue{Type: typ, Severity: severity, Message: message, Status: StatusPending}
+}
+
+func (i *Issue) IsAutoFixable() bool { return i.Action != nil }
+
+// Priority mirrors the action priority (default 100).
+func (i *Issue) Priority() int {
+	if i.Action != nil {
+		return i.Action.Priority()
+	}
+	return 100
+}
+
+func (i *Issue) String() string { return strings.ToUpper(i.Severity) + ": " + i.Message }
+
+// Config holds the options that rules read (port of $Config / action inputs).
+type Config struct {
+	CheckMinorVersion     string // error|warning|none
+	CheckReleases         string // error|warning|none
+	CheckImmutability     string // error|warning|none
+	CheckMarketplace      string // error|warning|none
+	IgnorePreviewReleases bool
+	FloatingVersionsUse   string // tags|branches
+	AutoFix               bool
+	IgnoreVersions        []string
+}
+
+// State is the single source of truth (port of RepositoryState).
+type State struct {
+	Tags        []*VersionRef
+	Branches    []*VersionRef
+	Releases    []*ReleaseInfo
+	Marketplace *MarketplaceMetadata
+	Owner       string
+	Repo        string
+	Host        string
+	Config      Config
+	Issues      []*Issue
+}
+
+func New() *State { return &State{Marketplace: &MarketplaceMetadata{}} }
+
+func (s *State) AddIssue(i *Issue) { s.Issues = append(s.Issues, i) }
+
+// AllRefs returns tags followed by branches.
+func (s *State) AllRefs() []*VersionRef {
+	out := make([]*VersionRef, 0, len(s.Tags)+len(s.Branches))
+	out = append(out, s.Tags...)
+	return append(out, s.Branches...)
+}
+
+func (s *State) PatchVersions() []*VersionRef {
+	return filter(s.AllRefs(), func(v *VersionRef) bool { return v.IsPatch })
+}
+func (s *State) MinorVersions() []*VersionRef {
+	return filter(s.AllRefs(), func(v *VersionRef) bool { return v.IsMinor })
+}
+func (s *State) MajorVersions() []*VersionRef {
+	return filter(s.AllRefs(), func(v *VersionRef) bool { return v.IsMajor })
+}
+
+func filter(in []*VersionRef, f func(*VersionRef) bool) []*VersionRef {
+	var out []*VersionRef
+	for _, v := range in {
+		if f(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// FindVersion looks up by version; typ is TypeTag, TypeBranch or "" for both (tags first).
+func (s *State) FindVersion(version, typ string) *VersionRef {
+	find := func(list []*VersionRef) *VersionRef {
+		for _, v := range list {
+			if v.Version == version {
+				return v
+			}
+		}
+		return nil
+	}
+	switch typ {
+	case TypeTag:
+		return find(s.Tags)
+	case TypeBranch:
+		return find(s.Branches)
+	}
+	if v := find(s.Tags); v != nil {
+		return v
+	}
+	return find(s.Branches)
+}
+
+func (s *State) FindRelease(tag string) *ReleaseInfo {
+	for _, r := range s.Releases {
+		if r.TagName == tag {
+			return r
+		}
+	}
+	return nil
+}
+
+func (s *State) CountStatus(status string) int {
+	n := 0
+	for _, i := range s.Issues {
+		if i.Status == status {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *State) FixedCount() int     { return s.CountStatus(StatusFixed) }
+func (s *State) FailedCount() int    { return s.CountStatus(StatusFailed) }
+func (s *State) UnfixableCount() int { return s.CountStatus(StatusUnfixable) }
+func (s *State) ManualFixCount() int { return s.CountStatus(StatusManualFixRequired) }
+
+func (s *State) ErrorIssues() []*Issue   { return s.bySeverity(SeverityError) }
+func (s *State) WarningIssues() []*Issue { return s.bySeverity(SeverityWarning) }
+
+func (s *State) bySeverity(sev string) []*Issue {
+	var out []*Issue
+	for _, i := range s.Issues {
+		if i.Severity == sev {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// ReturnCode is 1 when error-severity issues remain failed, manual_fix_required or unfixable.
+func (s *State) ReturnCode() int {
+	for _, i := range s.Issues {
+		if i.Severity == SeverityError && (i.Status == StatusFailed || i.Status == StatusManualFixRequired || i.Status == StatusUnfixable) {
+			return 1
+		}
+	}
+	return 0
+}
+
+// RefResult is the outcome of a ref write.
+type RefResult struct {
+	Success           bool
+	RequiresManualFix bool // token lacks the 'workflows' permission
+	Unfixable         bool // e.g. HTTP 422 on immutable release conflicts
+	Error             string
+}
+
+// Client is the write/read surface remediation actions use. internal/api implements it.
+// Extend this interface (and the implementations) when an action needs more operations.
+type Client interface {
+	CreateRef(ctx context.Context, ref, sha string, force bool) RefResult
+	DeleteRef(ctx context.Context, ref string) RefResult
+	CreateRelease(ctx context.Context, tag string, draft bool, autoPublish bool) (ReleaseResult, error)
+	PublishRelease(ctx context.Context, id int64, makeLatest *bool) (ReleaseResult, error)
+	DeleteRelease(ctx context.Context, id int64) error
+	SetReleaseLatest(ctx context.Context, id int64) error
+	TagProtection(ctx context.Context, tag string) ([]string, error) // names of rulesets blocking deletion
+}
+
+// ReleaseResult is the outcome of a release write.
+type ReleaseResult struct {
+	Success           bool
+	ID                int64
+	HtmlUrl           string
+	Unfixable         bool
+	RequiresManualFix bool
+	Error             string
+}
