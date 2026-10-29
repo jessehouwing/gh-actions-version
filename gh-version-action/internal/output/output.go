@@ -73,10 +73,13 @@ func (l *Logger) Info(msg string) { l.println(msg) }
 // Infof writes a formatted plain line.
 func (l *Logger) Infof(format string, args ...any) { l.println(fmt.Sprintf(format, args...)) }
 
-// Debug writes ::debug:: in Actions; locally it always shows "[DEBUG] ...".
+// Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." only when GH_DEBUG is set.
 func (l *Logger) Debug(msg string) {
 	if l.Actions {
 		l.println("::debug::" + escapeData(msg))
+		return
+	}
+	if v := os.Getenv("GH_DEBUG"); v == "" || v == "0" || v == "false" {
 		return
 	}
 	l.println(l.colored("36", "[DEBUG] "+msg))

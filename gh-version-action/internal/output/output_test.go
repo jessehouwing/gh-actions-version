@@ -160,6 +160,7 @@ func TestAnnotationsAndGroups(t *testing.T) {
 		}
 	})
 	t.Run("Should write plain tty-aware text outside Actions", func(t *testing.T) {
+		t.Setenv("GH_DEBUG", "1")
 		l, b := plainLogger()
 		l.Debug("d")
 		l.Notice("n")
