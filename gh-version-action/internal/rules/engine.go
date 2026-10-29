@@ -24,6 +24,13 @@ var registry []*Rule
 // Register adds a rule; each rule file calls it from init().
 func Register(r *Rule) { registry = append(registry, r) }
 
+// validate panics when a required callback is missing (Invoke-ValidationRule throws).
+func (r *Rule) validate() {
+	if r.Condition == nil || r.Check == nil || r.CreateIssue == nil {
+		panic("rule " + r.Name + ": Condition, Check and CreateIssue are required")
+	}
+}
+
 // All returns the registered rules sorted by priority then name.
 func All() []*Rule {
 	out := append([]*Rule(nil), registry...)
@@ -43,6 +50,7 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 	}
 	var added []*state.Issue
 	for _, r := range rs {
+		r.validate()
 		for _, item := range r.Condition(st, cfg) {
 			if r.Check(item, st, cfg) {
 				continue

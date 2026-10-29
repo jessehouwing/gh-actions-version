@@ -3,6 +3,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -325,6 +326,41 @@ type Client interface {
 	DeleteRelease(ctx context.Context, id int64) error
 	SetReleaseLatest(ctx context.Context, id int64) error
 	TagProtection(ctx context.Context, tag string) ([]string, error) // names of rulesets blocking deletion
+
+	// Added for the remediation actions.
+
+	// CreateReleaseWithLatest creates a release; makeLatest nil lets GitHub decide. Supersedes CreateRelease for actions.
+	CreateReleaseWithLatest(ctx context.Context, tag string, draft bool, makeLatest *bool) (ReleaseResult, error)
+	// ReleaseImmutable reports whether the release for tag is immutable (Test-ReleaseImmutability).
+	ReleaseImmutable(ctx context.Context, tag string) (bool, error)
+	// ImmutableReleasesEnabled returns the repo setting, or nil when it could not be determined.
+	ImmutableReleasesEnabled(ctx context.Context) *bool
+	// EnableImmutableReleases enables the setting and returns true once confirmed.
+	EnableImmutableReleases(ctx context.Context) bool
+	// RepublishRelease drafts and re-publishes the release for tag (Republish-GitHubRelease).
+	RepublishRelease(ctx context.Context, tag string, makeLatest *bool) RepublishResult
+	// TagRulesets returns active tag rulesets that block deleting tag (Get-GitHubTagProtection).
+	TagRulesets(ctx context.Context, tag string) ([]Ruleset, error)
+}
+
+// ErrUnfixable can be returned (wrapped) by Client methods that return only an error
+// when the failure is an HTTP 422 on an immutable release conflict.
+var ErrUnfixable = errors.New("unfixable")
+
+// Ruleset is a tag ruleset that blocks deleting a tag.
+type Ruleset struct {
+	ID          int64
+	Name        string
+	Enforcement string
+	Source      string
+	Url         string
+}
+
+// RepublishResult is the outcome of RepublishRelease.
+type RepublishResult struct {
+	Success   bool
+	Unfixable bool
+	Reason    string
 }
 
 // ReleaseResult is the outcome of a release write.
