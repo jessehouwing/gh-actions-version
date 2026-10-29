@@ -1,0 +1,14 @@
+# Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `HTTP 403` / `Resource not accessible by integration` | Token lacks write access. Run `gh auth refresh -s repo`, or set `permissions: contents: write` in Actions. |
+| Fix fails for `.github/workflows` changes | Needs a PAT or app token with `workflow` scope. |
+| `HTTP 422` on release create | Tag was used by a deleted immutable release. Use `--ignore-versions` or a new patch version. |
+| Tag delete blocked | A ruleset has a `deletion` rule; the output names it. Adjust the ruleset or run the printed `git push origin :refs/tags/<tag>`. |
+| Rate limit errors | Authenticate, or wait; see `--max-wait`. |
+| `--interactive requires a terminal` | Use `--auto-fix` or `--check` in CI. |
+| Prerelease ignored for `v1` | `--ignore-preview-releases` defaults to true; prerelease status is from the Release API only. |
+| Not found on GHES | Check `GH_HOST` and that the host supports immutable releases. |
+
+Exit code 2 means a usage error; 1 means unresolved validation errors.

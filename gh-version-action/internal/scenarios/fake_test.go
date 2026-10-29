@@ -170,7 +170,21 @@ func (r *repo) CreateReleaseWithLatest(_ context.Context, tag string, d bool, _ 
 		opts = append(opts, immutable)
 	}
 	rel := r.release(tag, opts...)
+	r.markLatestIfNone(rel)
 	return state.ReleaseResult{Success: true, ID: rel.ID}, nil
+}
+
+// markLatestIfNone mimics GitHub, which marks a newly published release latest when none is.
+func (r *repo) markLatestIfNone(rel *state.ReleaseInfo) {
+	if rel.IsDraft {
+		return
+	}
+	for _, o := range r.releases {
+		if o.IsLatest {
+			return
+		}
+	}
+	rel.IsLatest = true
 }
 
 func (r *repo) byID(id int64) *state.ReleaseInfo {
@@ -193,6 +207,7 @@ func (r *repo) PublishRelease(_ context.Context, id int64, _ *bool) (state.Relea
 	}
 	rel.IsDraft = false
 	rel.IsImmutable = r.immutableEnabled
+	r.markLatestIfNone(rel)
 	return state.ReleaseResult{Success: true, ID: id}, nil
 }
 
@@ -313,7 +328,7 @@ func commands(st *state.State) string {
 			out = append(out, i.Action.ManualCommands(st)...)
 		}
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(out, "\n") + "\n"
 }
 
 func messages(st *state.State) string {
