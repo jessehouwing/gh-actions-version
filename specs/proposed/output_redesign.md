@@ -66,7 +66,7 @@ immutability / release_not_immutable                       55 errors
   Releases are published but not immutable.
   v7.0.1, v7.0.0, v6.1.0, v6.0.3, ... (all 55 versions are listed in actual output)
   Cause: repository setting 'Release immutability' is disabled or could not be read.
-  Docs:  docs/rules/release_should_be_immutable.md
+  Docs:  https://github.com/jessehouwing/gh-actions-version/blob/<version>/docs/rules/release_should_be_immutable.md
   Fix:   gh api -X PUT repos/actions/checkout/immutable-releases   (needs repository admin)
          then, per release: gh release edit <tag> --draft=true && gh release edit <tag> --draft=false
 
@@ -129,7 +129,7 @@ The docs URL is pinned to the CLI version, with `main` used for dev builds. Rena
 | `-o, --output console\|json\|actions` | Output format (default: `actions` in Actions, otherwise `console`). |
 | `--no-progress` | Plain stage lines or none; implied when stderr is not a terminal. |
 | `-q, --quiet` | Only findings and errors. |
-| `-v, --verbose` | Expand version lists, per-request detail, debug lines. |
+| `-v, --verbose` | Per-request detail and debug lines. |
 | `--no-color` | Disable colors (`NO_COLOR` honored). |
 | `--group-by version\|rule\|concern` | Console grouping (default `version`). |
 
