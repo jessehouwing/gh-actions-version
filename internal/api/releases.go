@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // ReleasesPageSize is the GraphQL page size used when listing releases.

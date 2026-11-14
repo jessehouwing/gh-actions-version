@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 // IsValidPattern validates one ignore-versions pattern (Test-ValidVersionPattern).

@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/options"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/rules"
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/options"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/rules"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 func TestMain(m *testing.M) {

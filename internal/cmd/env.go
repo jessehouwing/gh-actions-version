@@ -13,8 +13,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/prompter"
 	"github.com/cli/go-gh/v2/pkg/term"
 
-	"github.com/jessehouwing/gh-version-action/internal/api"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
 )
 
 // Prompter asks questions on the terminal. It extends remediation.Prompter (the interactive

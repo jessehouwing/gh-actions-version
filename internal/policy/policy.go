@@ -15,9 +15,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/jessehouwing/gh-version-action/internal/rules"
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/rules"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 //go:embed action-version.yml

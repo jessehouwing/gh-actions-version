@@ -1,4 +1,4 @@
-// Package cmd is the `gh version-action` command line: flag parsing, mode selection, startup auth
+// Package cmd is the `gh actions-version` command line: flag parsing, mode selection, startup auth
 // checks and the validate → fix → report pipeline.
 package cmd
 
@@ -16,15 +16,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/jessehouwing/gh-version-action/internal/api"
-	"github.com/jessehouwing/gh-version-action/internal/localgit"
-	"github.com/jessehouwing/gh-version-action/internal/options"
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/policy"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/rules" // importing registers the validation rules
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/localgit"
+	"github.com/jessehouwing/gh-actions-version/internal/options"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/policy"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/rules" // importing registers the validation rules
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 // Version is set at build time (-ldflags "-X .../internal/cmd.Version=v1.2.3").
@@ -59,7 +59,7 @@ func Run(ctx context.Context, args []string, env Env) int {
 	var f flags
 	code := ExitOK
 	root := &cobra.Command{
-		Use:   "version-action [versions...]",
+		Use:   "actions-version [versions...]",
 		Short: "Validate and fix the version tags, branches and releases of an action repository",
 		Long: `Validate the semantic version tags, branches and releases of a GitHub Action repository
 against GitHub's immutable release strategy: patch versions (v1.0.0) need an immutable release,

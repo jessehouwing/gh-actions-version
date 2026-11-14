@@ -4,7 +4,7 @@ package rules
 import (
 	"sort"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Rule validates items of the repository state. Condition returns the items to validate,

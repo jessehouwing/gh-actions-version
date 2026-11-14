@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // ConvertBranchToTagAction converts a branch to a tag.

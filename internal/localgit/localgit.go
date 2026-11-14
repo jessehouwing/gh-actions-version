@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 // IsIgnored reports whether a version matches the ignore-versions patterns; replaceable for tests or wiring.

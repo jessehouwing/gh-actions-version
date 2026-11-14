@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Mode selects how fixable issues are handled.

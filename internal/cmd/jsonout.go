@@ -12,8 +12,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/template"
 	"github.com/cli/go-gh/v2/pkg/term"
 
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // jsonFields are the top-level fields of the --json document.

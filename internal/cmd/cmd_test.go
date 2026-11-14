@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/api"
-	"github.com/jessehouwing/gh-version-action/internal/testutil"
+	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/testutil"
 )
 
 type result struct {

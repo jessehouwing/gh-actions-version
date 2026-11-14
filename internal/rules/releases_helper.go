@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 var (

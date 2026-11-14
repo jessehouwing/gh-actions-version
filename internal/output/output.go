@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/term"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Logger writes messages either as GitHub Actions workflow commands or as plain text.

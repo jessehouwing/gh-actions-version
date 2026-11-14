@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // CreateBranchAction creates a new Git branch.

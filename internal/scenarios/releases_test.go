@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/rules"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/rules"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func matchRe(t *testing.T, s, pattern string) {

@@ -105,6 +105,8 @@ Result: No issues - v1.0 correctly tracks latest patch
 
 When `--check-minor-version` is set to `warning`, this rule reports issues with warning severity instead of error:
 
-```bash`ngh version-action --check-minor-version=warning`n```
+```bash
+gh actions-version --check-minor-version=warning
+```
 
 This allows minor version mismatches to be flagged without failing the run.

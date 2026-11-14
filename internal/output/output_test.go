@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func actionsLogger() (*Logger, *bytes.Buffer) {

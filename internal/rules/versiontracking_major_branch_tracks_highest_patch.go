@@ -1,6 +1,6 @@
 package rules
 
-import "github.com/jessehouwing/gh-version-action/internal/state"
+import "github.com/jessehouwing/gh-actions-version/internal/state"
 
 func init() {
 	Register(&Rule{

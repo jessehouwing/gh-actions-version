@@ -4,8 +4,8 @@ import (
 	"context"
 	"regexp"
 
-	"github.com/jessehouwing/gh-version-action/internal/rules"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/rules"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 var (

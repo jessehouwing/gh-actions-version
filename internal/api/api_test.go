@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type rewrite struct{ target *url.URL }

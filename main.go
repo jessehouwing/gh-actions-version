@@ -1,4 +1,4 @@
-// Command gh-version-action is the `gh version-action` extension: it validates and repairs the
+// Command gh-actions-version is the `gh actions-version` extension: it validates and repairs the
 // semantic version tags, branches and releases of an action repository.
 package main
 
@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/jessehouwing/gh-version-action/internal/cmd"
+	"github.com/jessehouwing/gh-actions-version/internal/cmd"
 )
 
 func main() {

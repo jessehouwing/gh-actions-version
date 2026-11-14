@@ -1,4 +1,4 @@
-# gh-version-action
+# gh-actions-version
 
 A [`gh`](https://cli.github.com) extension that validates and repairs the version tags, branches and releases of a
 GitHub Action repository, following GitHub's
@@ -8,17 +8,17 @@ It is the Go successor of the PowerShell `jessehouwing/actions-semver-checker` A
 ## Install
 
 ```sh
-gh extension install jessehouwing/gh-version-action
-gh extension upgrade version-action
+gh extension install jessehouwing/gh-actions-version
+gh extension upgrade actions-version
 ```
 
 ## Quickstart
 
 ```sh
 cd my-action-repo
-gh version-action                 # report problems (read-only)
-gh version-action --auto-fix      # fix them
-gh version-action -R owner/repo   # run against another repository
+gh actions-version                 # report problems (read-only)
+gh actions-version --auto-fix      # fix them
+gh actions-version -R owner/repo   # run against another repository
 ```
 
 ## What it checks
@@ -44,7 +44,7 @@ Every rule is documented in [docs/rules](docs/rules/README.md).
 
 Rule options: `--check-minor-version`, `--check-releases`, `--check-release-immutability`, `--check-marketplace`
 (`error`, `warning`, `none`), `--include-preview-releases`, `--floating-versions-use` (`tags`, `branches`, `both`),
-`--ignore-versions` (supports `v1.*`), `--max-wait`. See `gh version-action --help`.
+`--ignore-versions` (supports `v1.*`), `--max-wait`. See `gh actions-version --help`.
 
 `--dangerously-allow-destructive-tag-deletion` is needed only when a tag was used by an immutable release that has since been deleted: such a tag can't be republished, and deleting it is irreversible. Without the flag the issue is reported as a manual fix with the `git push origin :refs/tags/<tag>` command. Other tag deletions are not affected.
 
@@ -106,10 +106,10 @@ or can be set to `none`.
 permissions:
   contents: write
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v7
   - run: |
-      gh extension install jessehouwing/gh-version-action
-      gh version-action --auto-fix
+      gh extension install jessehouwing/gh-actions-version
+      gh actions-version --auto-fix
     env:
       GH_TOKEN: ${{ github.token }}
 ```

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // push is the manual command that creates/updates a ref (PowerShell: "git push origin <sha>:refs/tags/v1").

@@ -1,4 +1,4 @@
-# action-version.yml - the versioning strategy enforced by gh version-action.
+# action-version.yml - the versioning strategy enforced by gh actions-version.
 #
 # This is the built-in default. It applies when a repository has no action-version.yml of its own.
 # A repository file is looked up next to action.yaml (the repository root), then in .github/, and its
