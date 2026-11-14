@@ -19,7 +19,7 @@ Observed by running the current CLI against `actions/checkout` with `--check` (3
 ## Goals
 
 - Show what is happening, on every output format, without polluting machine-readable output.
-- Group findings by rule, then finding, then version; show a summary.
+- Group findings by version by default, with selectable rule or concern grouping; show a summary.
 - Deduplicate shared causes and shared remediation commands.
 - Make every finding traceable to its rule page in `docs/rules/`.
 - Keep `console`, `json` and `actions` outputs consistent: same findings, different rendering.
@@ -58,12 +58,13 @@ Rules:
 
 ## Console report
 
-Grouped by rule, then finding, with the rule documentation link and a deduplicated list of versions:
+The example below uses `--group-by rule`; the default is grouping by version. Rule grouping shows the
+documentation link and a deduplicated list of versions:
 
 ```
 immutability / release_not_immutable                       55 errors
   Releases are published but not immutable.
-  v7.0.1, v7.0.0, v6.1.0, v6.0.3 ... (55 versions; use -v to list all)
+  v7.0.1, v7.0.0, v6.1.0, v6.0.3, ... (all 55 versions are listed in actual output)
   Cause: repository setting 'Release immutability' is disabled or could not be read.
   Docs:  docs/rules/release_should_be_immutable.md
   Fix:   gh api -X PUT repos/actions/checkout/immutable-releases   (needs repository admin)
@@ -92,8 +93,9 @@ Rules:
 ## Findings in every format
 
 Every finding carries the same fields: `rule`, `finding`, `severity`, `version`, `message`, `cause` (optional),
-`docs` (path or URL), `autoFixable`, `manual` (commands, JSON only in `verify`), `ignored` (with reason, when applicable). Renaming
-finding IDs is covered by `../rule_refactoring.md`.
+`docs` (URL), `autoFixable`, `manual` (commands, JSON only in `verify`), `ignored` (with reason, when applicable).
+The docs URL is pinned to the CLI version, with `main` used for dev builds. Renaming finding IDs is covered by
+`../rule_refactoring.md`.
 
 ## JSON
 
@@ -129,11 +131,12 @@ finding IDs is covered by `../rule_refactoring.md`.
 | `-q, --quiet` | Only findings and errors. |
 | `-v, --verbose` | Expand version lists, per-request detail, debug lines. |
 | `--no-color` | Disable colors (`NO_COLOR` honored). |
-| `--group-by rule\|version\|severity` | Console grouping (default `rule`). |
+| `--group-by version\|rule\|concern` | Console grouping (default `version`). |
 
-## Open questions
+## Decisions
 
-- Is grouping by rule right as the default, or should it be by version for repositories with few findings?
-- Should `console` truncate version lists by default (shown above: 4 versions), or always list everything?
-- Do we want a machine-readable progress stream (for example newline-delimited JSON on stderr)?
-- Link documentation as relative paths, or as URLs to the repository's rendered `docs/rules/` pages?
+- Group findings by version by default; `--group-by` also supports `rule` and `concern`.
+- Never truncate version lists; the sample above abbreviates the list for readability only.
+- Progress is human-readable on stderr; no machine-readable progress stream is emitted.
+- Documentation links use `https://github.com/jessehouwing/gh-actions-version/blob/<version>/docs/rules/<rule>.md`,
+  where `<version>` is the CLI version tag or `main` for dev builds.
