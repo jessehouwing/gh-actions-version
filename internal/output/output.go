@@ -16,8 +16,12 @@ import (
 // Logger writes messages either as GitHub Actions workflow commands or as plain text.
 type Logger struct {
 	Out io.Writer
+	// DebugOut receives verbose diagnostics when set.
+	DebugOut io.Writer
 	// Actions emits workflow commands (::error::, ##[group], ...) instead of plain text.
 	Actions bool
+	// Verbose enables debug messages without relying on GH_DEBUG.
+	Verbose bool
 	// Color enables ANSI colors in plain mode.
 	Color bool
 	// ErrorCount counts errors written without a State (port of $global:returnCode = 1).
@@ -70,16 +74,29 @@ func (l *Logger) Info(msg string) { l.println(msg) }
 // Infof writes a formatted plain line.
 func (l *Logger) Infof(format string, args ...any) { l.println(fmt.Sprintf(format, args...)) }
 
-// Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." only when GH_DEBUG is set.
+// Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." when verbose or GH_DEBUG is set.
 func (l *Logger) Debug(msg string) {
 	if l.Actions {
-		l.println("::debug::" + escapeData(msg))
+		out := l.Out
+		if l.Verbose && l.DebugOut != nil {
+			out = l.DebugOut
+		}
+		fmt.Fprintln(out, "::debug::"+escapeData(msg))
 		return
 	}
-	if v := os.Getenv("GH_DEBUG"); v == "" || v == "0" || v == "false" {
+	verbose := l.Verbose
+	if !verbose {
+		v := os.Getenv("GH_DEBUG")
+		verbose = v != "" && v != "0" && v != "false"
+	}
+	if !verbose {
 		return
 	}
-	l.println(l.colored("36", "[DEBUG] "+msg))
+	out := l.Out
+	if l.Verbose && l.DebugOut != nil {
+		out = l.DebugOut
+	}
+	fmt.Fprintln(out, l.colored("36", "[DEBUG] "+msg))
 }
 
 // Notice writes a notice annotation.

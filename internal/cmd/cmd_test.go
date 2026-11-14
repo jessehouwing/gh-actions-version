@@ -525,6 +525,31 @@ func TestReleaseChecks(t *testing.T) {
 			t.Errorf("flag: exit %d\n%s", r.code, r.all())
 		}
 	})
+	t.Run("--config reads only the named repository policy", func(t *testing.T) {
+		gh := seed(t)
+		gh.Release("v1.0.0", testutil.Latest)
+		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: error\n")
+		gh.File(".github/custom.yml", "concerns:\n  immutability:\n    level: none\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--config", ".github/custom.yml", "--check-marketplace=none")
+		if r.code != 0 || !strings.Contains(r.all(), ".github/custom.yml") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("--no-config ignores repository policy files", func(t *testing.T) {
+		gh := seed(t)
+		gh.Release("v1.0.0", testutil.Latest)
+		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: none\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--no-config", "--check-marketplace=none")
+		if r.code != 1 || !strings.Contains(r.all(), "Ignoring repository policy files") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("--config and --no-config cannot be combined", func(t *testing.T) {
+		r := newEnv(t, testutil.NewGitHub(t)).runRaw("verify", "--config", "policy.yml", "--no-config")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "cannot be used together") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
 	t.Run("Should reject an invalid action-version.yml", func(t *testing.T) {
 		gh := seed(t)
 		gh.File("action-version.yml", "bogus: 1\n")
@@ -914,6 +939,37 @@ func TestGitHubActions(t *testing.T) {
 		r := e.run(args("--check", "--ignore-versions=::set-env name=X::y")...)
 		if strings.Contains(r.all(), "\n::set-env") {
 			t.Errorf("unescaped workflow command:\n%s", r.all())
+		}
+	})
+}
+
+func TestPersistentGlobalFlags(t *testing.T) {
+	t.Run("flags before the subcommand are accepted", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("-R", "o/r", "--no-config", "verify", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		if r.code != 1 || !strings.Contains(r.all(), "v1") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("max-wait is validated before the subcommand", func(t *testing.T) {
+		r := newEnv(t, testutil.NewGitHub(t)).runRaw("--max-wait=-1s", "verify")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "--max-wait must not be negative") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("verbose diagnostics are written to stderr", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--verbose", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		if r.code != 1 || !strings.Contains(r.err, "[DEBUG]") || strings.Contains(r.out, "[DEBUG]") {
+			t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", r.code, r.out, r.err)
+		}
+	})
+	t.Run("no-color disables forced terminal colors", func(t *testing.T) {
+		t.Setenv("CLICOLOR_FORCE", "1")
+		t.Setenv("NO_COLOR", "")
+		e := newEnv(t, ghWithPatch(t))
+		e.tty = true
+		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		if strings.Contains(r.all(), "\x1b[") {
+			t.Errorf("ANSI color codes were emitted:\n%s", r.all())
 		}
 	})
 }

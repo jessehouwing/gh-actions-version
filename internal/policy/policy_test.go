@@ -132,6 +132,28 @@ func TestLoadLookupOrder(t *testing.T) {
 	}
 }
 
+func TestLoadFromUsesOnlyExplicitPath(t *testing.T) {
+	var asked []string
+	f, path, err := LoadFrom(context.Background(), func(_ context.Context, p string) (string, bool, error) {
+		asked = append(asked, p)
+		return "floating-versions-use: branches\n", p == ".github/custom.yml", nil
+	}, ".github/custom.yml")
+	if err != nil || path != ".github/custom.yml" || f.FloatingVersionsUse != "branches" {
+		t.Fatalf("path=%q err=%v file=%+v", path, err, f)
+	}
+	if len(asked) != 1 || asked[0] != ".github/custom.yml" {
+		t.Fatalf("read paths = %v; want only the explicit path", asked)
+	}
+	if _, _, err := LoadFrom(context.Background(), func(context.Context, string) (string, bool, error) {
+		return "", false, nil
+	}, "missing.yml"); err == nil {
+		t.Fatal("expected a missing explicit file to fail")
+	}
+	if _, _, err := LoadFrom(context.Background(), nil, " "); err == nil {
+		t.Fatal("expected an empty path to fail")
+	}
+}
+
 func TestRulePolicyAppliedByEngine(t *testing.T) {
 	st := state.New()
 	st.Owner, st.Repo = "o", "r"

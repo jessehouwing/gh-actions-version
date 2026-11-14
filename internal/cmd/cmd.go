@@ -40,13 +40,14 @@ const (
 type flags struct {
 	repo                                               string
 	check, autoFix, interactive, yes                   bool
-	local, fetchReleases                               bool
+	local, fetchReleases, noConfig, verbose, noColor   bool
 	checkMinor, checkReleases, checkImmut, checkMarket string
 	includePreview                                     bool
 	allowTagDeletion                                   bool
 	floatingUse                                        string
 	ignoreVersions                                     string
 	maxWait                                            time.Duration
+	config                                             string
 	json                                               []string
 	jq, template                                       string
 	jsonSet                                            bool
@@ -86,11 +87,13 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	root.SetErr(env.Stderr)
 	root.SetIn(env.Stdin)
 	root.SetArgs(args)
+	addGlobalFlags(root.PersistentFlags(), &f)
 
 	runCommand := func(c *cobra.Command, versions []string) {
 		f.jsonSet = c.Flags().Changed("json")
 		f.changed = map[string]bool{}
 		c.Flags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
+		c.InheritedFlags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
 		code = execute(ctx, &f, versions, env)
 	}
 	verify := &cobra.Command{
@@ -111,8 +114,8 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 			runCommand(c, versions)
 		},
 	}
-	addFlags(verify.Flags(), &f)
-	addFlags(fix.Flags(), &f)
+	addCommandFlags(verify.Flags(), &f)
+	addCommandFlags(fix.Flags(), &f)
 	root.AddCommand(verify, fix)
 
 	if err := root.Execute(); err != nil {
@@ -122,13 +125,21 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	return code
 }
 
-func addFlags(fl *pflag.FlagSet, f *flags) {
+func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringVarP(&f.repo, "repo", "R", "", "Target repository as [HOST/]OWNER/REPO (default: GH_REPO, GITHUB_REPOSITORY or the git remote)")
-	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one (requires a terminal)")
-	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every prompt (interactive becomes auto-fix)")
 	fl.BoolVar(&f.local, "local", false, "Read and fix refs in the local git repository; never pushes")
 	fl.BoolVar(&f.local, "local-only", false, "Alias of --local")
 	fl.BoolVar(&f.fetchReleases, "fetch-releases", false, "With --local: also read releases from GitHub (read-only)")
+	fl.DurationVar(&f.maxWait, "max-wait", 60*time.Second, "Longest rate limit wait tolerated before failing with exit code 2")
+	fl.BoolVarP(&f.verbose, "verbose", "v", false, "Write debug details to stderr")
+	fl.BoolVar(&f.noColor, "no-color", false, "Disable colored output")
+	fl.StringVar(&f.config, "config", "", "Read policy from this repository file instead of searching default locations")
+	fl.BoolVar(&f.noConfig, "no-config", false, "Skip repository policy files and use built-in defaults")
+}
+
+func addCommandFlags(fl *pflag.FlagSet, f *flags) {
+	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one (requires a terminal)")
+	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every prompt (interactive becomes auto-fix)")
 	fl.StringVar(&f.checkMinor, "check-minor-version", "error", "Minor version (v1.0) validation: error, warning or none")
 	fl.StringVar(&f.checkReleases, "check-releases", "error", "Require a release for every patch version: error, warning or none")
 	fl.StringVar(&f.checkImmut, "check-release-immutability", "error", "Require releases to be published and immutable: error, warning or none")
@@ -137,7 +148,6 @@ func addFlags(fl *pflag.FlagSet, f *flags) {
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
 	fl.StringVar(&f.ignoreVersions, "ignore-versions", "", "Comma separated versions to skip; wildcards like v1.* are supported")
-	fl.DurationVar(&f.maxWait, "max-wait", 60*time.Second, "Longest rate limit wait tolerated before failing with exit code 2")
 	fl.StringSliceVar(&f.json, "json", nil, "Print machine-readable JSON to stdout (fields: "+strings.Join(jsonFields, ", ")+"); human logs go to stderr")
 	fl.Lookup("json").NoOptDefVal = "all"
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
@@ -172,9 +182,11 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		human = env.Stderr
 	}
 	log := &output.Logger{
-		Out:     human,
-		Actions: env.Getenv("GITHUB_ACTIONS") == "true",
-		Color:   (env.IsTTY || term.IsColorForced()) && !term.IsColorDisabled(),
+		Out:      human,
+		DebugOut: env.Stderr,
+		Verbose:  f.verbose,
+		Actions:  env.Getenv("GITHUB_ACTIONS") == "true",
+		Color:    !f.noColor && (env.IsTTY || term.IsColorForced()) && !term.IsColorDisabled(),
 	}
 	r := &run{ctx: ctx, f: f, env: env, log: log, jsonMode: jsonMode}
 
@@ -196,6 +208,12 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	}
 	if f.maxWait < 0 {
 		return usageError(log, "--max-wait must not be negative")
+	}
+	if f.noConfig && f.changed["config"] {
+		return usageError(log, "--config and --no-config cannot be used together")
+	}
+	if f.changed["config"] && strings.TrimSpace(f.config) == "" {
+		return usageError(log, "--config requires a path")
 	}
 	if err := r.buildConfig(policy.Default()); err != nil {
 		return usageError(log, err.Error())
@@ -224,6 +242,10 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	}
 	if err != nil {
 		return r.fail(err)
+	}
+	if f.verbose {
+		options.WriteDebugInfo(r.cfg, log)
+		options.WriteRepositoryDebugInfo(st, r.token != "", log)
 	}
 
 	rules.Run(st, &st.Config, nil)
@@ -428,12 +450,26 @@ func (r *run) buildConfig(p *policy.File) error {
 
 // loadPolicy reads the repository's action-version.yml through read and rebuilds the configuration.
 func (r *run) loadPolicy(read policy.Reader) error {
-	p, path, err := policy.Load(r.ctx, read)
+	var (
+		p    *policy.File
+		path string
+		err  error
+	)
+	switch {
+	case r.f.noConfig:
+		p = policy.Default()
+	case r.f.changed["config"]:
+		p, path, err = policy.LoadFrom(r.ctx, read, r.f.config)
+	default:
+		p, path, err = policy.Load(r.ctx, read)
+	}
 	if err != nil {
 		return err
 	}
 	if path != "" {
 		r.log.Infof("Using the version policy from %s", path)
+	} else if r.f.noConfig {
+		r.log.Infof("Ignoring repository policy files")
 	}
 	return r.buildConfig(p)
 }

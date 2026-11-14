@@ -249,6 +249,26 @@ func Load(ctx context.Context, read Reader) (*File, string, error) {
 	return base, "", nil
 }
 
+// LoadFrom layers one explicitly named repository file over the built-in policy. Unlike Load, the
+// requested file must exist and no search is performed.
+func LoadFrom(ctx context.Context, read Reader, path string) (*File, string, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, "", fmt.Errorf("config path must not be empty")
+	}
+	content, found, err := read(ctx, path)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	if !found {
+		return nil, "", fmt.Errorf("config file %s not found", path)
+	}
+	over, err := Parse([]byte(content))
+	if err != nil {
+		return nil, "", fmt.Errorf("%s: %w", path, err)
+	}
+	return Merge(Default(), over), path, nil
+}
+
 // Pinned names the settings already fixed by command line flags; the policy must not change them.
 type Pinned struct {
 	FloatingVersionsUse, IgnorePreviewReleases, IgnoreVersions bool
