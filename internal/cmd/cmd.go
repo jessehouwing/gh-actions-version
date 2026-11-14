@@ -39,7 +39,8 @@ const (
 
 type flags struct {
 	repo                                             string
-	check, autoFix, interactive, yes                 bool
+	fix, interactive, autoMode, manualMode, yes      bool
+	dryRun, noVerifyAfter                            bool
 	local, fetchReleases, noConfig, verbose, noColor bool
 	includePreview                                   bool
 	allowTagDeletion                                 bool
@@ -47,6 +48,7 @@ type flags struct {
 	ignoreVersions                                   string
 	maxWait                                          time.Duration
 	config                                           string
+	mode                                             string
 	levels, ruleLevels, findingLevels                []string
 	json                                             []string
 	jq, template                                     string
@@ -101,7 +103,6 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 		Short: "Validate versions without making changes",
 		Args:  cobra.ArbitraryArgs,
 		Run: func(c *cobra.Command, versions []string) {
-			f.check = true
 			runCommand(c, versions)
 		},
 	}
@@ -110,12 +111,13 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 		Short: "Validate versions and apply remediations",
 		Args:  cobra.ArbitraryArgs,
 		Run: func(c *cobra.Command, versions []string) {
-			f.autoFix = !f.interactive
+			f.fix = true
 			runCommand(c, versions)
 		},
 	}
 	addCommandFlags(verify.Flags(), &f)
 	addCommandFlags(fix.Flags(), &f)
+	addFixFlags(fix.Flags(), &f)
 	root.AddCommand(verify, fix)
 
 	if err := root.Execute(); err != nil {
@@ -138,8 +140,6 @@ func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 }
 
 func addCommandFlags(fl *pflag.FlagSet, f *flags) {
-	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one (requires a terminal)")
-	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every prompt (interactive becomes auto-fix)")
 	fl.StringArrayVar(&f.levels, "level", nil, "Set a concern level (repeatable KEY=LEVEL)")
 	fl.StringArrayVar(&f.ruleLevels, "rule-level", nil, "Set a rule level (repeatable KEY=LEVEL)")
 	fl.StringArrayVar(&f.findingLevels, "finding-level", nil, "Set a finding level (repeatable KEY=LEVEL)")
@@ -151,6 +151,16 @@ func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.Lookup("json").NoOptDefVal = "all"
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
 	fl.StringVarP(&f.template, "template", "t", "", "Format the JSON output with a Go template")
+}
+
+func addFixFlags(fl *pflag.FlagSet, f *flags) {
+	fl.StringVar(&f.mode, "mode", "", "Fix mode: interactive, auto or manual")
+	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one")
+	fl.BoolVar(&f.autoMode, "auto", false, "Apply every auto-fixable remediation without prompting")
+	fl.BoolVar(&f.manualMode, "manual", false, "Print remediation instructions without applying fixes")
+	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every interactive prompt")
+	fl.BoolVar(&f.dryRun, "dry-run", false, "Show what auto mode would apply without making changes")
+	fl.BoolVar(&f.noVerifyAfter, "no-verify-after", false, "Skip re-validation after applying fixes")
 }
 
 func parseLevelOverrides(levels, ruleLevels, findingLevels []string) (*policy.File, error) {
@@ -290,15 +300,17 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	}
 
 	// Machine output must never block on a prompt unless the user explicitly asked for one.
-	tty := env.IsTTY && (!jsonMode || f.interactive)
+	explicitInteractive := f.interactive || f.mode == "interactive"
+	tty := env.IsTTY && (!jsonMode || explicitInteractive)
 	mode, err := options.ResolveMode(options.ModeFlags{
-		AutoFix: f.autoFix, Check: f.check, Interactive: f.interactive, Yes: f.yes, IsTTY: tty,
+		Fix: f.fix, Mode: f.mode, Interactive: f.interactive, Auto: f.autoMode, Manual: f.manualMode,
+		Yes: f.yes, DryRun: f.dryRun, IsTTY: tty,
 	})
 	if err != nil {
 		return usageError(log, err.Error())
 	}
 	r.mode = mode
-	r.cfg.AutoFix = mode != remediation.ReportOnly
+	r.cfg.AutoFix = mode == remediation.AutoFix || mode == remediation.Interactive
 
 	var (
 		st     *state.State
@@ -336,6 +348,12 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if err := remediation.Fix(ctx, st, opt); err != nil {
 		return r.fail(err)
 	}
+	if !f.noVerifyAfter && (mode == remediation.AutoFix || mode == remediation.Interactive) {
+		st, err = r.reverify(st, apiC, versions)
+		if err != nil {
+			return r.fail(err)
+		}
+	}
 	code := remediation.Finish(st, log, mode)
 	if f.local {
 		printPushCommands(st, log)
@@ -355,6 +373,87 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}
 	}
 	return code
+}
+
+func (r *run) reverify(previous *state.State, apiC *api.Client, versions []string) (*state.State, error) {
+	var verified *state.State
+	if r.f.local {
+		dir := r.env.Dir
+		if dir == "" {
+			dir = "."
+		}
+		var warnings []string
+		var err error
+		verified, warnings, err = localgit.Load(r.ctx, dir, r.cfg)
+		if err != nil {
+			return nil, err
+		}
+		for _, warning := range warnings {
+			r.log.Warning(warning)
+		}
+		if r.f.fetchReleases {
+			if apiC == nil {
+				return nil, errors.New("cannot re-verify local releases without a GitHub client")
+			}
+			verified.Releases, err = apiC.GetReleases(r.ctx)
+			if err != nil {
+				return nil, err
+			}
+			verified.Owner, verified.Repo, verified.Host = apiC.Repo.Owner, apiC.Repo.Name, apiC.Repo.Host
+		}
+	} else {
+		if apiC == nil {
+			return nil, errors.New("cannot re-verify without a GitHub client")
+		}
+		var err error
+		verified, err = api.Load(r.ctx, apiC, r.cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	rules.Run(verified, &verified.Config, nil)
+	if len(versions) > 0 {
+		scopeIssues(verified, versions)
+	}
+	reconcileVerifiedIssues(previous, verified)
+	return verified, nil
+}
+
+type issueIdentity struct {
+	rule, finding, version, currentSHA, expectedSHA string
+}
+
+func reconcileVerifiedIssues(previous, verified *state.State) {
+	byIdentity := map[issueIdentity][]*state.Issue{}
+	for _, issue := range previous.Issues {
+		key := issueIdentity{issue.Rule, issue.Finding, issue.Version, issue.CurrentSha, issue.ExpectedSha}
+		byIdentity[key] = append(byIdentity[key], issue)
+	}
+	matched := map[*state.Issue]bool{}
+	for _, issue := range verified.Issues {
+		key := issueIdentity{issue.Rule, issue.Finding, issue.Version, issue.CurrentSha, issue.ExpectedSha}
+		previousIssues := byIdentity[key]
+		if len(previousIssues) == 0 {
+			continue
+		}
+		old := previousIssues[0]
+		byIdentity[key] = previousIssues[1:]
+		matched[old] = true
+		issue.Status = old.Status
+		switch old.Status {
+		case state.StatusFixed:
+			issue.Status = state.StatusFailed
+			issue.Message += " (still present after applying the fix)"
+		case state.StatusManualFixRequired, state.StatusUnfixable:
+			issue.Message = old.Message
+		}
+	}
+	for _, issue := range previous.Issues {
+		if issue.Status == state.StatusFixed && !matched[issue] {
+			verified.AddIssue(issue)
+		}
+	}
 }
 
 // fail reports an operational error (authentication, rate limit, API failure) with exit code 2.
@@ -472,10 +571,10 @@ func (r *run) canOfferRefresh(res *api.AuthResult) bool {
 }
 
 func (r *run) authMode() api.Mode {
-	if r.mode == remediation.ReportOnly {
-		return api.ModeCheck
+	if r.mode == remediation.AutoFix || r.mode == remediation.Interactive {
+		return api.ModeFix
 	}
-	return api.ModeFix
+	return api.ModeCheck
 }
 
 // buildConfig resolves the effective configuration: the policy (built-in defaults plus the
@@ -543,7 +642,7 @@ func (r *run) loadRemote() (*state.State, state.Client, *api.Client, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if r.mode != remediation.ReportOnly && r.token == "" {
+	if (r.mode == remediation.AutoFix || r.mode == remediation.Interactive) && r.token == "" {
 		return nil, nil, nil, errors.New("fixing requires a GitHub token: run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN, or use `verify`")
 	}
 	if err := r.loadPolicy(func(ctx context.Context, path string) (string, bool, error) {

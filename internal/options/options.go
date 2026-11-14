@@ -121,48 +121,73 @@ func (e *UsageError) Error() string { return e.Msg }
 // ExitCode is the process exit code for usage errors.
 func (e *UsageError) ExitCode() int { return 2 }
 
-// ModeFlags are the fix-mode CLI flags.
+// ModeFlags are the fix-mode selectors and modifiers of the CLI.
 type ModeFlags struct {
-	AutoFix     bool // --auto-fix
-	Check       bool // --check / --no-fix
-	Interactive bool // -i / --interactive
-	Yes         bool // --yes
-	IsTTY       bool // stdin and stdout are terminals
-	// DefaultAutoFix is the auto-fix default when no mode flag is given and not on a TTY (the auto-fix input).
-	DefaultAutoFix bool
+	Fix         bool
+	Mode        string
+	Interactive bool
+	Auto        bool
+	Manual      bool
+	Yes         bool
+	DryRun      bool
+	IsTTY       bool
 }
 
-// ResolveMode validates the flag combination and returns the remediation mode:
-//   - --interactive is mutually exclusive with --auto-fix and --check, and requires a TTY unless --yes is given
-//   - --yes turns interactive into auto-fix and cannot be combined with --check
-//   - --auto-fix and --check are mutually exclusive
-//   - with no mode flag: interactive on a TTY, otherwise auto-fix when DefaultAutoFix else report-only
+// ResolveMode validates the fix-mode selectors and returns the remediation mode.
 func ResolveMode(f ModeFlags) (remediation.Mode, error) {
 	usage := func(msg string) (remediation.Mode, error) { return remediation.ReportOnly, &UsageError{msg} }
-	switch {
-	case f.Interactive && f.AutoFix:
-		return usage("--interactive and --auto-fix are mutually exclusive")
-	case f.Interactive && f.Check:
-		return usage("--interactive and --check are mutually exclusive")
-	case f.AutoFix && f.Check:
-		return usage("--auto-fix and --check are mutually exclusive")
-	case f.Yes && f.Check:
-		return usage("--yes and --check are mutually exclusive")
-	}
-	switch {
-	case f.Check:
+	if !f.Fix {
 		return remediation.ReportOnly, nil
-	case f.AutoFix || f.Yes:
+	}
+
+	selected := 0
+	mode := f.Mode
+	if mode != "" {
+		selected++
+	}
+	if f.Interactive {
+		selected++
+		mode = "interactive"
+	}
+	if f.Auto {
+		selected++
+		mode = "auto"
+	}
+	if f.Manual {
+		selected++
+		mode = "manual"
+	}
+	if selected > 1 {
+		return usage("fix mode options are mutually exclusive")
+	}
+	if mode != "" && mode != "interactive" && mode != "auto" && mode != "manual" {
+		return usage("--mode must be interactive, auto or manual")
+	}
+	if f.DryRun && mode != "" && mode != "auto" {
+		return usage("--dry-run can only be combined with auto mode")
+	}
+	if f.DryRun {
+		return remediation.DryRun, nil
+	}
+	switch mode {
+	case "manual":
+		if f.Yes {
+			return usage("--yes cannot be used with manual mode")
+		}
+		return remediation.Manual, nil
+	case "auto":
 		return remediation.AutoFix, nil
-	case f.Interactive:
-		if !f.IsTTY {
-			return usage("--interactive requires a terminal (TTY); use --auto-fix or --check in non-interactive environments")
+	case "interactive":
+		if !f.IsTTY && !f.Yes {
+			return usage("--interactive requires a terminal (TTY); use --auto or --yes in non-interactive environments")
+		}
+		if f.Yes {
+			return remediation.AutoFix, nil
 		}
 		return remediation.Interactive, nil
-	case f.IsTTY:
-		return remediation.Interactive, nil
-	case f.DefaultAutoFix:
-		return remediation.AutoFix, nil
 	}
-	return remediation.ReportOnly, nil
+	if f.IsTTY && !f.Yes {
+		return remediation.Interactive, nil
+	}
+	return remediation.AutoFix, nil
 }

@@ -21,6 +21,10 @@ const (
 	AutoFix
 	// Interactive prompts for every fixable issue.
 	Interactive
+	// Manual prints remediation instructions without applying fixes.
+	Manual
+	// DryRun reports the actions auto mode would apply without executing them.
+	DryRun
 )
 
 func (m Mode) String() string {
@@ -29,6 +33,10 @@ func (m Mode) String() string {
 		return "auto-fix"
 	case Interactive:
 		return "interactive"
+	case Manual:
+		return "manual"
+	case DryRun:
+		return "dry-run"
 	}
 	return "report-only"
 }
@@ -78,6 +86,10 @@ func Fix(ctx context.Context, st *state.State, opt Options) error {
 		return nil
 	case Interactive:
 		return interactive(ctx, st, opt)
+	case DryRun:
+		for _, i := range pendingFixable(st) {
+			opt.log().Infof("Would apply: %s (%s)", i.Action.Description(), i.Action.Version())
+		}
 	}
 	for _, i := range st.Issues {
 		if i.Status == state.StatusPending {

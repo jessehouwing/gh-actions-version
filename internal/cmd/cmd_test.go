@@ -181,12 +181,13 @@ func TestParameterValidation(t *testing.T) {
 		}
 	})
 	t.Run("Should expose every flag in --help", func(t *testing.T) {
-		r := newEnv(t, nil).run("--help")
+		r := newEnv(t, nil).runRaw("fix", "--help")
 		if r.code != 0 {
 			t.Fatalf("exit %d", r.code)
 		}
 		for _, f := range []string{"--repo", "--interactive", "--yes", "--local", "--local-only",
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
+			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
 			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
@@ -262,6 +263,54 @@ func TestSubcommands(t *testing.T) {
 		r := newEnv(t, gh).run("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if r.code != ExitOK || gh.TagSha("v1") != c1 || gh.TagSha("v1.0") != c1 {
 			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
+		}
+	})
+	t.Run("manual mode prints instructions without requiring a token or writing", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		delete(e.vars, "GH_TOKEN")
+		r := e.runRaw("fix", "-R", "o/r", "--mode=manual", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "git push origin") {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("dry-run names actions but does not write", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--dry-run", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "Would apply: Create tag (v1)") || !strings.Contains(r.all(), "Dry Run (no changes made)") {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("conflicting fix modes are rejected", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw("fix", "--mode=manual", "--auto")
+		if r.code != ExitUsage {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("fix revalidates after applying actions by default", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		tagLists := 0
+		for _, request := range gh.Requests() {
+			if strings.Contains(request, "GET /repos/o/r/git/refs/tags?") {
+				tagLists++
+			}
+		}
+		if r.code != ExitOK || tagLists != 2 {
+			t.Errorf("exit %d tag-list requests %d\n%s", r.code, tagLists, r.all())
+		}
+	})
+	t.Run("--no-verify-after skips revalidation", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--no-verify-after", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		tagLists := 0
+		for _, request := range gh.Requests() {
+			if strings.Contains(request, "GET /repos/o/r/git/refs/tags?") {
+				tagLists++
+			}
+		}
+		if r.code != ExitOK || tagLists != 1 {
+			t.Errorf("exit %d tag-list requests %d\n%s", r.code, tagLists, r.all())
 		}
 	})
 	t.Run("legacy mode flags are not accepted", func(t *testing.T) {

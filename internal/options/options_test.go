@@ -161,19 +161,20 @@ func TestResolveMode(t *testing.T) {
 		want  remediation.Mode
 		usage bool
 	}{
-		{"interactive requires a TTY", ModeFlags{Interactive: true}, 0, true},
-		{"interactive on a TTY", ModeFlags{Interactive: true, IsTTY: true}, remediation.Interactive, false},
-		{"interactive and auto-fix are mutually exclusive", ModeFlags{Interactive: true, AutoFix: true, IsTTY: true}, 0, true},
-		{"interactive and check are mutually exclusive", ModeFlags{Interactive: true, Check: true, IsTTY: true}, 0, true},
-		{"auto-fix and check are mutually exclusive", ModeFlags{AutoFix: true, Check: true}, 0, true},
-		{"yes and check are mutually exclusive", ModeFlags{Yes: true, Check: true}, 0, true},
-		{"yes turns interactive into auto-fix even without a TTY", ModeFlags{Interactive: true, Yes: true}, remediation.AutoFix, false},
-		{"yes alone means auto-fix", ModeFlags{Yes: true, IsTTY: true}, remediation.AutoFix, false},
-		{"check is report only", ModeFlags{Check: true, IsTTY: true}, remediation.ReportOnly, false},
-		{"auto-fix flag", ModeFlags{AutoFix: true}, remediation.AutoFix, false},
-		{"default on a TTY is interactive", ModeFlags{IsTTY: true}, remediation.Interactive, false},
-		{"default without TTY follows the auto-fix input", ModeFlags{DefaultAutoFix: true}, remediation.AutoFix, false},
-		{"default without TTY and input is report only", ModeFlags{}, remediation.ReportOnly, false},
+		{"verify is report only", ModeFlags{}, remediation.ReportOnly, false},
+		{"default fix mode on a TTY is interactive", ModeFlags{Fix: true, IsTTY: true}, remediation.Interactive, false},
+		{"default fix mode without a TTY is auto", ModeFlags{Fix: true}, remediation.AutoFix, false},
+		{"explicit auto mode", ModeFlags{Fix: true, Mode: "auto"}, remediation.AutoFix, false},
+		{"explicit manual mode", ModeFlags{Fix: true, Mode: "manual"}, remediation.Manual, false},
+		{"interactive mode requires a TTY", ModeFlags{Fix: true, Mode: "interactive"}, 0, true},
+		{"interactive mode on a TTY", ModeFlags{Fix: true, Mode: "interactive", IsTTY: true}, remediation.Interactive, false},
+		{"yes answers every interactive prompt", ModeFlags{Fix: true, Interactive: true, Yes: true}, remediation.AutoFix, false},
+		{"yes alone selects auto on a TTY", ModeFlags{Fix: true, Yes: true, IsTTY: true}, remediation.AutoFix, false},
+		{"dry-run mode", ModeFlags{Fix: true, DryRun: true}, remediation.DryRun, false},
+		{"conflicting mode selectors", ModeFlags{Fix: true, Auto: true, Manual: true}, 0, true},
+		{"invalid mode", ModeFlags{Fix: true, Mode: "unknown"}, 0, true},
+		{"dry-run conflicts with manual", ModeFlags{Fix: true, DryRun: true, Manual: true}, 0, true},
+		{"yes conflicts with manual mode", ModeFlags{Fix: true, Manual: true, Yes: true}, 0, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

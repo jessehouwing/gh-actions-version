@@ -224,7 +224,10 @@ func errorCount(st *state.State, status string) int {
 func Finish(st *state.State, log *output.Logger, mode Mode) int {
 	WriteUnresolvedIssues(st, log)
 	code := ExitCode(st)
-	if mode != ReportOnly {
+	if mode == DryRun {
+		log.Info("")
+		log.Info("### Dry Run (no changes made)")
+	} else if mode == AutoFix || mode == Interactive {
 		log.Info("")
 		log.Info("### Auto-fix Summary")
 		log.Infof("✓ Fixed issues: %d", st.FixedCount())
