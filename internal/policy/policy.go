@@ -45,6 +45,7 @@ type File struct {
 	IgnoreVersions      []string            `yaml:"ignore-versions"`
 	Concerns            map[string]Settings `yaml:"concerns"`
 	Rules               map[string]Settings `yaml:"rules"`
+	Sources             map[string]string   `yaml:"-"`
 }
 
 // concernRules lists the rules of every concern.
@@ -164,6 +165,41 @@ func (f *File) validate() error {
 	return nil
 }
 
+// MarkSource records the origin of each setting explicitly present in f.
+func (f *File) MarkSource(source string) {
+	if f.Sources == nil {
+		f.Sources = map[string]string{}
+	}
+	mark := func(path, value string) {
+		if value != "" {
+			f.Sources[path] = source
+		}
+	}
+	mark("floating-versions-use", f.FloatingVersionsUse)
+	mark("preview", f.Preview)
+	if f.IgnoreVersions != nil {
+		f.Sources["ignore-versions"] = source
+	}
+	for concern, settings := range f.Concerns {
+		markSettingsSources(f.Sources, "concerns."+concern, settings, source)
+	}
+	for name, settings := range f.Rules {
+		markSettingsSources(f.Sources, "rules."+name, settings, source)
+	}
+}
+
+func markSettingsSources(sources map[string]string, prefix string, settings Settings, source string) {
+	if settings.Level != "" {
+		sources[prefix+".level"] = source
+	}
+	if settings.Fix != "" {
+		sources[prefix+".fix"] = source
+	}
+	for finding, settings := range settings.Findings {
+		markSettingsSources(sources, prefix+".findings."+finding, settings, source)
+	}
+}
+
 func sortedKeys(m map[string]Settings) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -179,6 +215,7 @@ func Default() *File {
 	if err != nil {
 		panic("built-in action-version.yml is invalid: " + err.Error())
 	}
+	f.MarkSource("default")
 	return f
 }
 
@@ -191,6 +228,7 @@ func Merge(base, over *File) *File {
 		IgnoreVersions:      base.IgnoreVersions,
 		Concerns:            mergeSettings(base.Concerns, over.Concerns),
 		Rules:               mergeSettings(base.Rules, over.Rules),
+		Sources:             mergeSources(base.Sources, over.Sources),
 	}
 	if over.FloatingVersionsUse != "" {
 		out.FloatingVersionsUse = over.FloatingVersionsUse
@@ -200,6 +238,17 @@ func Merge(base, over *File) *File {
 	}
 	if over.IgnoreVersions != nil {
 		out.IgnoreVersions = over.IgnoreVersions
+	}
+	return out
+}
+
+func mergeSources(base, over map[string]string) map[string]string {
+	out := make(map[string]string, len(base)+len(over))
+	for key, source := range base {
+		out[key] = source
+	}
+	for key, source := range over {
+		out[key] = source
 	}
 	return out
 }
@@ -249,6 +298,7 @@ func Load(ctx context.Context, read Reader) (*File, string, error) {
 			if err != nil {
 				return nil, "", fmt.Errorf("%s: %w", path, err)
 			}
+			over.MarkSource("file:" + path)
 			return Merge(base, over), path, nil
 		}
 	}
@@ -272,6 +322,7 @@ func LoadFrom(ctx context.Context, read Reader, path string) (*File, string, err
 	if err != nil {
 		return nil, "", fmt.Errorf("%s: %w", path, err)
 	}
+	over.MarkSource("file:" + path)
 	return Merge(Default(), over), path, nil
 }
 
@@ -284,21 +335,40 @@ type Pinned struct {
 
 // Apply writes the policy into cfg, leaving pinned settings untouched.
 func (f *File) Apply(cfg *state.Config, pin Pinned) {
+	cfg.Sources = mergeSources(f.Sources, nil)
+	if cfg.Sources == nil {
+		cfg.Sources = map[string]string{}
+	}
 	if !pin.FloatingVersionsUse && f.FloatingVersionsUse != "" {
 		cfg.FloatingVersionsUse = f.FloatingVersionsUse
+	}
+	if pin.FloatingVersionsUse {
+		cfg.Sources["floating-versions-use"] = "flag"
 	}
 	if !pin.IgnorePreviewReleases && f.Preview != "" {
 		cfg.IgnorePreviewReleases = f.Preview == "exclude"
 	}
+	if pin.IgnorePreviewReleases {
+		cfg.Sources["preview"] = "flag"
+	}
 	if !pin.IgnoreVersions && f.IgnoreVersions != nil {
 		cfg.IgnoreVersions = append([]string(nil), f.IgnoreVersions...)
 	}
+	if pin.IgnoreVersions {
+		cfg.Sources["ignore-versions"] = "flag"
+	}
 
 	cfg.Rules = map[string]state.RulePolicy{}
+	rulesByName := make(map[string]*rules.Rule)
+	for _, rule := range rules.All() {
+		rulesByName[rule.Name] = rule
+	}
 	for concern, names := range concernRules {
 		s := f.Concerns[concern]
 		level := s.Level
 		autoFix := fixPolicy(s.Fix)
+		concernLevelSource := sourceFor(f.Sources, "concerns."+concern+".level", "default")
+		concernFixSource := sourceFor(f.Sources, "concerns."+concern+".fix", "default")
 		if field := checkLevel(cfg, concern); field != nil {
 			// These concern levels also gate the rules, so they are set on the config; the issue
 			// level is then taken from there and per-rule overrides apply below.
@@ -308,6 +378,18 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 			level = ""
 		}
 		for _, name := range names {
+			rulePath := "rules." + name
+			ruleLevelSource := sourceFor(f.Sources, rulePath+".level", concernLevelSource)
+			ruleFixSource := sourceFor(f.Sources, rulePath+".fix", concernFixSource)
+			cfg.Sources[rulePath+".level"] = ruleLevelSource
+			cfg.Sources[rulePath+".fix"] = ruleFixSource
+			if rule := rulesByName[name]; rule != nil {
+				for _, finding := range rule.Findings {
+					findingPath := rulePath + ".findings." + finding.ID
+					cfg.Sources[findingPath+".level"] = sourceFor(f.Sources, findingPath+".level", ruleLevelSource)
+					cfg.Sources[findingPath+".fix"] = sourceFor(f.Sources, findingPath+".fix", ruleFixSource)
+				}
+			}
 			if level != "" || autoFix != nil {
 				cfg.Rules[name] = state.RulePolicy{Level: level, AutoFix: autoFix}
 			}
@@ -330,6 +412,13 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 		}
 		cfg.Rules[name] = p
 	}
+}
+
+func sourceFor(sources map[string]string, path, fallback string) string {
+	if source := sources[path]; source != "" {
+		return source
+	}
+	return fallback
 }
 
 func fixPolicy(value string) *bool {

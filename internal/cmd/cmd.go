@@ -237,6 +237,7 @@ func parseLevelOverrides(levels, ruleLevels, findingLevels []string) (*policy.Fi
 		setting.Findings[key] = policy.Settings{Level: level}
 		over.Rules[rule] = setting
 	}
+	over.MarkSource("flag")
 	return over, nil
 }
 
@@ -694,6 +695,13 @@ func (r *run) buildConfig(p *policy.File) error {
 		cfg.IgnoreVersions = options.ParseIgnoreVersions(f.ignoreVersions, r.log)
 	}
 	p.Apply(&cfg, pin)
+	if cfg.Sources == nil {
+		cfg.Sources = map[string]string{}
+	}
+	cfg.Sources["allow-destructive-tag-deletion"] = "default"
+	if f.allowTagDeletion {
+		cfg.Sources["allow-destructive-tag-deletion"] = "flag"
+	}
 	if errs := options.Validate(cfg); len(errs) > 0 {
 		return errors.New(strings.Join(errs, "\n"))
 	}

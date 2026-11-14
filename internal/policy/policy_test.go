@@ -42,6 +42,66 @@ func TestDefaultsMatchBuiltInConfig(t *testing.T) {
 	}
 }
 
+func TestConfigurationSourcesFollowPrecedence(t *testing.T) {
+	f, _, err := Load(context.Background(), func(_ context.Context, path string) (string, bool, error) {
+		if path != "action-version.yml" {
+			return "", false, nil
+		}
+		return `floating-versions-use: tags
+preview: exclude
+concerns:
+  major:
+    level: error
+rules:
+  major_tag_missing:
+    findings:
+      major_tag_missing:
+        level: warning
+`, true, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := options.DefaultConfig()
+	f.Apply(&cfg, Pinned{})
+	for path, want := range map[string]string{
+		"floating-versions-use":         "file:action-version.yml",
+		"preview":                       "file:action-version.yml",
+		"concerns.major.level":          "file:action-version.yml",
+		"rules.major_tag_missing.level": "file:action-version.yml",
+		"rules.major_tag_missing.findings.major_tag_missing.level": "file:action-version.yml",
+		"concerns.minor.level": "default",
+	} {
+		if got := cfg.Sources[path]; got != want {
+			t.Errorf("source for %q = %q, want %q", path, got, want)
+		}
+	}
+
+	over, err := Parse([]byte("concerns:\n  major:\n    level: warning\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	over.MarkSource("flag")
+	cfg = options.DefaultConfig()
+	Merge(f, over).Apply(&cfg, Pinned{})
+	if got := cfg.Sources["concerns.major.level"]; got != "flag" {
+		t.Errorf("source for command-line concern override = %q, want flag", got)
+	}
+	if got := cfg.Sources["rules.major_tag_missing.level"]; got != "flag" {
+		t.Errorf("source for inherited command-line rule level = %q, want flag", got)
+	}
+
+	cfg = options.DefaultConfig()
+	f.Apply(&cfg, Pinned{FloatingVersionsUse: true, IgnorePreviewReleases: true})
+	if got := cfg.Sources["floating-versions-use"]; got != "flag" {
+		t.Errorf("source for floating-versions-use flag = %q, want flag", got)
+	}
+	if got := cfg.Sources["preview"]; got != "flag" {
+		t.Errorf("source for preview flag = %q, want flag", got)
+	}
+}
+
 func TestPreviewPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		value         string

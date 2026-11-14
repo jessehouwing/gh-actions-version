@@ -199,6 +199,8 @@ type Config struct {
 	// AllowDestructiveTagDeletion permits deleting a tag whose immutable release was deleted (irreversible).
 	AllowDestructiveTagDeletion bool
 	IgnoreVersions              []string
+	// Sources maps effective policy paths to flag, file:<path>, or default.
+	Sources map[string]string
 	// Rules holds the per-rule level/fix policy from action-version.yml, keyed by rule name.
 	Rules map[string]RulePolicy
 }

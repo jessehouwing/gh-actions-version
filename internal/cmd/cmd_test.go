@@ -22,6 +22,26 @@ type result struct {
 	out, err string
 }
 
+func TestParseLevelOverridesTracksFlagSources(t *testing.T) {
+	over, err := parseLevelOverrides(
+		[]string{"major=warning"},
+		[]string{"major_tag_missing=error"},
+		[]string{"major_tag_missing=none"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		"concerns.major.level",
+		"rules.major_tag_missing.level",
+		"rules.major_tag_missing.findings.major_tag_missing.level",
+	} {
+		if got := over.Sources[path]; got != "flag" {
+			t.Errorf("source for %q = %q, want flag", path, got)
+		}
+	}
+}
+
 func (r result) json(t *testing.T) map[string]any {
 	t.Helper()
 	var m map[string]any
