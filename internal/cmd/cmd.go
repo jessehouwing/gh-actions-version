@@ -39,7 +39,7 @@ const (
 
 type flags struct {
 	repo                                               string
-	check, noFix, autoFix, interactive, yes            bool
+	check, autoFix, interactive, yes                   bool
 	local, fetchReleases                               bool
 	checkMinor, checkReleases, checkImmut, checkMarket string
 	includePreview                                     bool
@@ -59,26 +59,27 @@ func Run(ctx context.Context, args []string, env Env) int {
 	var f flags
 	code := ExitOK
 	root := &cobra.Command{
-		Use:   "actions-version [versions...]",
+		Use:   "actions-version",
 		Short: "Validate and fix the version tags, branches and releases of an action repository",
 		Long: `Validate the semantic version tags, branches and releases of a GitHub Action repository
 against GitHub's immutable release strategy: patch versions (v1.0.0) need an immutable release,
 floating versions (v1, v1.0, latest) must point at the latest compatible patch.
 
-Without flags the command is interactive on a terminal and report-only elsewhere.
-Optional version arguments (v1, v1.0, v1.*) limit the report and fixes to those versions.
+Use verify for read-only validation and fix to apply remediations. Both commands accept optional
+version arguments (v1, v1.0, v1.*) to limit the report and fixes to those versions.
 
 Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate limit errors.`,
 		Version:           Version,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
-		Args:              cobra.ArbitraryArgs,
+		Args:              cobra.NoArgs,
 		DisableAutoGenTag: true,
-		Run: func(c *cobra.Command, versions []string) {
-			f.jsonSet = c.Flags().Changed("json")
-			f.changed = map[string]bool{}
-			c.Flags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
-			code = execute(ctx, &f, versions, env)
+		RunE: func(c *cobra.Command, _ []string) error {
+			if err := c.Help(); err != nil {
+				return err
+			}
+			code = ExitUsage
+			return nil
 		},
 	}
 	root.SetOut(env.Stdout)
@@ -86,11 +87,43 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	root.SetIn(env.Stdin)
 	root.SetArgs(args)
 
-	fl := root.Flags()
+	runCommand := func(c *cobra.Command, versions []string) {
+		f.jsonSet = c.Flags().Changed("json")
+		f.changed = map[string]bool{}
+		c.Flags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
+		code = execute(ctx, &f, versions, env)
+	}
+	verify := &cobra.Command{
+		Use:   "verify [versions...]",
+		Short: "Validate versions without making changes",
+		Args:  cobra.ArbitraryArgs,
+		Run: func(c *cobra.Command, versions []string) {
+			f.check = true
+			runCommand(c, versions)
+		},
+	}
+	fix := &cobra.Command{
+		Use:   "fix [versions...]",
+		Short: "Validate versions and apply remediations",
+		Args:  cobra.ArbitraryArgs,
+		Run: func(c *cobra.Command, versions []string) {
+			f.autoFix = !f.interactive
+			runCommand(c, versions)
+		},
+	}
+	addFlags(verify.Flags(), &f)
+	addFlags(fix.Flags(), &f)
+	root.AddCommand(verify, fix)
+
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(env.Stderr, "Error:", err)
+		return ExitUsage
+	}
+	return code
+}
+
+func addFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringVarP(&f.repo, "repo", "R", "", "Target repository as [HOST/]OWNER/REPO (default: GH_REPO, GITHUB_REPOSITORY or the git remote)")
-	fl.BoolVar(&f.check, "check", false, "Report only, never write; exit 1 when errors are found")
-	fl.BoolVar(&f.noFix, "no-fix", false, "Alias of --check")
-	fl.BoolVar(&f.autoFix, "auto-fix", false, "Apply every fixable remediation without prompting")
 	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one (requires a terminal)")
 	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every prompt (interactive becomes auto-fix)")
 	fl.BoolVar(&f.local, "local", false, "Read and fix refs in the local git repository; never pushes")
@@ -109,12 +142,6 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	fl.Lookup("json").NoOptDefVal = "all"
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
 	fl.StringVarP(&f.template, "template", "t", "", "Format the JSON output with a Go template")
-
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(env.Stderr, "Error:", err)
-		return ExitUsage
-	}
-	return code
 }
 
 func usageError(log *output.Logger, msgs ...string) int {
@@ -177,7 +204,7 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	// Machine output must never block on a prompt unless the user explicitly asked for one.
 	tty := env.IsTTY && (!jsonMode || f.interactive)
 	mode, err := options.ResolveMode(options.ModeFlags{
-		AutoFix: f.autoFix, Check: f.check || f.noFix, Interactive: f.interactive, Yes: f.yes, IsTTY: tty,
+		AutoFix: f.autoFix, Check: f.check, Interactive: f.interactive, Yes: f.yes, IsTTY: tty,
 	})
 	if err != nil {
 		return usageError(log, err.Error())
@@ -421,7 +448,7 @@ func (r *run) loadRemote() (*state.State, state.Client, *api.Client, error) {
 		return nil, nil, nil, err
 	}
 	if r.mode != remediation.ReportOnly && r.token == "" {
-		return nil, nil, nil, errors.New("fixing requires a GitHub token: run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN, or use --check")
+		return nil, nil, nil, errors.New("fixing requires a GitHub token: run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN, or use `verify`")
 	}
 	if err := r.loadPolicy(func(ctx context.Context, path string) (string, bool, error) {
 		return c.GetFileContents(ctx, path, "")

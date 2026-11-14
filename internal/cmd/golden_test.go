@@ -31,7 +31,7 @@ func TestGolden(t *testing.T) {
 			t.Run(fixture.name+"/"+format, func(t *testing.T) {
 				gh := fixture.new(t)
 				e := newEnv(t, gh)
-				args := []string{"-R", "o/r", "--check", "--check-marketplace=none"}
+				args := []string{"verify", "-R", "o/r", "--check-marketplace=none"}
 				tempDir := t.TempDir()
 				var summaryPath string
 				if format == "json" {

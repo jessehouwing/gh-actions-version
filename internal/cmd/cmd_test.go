@@ -72,6 +72,40 @@ func newEnv(t *testing.T, gh *testutil.GitHub) *testEnv {
 }
 
 func (e *testEnv) run(args ...string) result {
+	command := ""
+	filtered := make([]string, 0, len(args))
+	for _, arg := range args {
+		switch arg {
+		case "verify", "fix":
+			command = arg
+		case "--check", "--no-fix":
+			if command == "" {
+				command = "verify"
+			}
+		case "--auto-fix":
+			if command == "" {
+				command = "fix"
+			}
+		case "--interactive", "-i", "--yes":
+			if command == "" {
+				command = "fix"
+			}
+			filtered = append(filtered, arg)
+		default:
+			filtered = append(filtered, arg)
+		}
+	}
+	if command == "" {
+		if e.tty {
+			command = "fix"
+		} else {
+			command = "verify"
+		}
+	}
+	return e.runRaw(append([]string{command}, filtered...)...)
+}
+
+func (e *testEnv) runRaw(args ...string) result {
 	env := Env{
 		Stdout: &e.stdout, Stderr: &e.stderr, IsTTY: e.tty, Dir: e.dir, Prompter: e.prompter,
 		Getenv: func(k string) string { return e.vars[k] },
@@ -108,6 +142,10 @@ func (e *testEnv) run(args ...string) result {
 var tagsOnly = []string{"-R", "o/r", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none"}
 
 func args(extra ...string) []string { return append(append([]string(nil), tagsOnly...), extra...) }
+
+func commandArgs(command string, args ...string) []string {
+	return append([]string{command}, args...)
+}
 
 var c1, c2 = testutil.SHA('1'), testutil.SHA('2')
 
@@ -147,7 +185,7 @@ func TestParameterValidation(t *testing.T) {
 		if r.code != 0 {
 			t.Fatalf("exit %d", r.code)
 		}
-		for _, f := range []string{"--repo", "--check", "--no-fix", "--auto-fix", "--interactive", "--yes", "--local", "--local-only",
+		for _, f := range []string{"--repo", "--interactive", "--yes", "--local", "--local-only",
 			"--fetch-releases", "--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace",
 			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
@@ -167,6 +205,36 @@ func TestParameterValidation(t *testing.T) {
 	t.Run("Should reject a negative --max-wait", func(t *testing.T) {
 		if r := newEnv(t, testutil.NewGitHub(t)).run(args("--max-wait=-1s")...); r.code != 2 {
 			t.Errorf("exit %d", r.code)
+		}
+	})
+}
+
+func TestSubcommands(t *testing.T) {
+	t.Run("bare invocation prints help and exits 2", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw()
+		if r.code != ExitUsage || !strings.Contains(r.out, "Usage:") || !strings.Contains(r.out, "verify") || !strings.Contains(r.out, "fix") {
+			t.Errorf("exit %d\n%s", r.code, r.out)
+		}
+	})
+	t.Run("verify is read-only", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).run(commandArgs("verify", args()...)...)
+		if r.code != ExitValidation || len(gh.Writes()) != 0 {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("fix applies remediations by default", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).run("fix", "-R", "o/r", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		if r.code != ExitOK || gh.TagSha("v1") != c1 || gh.TagSha("v1.0") != c1 {
+			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
+		}
+	})
+	t.Run("legacy mode flags are not accepted", func(t *testing.T) {
+		for _, args := range [][]string{{"verify", "--check"}, {"verify", "--no-fix"}, {"fix", "--auto-fix"}} {
+			if r := newEnv(t, nil).runRaw(args...); r.code != ExitUsage {
+				t.Errorf("%v: exit %d\n%s", args, r.code, r.all())
+			}
 		}
 	})
 }
@@ -283,9 +351,9 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d writes %v", r.code, gh.Writes())
 		}
 	})
-	t.Run("--no-fix is an alias of --check", func(t *testing.T) {
+	t.Run("verify never writes", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).run(args("--no-fix")...)
+		r := newEnv(t, gh).run(commandArgs("verify", args()...)...)
 		if r.code != 1 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d writes %v", r.code, gh.Writes())
 		}
@@ -342,17 +410,6 @@ func TestModes(t *testing.T) {
 		}
 	})
 
-	t.Run("mode exclusions are usage errors", func(t *testing.T) {
-		for _, a := range [][]string{
-			{"--auto-fix", "--check"}, {"-i", "--auto-fix"}, {"-i", "--check"}, {"--yes", "--check"},
-		} {
-			e := newEnv(t, testutil.NewGitHub(t))
-			e.tty = true
-			if r := e.run(args(a...)...); r.code != 2 || !strings.Contains(r.all(), "mutually exclusive") {
-				t.Errorf("%v: exit %d\n%s", a, r.code, r.all())
-			}
-		}
-	})
 	t.Run("--interactive requires a terminal", func(t *testing.T) {
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("-i")...)
 		if r.code != 2 || !strings.Contains(r.all(), "requires a terminal") {
@@ -366,13 +423,13 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
-	t.Run("interactive is the default on a terminal and applies approved fixes", func(t *testing.T) {
+	t.Run("interactive mode applies approved fixes", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{picks: []int{0, 1, 4}} // apply, skip, ... quit
 		e.prompter = p
-		r := e.run(args()...)
+		r := e.run(args("--interactive")...)
 		if len(p.asked) == 0 {
 			t.Fatalf("no prompt shown\n%s", r.all())
 		}
@@ -393,13 +450,13 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
 		}
 	})
-	t.Run("--check on a terminal never prompts", func(t *testing.T) {
+	t.Run("verify on a terminal never prompts", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{}
 		e.prompter = p
-		if r := e.run(args("--check")...); r.code != 1 || len(p.asked) != 0 || len(gh.Writes()) != 0 {
+		if r := e.run(commandArgs("verify", args()...)...); r.code != 1 || len(p.asked) != 0 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d asked %v writes %v", r.code, p.asked, gh.Writes())
 		}
 	})
@@ -409,7 +466,7 @@ func TestModes(t *testing.T) {
 		e.tty = true
 		p := &fakePrompter{}
 		e.prompter = p
-		if r := e.run(args("--json")...); r.code != 1 || len(p.asked) != 0 {
+		if r := e.run(commandArgs("verify", args("--json")...)...); r.code != 1 || len(p.asked) != 0 {
 			t.Errorf("exit %d asked %v\n%s", r.code, p.asked, r.all())
 		}
 	})
@@ -657,7 +714,7 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("prints nothing on stdout for usage errors", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--json", "--check", "--auto-fix")...)
+		r := newEnv(t, ghWithPatch(t)).run(commandArgs("verify", args("--json", "--bogus")...)...)
 		if r.code != 2 || r.out != "" {
 			t.Errorf("exit %d out %q", r.code, r.out)
 		}
@@ -724,7 +781,7 @@ func TestAuthScopes(t *testing.T) {
 			gh.SetScopes("repo", "workflow")
 			return nil
 		}
-		r := e.run(args()...)
+		r := e.run(args("--interactive")...)
 		if r.code != 0 || strings.Join(refreshed, ",") != "github.com,repo,workflow" {
 			t.Errorf("exit %d refreshed %v\n%s", r.code, refreshed, r.all())
 		}
@@ -740,7 +797,7 @@ func TestAuthScopes(t *testing.T) {
 		delete(e.vars, "GH_TOKEN")
 		e.tty = true
 		e.prompter = &fakePrompter{confirm: false}
-		if r := e.run(args()...); r.code != 2 {
+		if r := e.run(args("--interactive")...); r.code != 2 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
