@@ -166,7 +166,7 @@ type Issue struct {
 	ManualFixCommand string
 	Action           Action
 	Status           string
-	// ManualOnly is set by the policy (autofix: false): the issue is reported with manual instructions
+	// ManualOnly is set by the policy (fix: manual): the issue is reported with manual instructions
 	// and never fixed by the tool.
 	ManualOnly bool
 }
@@ -199,7 +199,7 @@ type Config struct {
 	// AllowDestructiveTagDeletion permits deleting a tag whose immutable release was deleted (irreversible).
 	AllowDestructiveTagDeletion bool
 	IgnoreVersions              []string
-	// Rules holds the per-rule level/autofix policy from action-version.yml, keyed by rule name.
+	// Rules holds the per-rule level/fix policy from action-version.yml, keyed by rule name.
 	Rules map[string]RulePolicy
 }
 
@@ -210,7 +210,7 @@ type RulePolicy struct {
 	Findings map[string]FindingPolicy
 }
 
-// FindingPolicy overrides a rule's reporting and autofix settings for one finding.
+// FindingPolicy overrides a rule's reporting and fix settings for one finding.
 type FindingPolicy struct {
 	Level   string
 	AutoFix *bool

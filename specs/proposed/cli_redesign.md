@@ -47,7 +47,7 @@ These override `action-version.yml`. Value flags take one value; boolean flags a
 | Flag | Values | Config key |
 |---|---|---|
 | `--floating-versions-use` | `tags`, `branches` | `floating-versions-use` |
-| `--include-preview-releases` | bool | `ignore-preview-releases: false` |
+| `--include-preview-releases` | bool | `preview: include` |
 | `--ignore-version` | repeatable pattern; quote wildcards (`'v1.*'`) | `ignore` / `ignore-versions` |
 | `--level CONCERN=LEVEL` | repeatable; `LEVEL` is `error`, `warning`, `none` | `concerns.<concern>.level` |
 | `--rule-level RULE=LEVEL` | repeatable | `rules.<rule>.level` |
@@ -68,7 +68,7 @@ Questions, in order:
 4. Marketplace checks: on or off.
 5. Prerelease handling: ignore previews when choosing the latest patch.
 6. Versions to ignore.
-7. Per-concern auto-fix: allowed or manual only.
+7. Per-concern fix policy: automatic or manual only.
 8. Where to write: repository root or `.github/`.
 
 Flags:
@@ -153,7 +153,7 @@ findings to fix. Mode is a required choice with a default:
 | `--dangerously-allow-destructive-tag-deletion` | Allow deleting tags of deleted immutable releases; irreversible. |
 | `--no-verify-after` | Skip the re-validation pass after fixing (default: re-run and report what remains). |
 
-Per-concern and per-rule `autofix: false` in the policy file still turns that finding into a manual instruction,
+Per-concern and per-rule `fix: manual` in the policy file still turns that finding into a manual instruction,
 in every mode.
 
 ## Output formats

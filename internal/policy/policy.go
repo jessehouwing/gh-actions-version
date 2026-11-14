@@ -1,6 +1,6 @@
 // Package policy reads action-version.yml: the versioning strategy (tags or branches, which versions
 // are checked) and, per concern or rule, whether problems are errors, warnings or ignored and
-// whether they may be fixed automatically. The built-in file holds the defaults; a repository file
+// the fix policy. The built-in file holds the defaults; a repository file
 // is layered over it and command line flags win over both.
 package policy
 
@@ -30,21 +30,21 @@ var FileNames = []string{"action-version.yml", "action-version.yaml"}
 // repository root), then .github.
 var SearchDirs = []string{"", ".github"}
 
-// Settings is the level and autofix choice of a concern or rule; unset fields are inherited.
+// Settings is the level and fix policy of a concern or rule; unset fields are inherited.
 type Settings struct {
 	Level    string              `yaml:"level"`
-	AutoFix  *bool               `yaml:"autofix"`
+	Fix      string              `yaml:"fix"`
 	Findings map[string]Settings `yaml:"findings"`
 }
 
 // File is the content of an action-version.yml.
 type File struct {
-	Version               int                 `yaml:"version"`
-	FloatingVersionsUse   string              `yaml:"floating-versions-use"`
-	IgnorePreviewReleases *bool               `yaml:"ignore-preview-releases"`
-	IgnoreVersions        []string            `yaml:"ignore-versions"`
-	Concerns              map[string]Settings `yaml:"concerns"`
-	Rules                 map[string]Settings `yaml:"rules"`
+	Version             int                 `yaml:"version"`
+	FloatingVersionsUse string              `yaml:"floating-versions-use"`
+	Preview             string              `yaml:"preview"`
+	IgnoreVersions      []string            `yaml:"ignore-versions"`
+	Concerns            map[string]Settings `yaml:"concerns"`
+	Rules               map[string]Settings `yaml:"rules"`
 }
 
 // concernRules lists the rules of every concern.
@@ -108,6 +108,9 @@ func (f *File) validate() error {
 	if f.FloatingVersionsUse != "" && f.FloatingVersionsUse != "tags" && f.FloatingVersionsUse != "branches" {
 		errs = append(errs, fmt.Sprintf("floating-versions-use: %q is not tags or branches", f.FloatingVersionsUse))
 	}
+	if f.Preview != "" && f.Preview != "include" && f.Preview != "exclude" {
+		errs = append(errs, fmt.Sprintf("preview: %q is not include or exclude", f.Preview))
+	}
 	for _, p := range f.IgnoreVersions {
 		if !version.IsValidPattern(p) {
 			errs = append(errs, fmt.Sprintf("ignore-versions: %q is not vX, vX.Y, vX.Y.Z or a wildcard like v1.*", p))
@@ -116,6 +119,9 @@ func (f *File) validate() error {
 	check := func(kind, name string, s Settings) {
 		if s.Level != "" && s.Level != "error" && s.Level != "warning" && s.Level != "none" {
 			errs = append(errs, fmt.Sprintf("%s %s: level %q is not error, warning or none", kind, name, s.Level))
+		}
+		if s.Fix != "" && s.Fix != "auto" && s.Fix != "manual" {
+			errs = append(errs, fmt.Sprintf("%s %s: fix %q is not auto or manual", kind, name, s.Fix))
 		}
 	}
 	for _, name := range sortedKeys(f.Concerns) {
@@ -179,18 +185,18 @@ func Default() *File {
 // Merge layers over on top of base; settings that over leaves unset are taken from base.
 func Merge(base, over *File) *File {
 	out := &File{
-		Version:               base.Version,
-		FloatingVersionsUse:   base.FloatingVersionsUse,
-		IgnorePreviewReleases: base.IgnorePreviewReleases,
-		IgnoreVersions:        base.IgnoreVersions,
-		Concerns:              mergeSettings(base.Concerns, over.Concerns),
-		Rules:                 mergeSettings(base.Rules, over.Rules),
+		Version:             base.Version,
+		FloatingVersionsUse: base.FloatingVersionsUse,
+		Preview:             base.Preview,
+		IgnoreVersions:      base.IgnoreVersions,
+		Concerns:            mergeSettings(base.Concerns, over.Concerns),
+		Rules:               mergeSettings(base.Rules, over.Rules),
 	}
 	if over.FloatingVersionsUse != "" {
 		out.FloatingVersionsUse = over.FloatingVersionsUse
 	}
-	if over.IgnorePreviewReleases != nil {
-		out.IgnorePreviewReleases = over.IgnorePreviewReleases
+	if over.Preview != "" {
+		out.Preview = over.Preview
 	}
 	if over.IgnoreVersions != nil {
 		out.IgnoreVersions = over.IgnoreVersions
@@ -208,8 +214,8 @@ func mergeSettings(base, over map[string]Settings) map[string]Settings {
 		if v.Level != "" {
 			cur.Level = v.Level
 		}
-		if v.AutoFix != nil {
-			cur.AutoFix = v.AutoFix
+		if v.Fix != "" {
+			cur.Fix = v.Fix
 		}
 		if len(v.Findings) > 0 {
 			cur.Findings = mergeSettings(cur.Findings, v.Findings)
@@ -281,8 +287,8 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 	if !pin.FloatingVersionsUse && f.FloatingVersionsUse != "" {
 		cfg.FloatingVersionsUse = f.FloatingVersionsUse
 	}
-	if !pin.IgnorePreviewReleases && f.IgnorePreviewReleases != nil {
-		cfg.IgnorePreviewReleases = *f.IgnorePreviewReleases
+	if !pin.IgnorePreviewReleases && f.Preview != "" {
+		cfg.IgnorePreviewReleases = f.Preview == "exclude"
 	}
 	if !pin.IgnoreVersions && f.IgnoreVersions != nil {
 		cfg.IgnoreVersions = append([]string(nil), f.IgnoreVersions...)
@@ -292,6 +298,7 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 	for concern, names := range concernRules {
 		s := f.Concerns[concern]
 		level := s.Level
+		autoFix := fixPolicy(s.Fix)
 		if field := checkLevel(cfg, concern); field != nil {
 			// These concern levels also gate the rules, so they are set on the config; the issue
 			// level is then taken from there and per-rule overrides apply below.
@@ -301,25 +308,34 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 			level = ""
 		}
 		for _, name := range names {
-			if level != "" || s.AutoFix != nil {
-				cfg.Rules[name] = state.RulePolicy{Level: level, AutoFix: s.AutoFix}
+			if level != "" || autoFix != nil {
+				cfg.Rules[name] = state.RulePolicy{Level: level, AutoFix: autoFix}
 			}
 		}
 	}
 	for name, s := range f.Rules {
 		p := cfg.Rules[name]
+		autoFix := fixPolicy(s.Fix)
 		if s.Level != "" {
 			p.Level = s.Level
 		}
-		if s.AutoFix != nil {
-			p.AutoFix = s.AutoFix
+		if autoFix != nil {
+			p.AutoFix = autoFix
 		}
 		if len(s.Findings) > 0 {
 			p.Findings = map[string]state.FindingPolicy{}
 			for finding, settings := range s.Findings {
-				p.Findings[finding] = state.FindingPolicy{Level: settings.Level, AutoFix: settings.AutoFix}
+				p.Findings[finding] = state.FindingPolicy{Level: settings.Level, AutoFix: fixPolicy(settings.Fix)}
 			}
 		}
 		cfg.Rules[name] = p
 	}
+}
+
+func fixPolicy(value string) *bool {
+	if value == "" {
+		return nil
+	}
+	enabled := value == "auto"
+	return &enabled
 }

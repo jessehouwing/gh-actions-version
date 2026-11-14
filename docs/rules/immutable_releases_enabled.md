@@ -34,7 +34,7 @@ rules:
     findings:
       immutable_releases_disabled:
         level: warning
-        autofix: false
+        fix: manual
 ```
 
 ### Level (`error`, `warning`, `none`)
@@ -49,7 +49,7 @@ Default: `error`.
 ### Auto-fix
 
 - CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
-- Config file: `concerns.immutability.autofix: false` or `rules.immutable_releases_enabled.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
+- Config file: `concerns.immutability.fix: manual` or `rules.immutable_releases_enabled.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

@@ -68,7 +68,7 @@ creation; its fix deletes the tag and stays behind `--dangerously-allow-destruct
 Each rule declares a closed list of finding IDs and summaries; severity and auto-fix are configured by concern, rule or finding.
 
 - Docs: each rule page gets a findings table.
-- Config: `rules.<rule>.findings.<id>.level` and `.autofix`, in addition to concern and rule level.
+- Config: `rules.<rule>.findings.<id>.level` and `.fix` (`auto` or `manual`), in addition to concern and rule level.
 - Tests: every finding ID is unique and belongs to exactly one rule; the concern/rule test is extended.
 - Pros: small change, no rename of rules or concerns. Cons: two levels of config (rule, finding).
 

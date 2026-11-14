@@ -37,10 +37,10 @@ rules:
     findings:
       release_missing:
         level: warning
-        autofix: false
+        fix: manual
       patch_tag_locked_by_deleted_release:
         level: warning
-        autofix: false
+        fix: manual
 ```
 
 ### Level (`error`, `warning`, `none`)
@@ -55,7 +55,7 @@ Default: `error`.
 ### Auto-fix
 
 - CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
-- Config file: `concerns.releases.autofix: false` or `rules.patch_release_required.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
+- Config file: `concerns.releases.fix: manual` or `rules.patch_release_required.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

@@ -42,6 +42,37 @@ func TestDefaultsMatchBuiltInConfig(t *testing.T) {
 	}
 }
 
+func TestPreviewPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		value         string
+		ignorePreview bool
+	}{
+		{value: "include", ignorePreview: false},
+		{value: "exclude", ignorePreview: true},
+	} {
+		over, err := Parse([]byte("preview: " + tc.value + "\n"))
+		if err != nil {
+			t.Fatalf("preview %q: %v", tc.value, err)
+		}
+		cfg := options.DefaultConfig()
+		Merge(Default(), over).Apply(&cfg, Pinned{})
+		if cfg.IgnorePreviewReleases != tc.ignorePreview {
+			t.Errorf("preview %q set IgnorePreviewReleases=%t, want %t", tc.value, cfg.IgnorePreviewReleases, tc.ignorePreview)
+		}
+	}
+
+	over, err := Parse([]byte("preview: exclude\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := options.DefaultConfig()
+	cfg.IgnorePreviewReleases = false
+	Merge(Default(), over).Apply(&cfg, Pinned{IgnorePreviewReleases: true})
+	if cfg.IgnorePreviewReleases {
+		t.Error("policy should not override the command-line preview choice")
+	}
+}
+
 func TestParseRejectsInvalid(t *testing.T) {
 	for name, y := range map[string]string{
 		"unknown key":     "bogus: 1",
@@ -50,6 +81,10 @@ func TestParseRejectsInvalid(t *testing.T) {
 		"unknown finding": "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
 		"bad level":       "concerns:\n  minor:\n    level: loud",
 		"bad floating":    "floating-versions-use: both",
+		"bad preview":     "preview: previews",
+		"old preview key": "ignore-preview-releases: false",
+		"old autofix key": "concerns:\n  minor:\n    autofix: false",
+		"bad fix":         "concerns:\n  minor:\n    fix: never",
 	} {
 		if _, err := Parse([]byte(y)); err == nil {
 			t.Errorf("%s: expected an error", name)
@@ -58,7 +93,7 @@ func TestParseRejectsInvalid(t *testing.T) {
 }
 
 func TestOverridesAndPrecedence(t *testing.T) {
-	over, err := Parse([]byte("concerns:\n  releases:\n    level: warning\n  marketplace:\n    level: none\nrules:\n  patch_tag_missing:\n    autofix: false\n"))
+	over, err := Parse([]byte("concerns:\n  releases:\n    level: warning\n  marketplace:\n    level: none\nrules:\n  patch_tag_missing:\n    fix: manual\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +103,7 @@ func TestOverridesAndPrecedence(t *testing.T) {
 		t.Errorf("file levels not applied: %+v", cfg)
 	}
 	if rp := cfg.Rules["patch_tag_missing"]; rp.AutoFix == nil || *rp.AutoFix {
-		t.Errorf("autofix override missing: %+v", cfg.Rules)
+		t.Errorf("manual fix override missing: %+v", cfg.Rules)
 	}
 
 	cfg = options.DefaultConfig()
@@ -83,15 +118,15 @@ func TestFindingPolicyOverridesRuleAndConcern(t *testing.T) {
 	over, err := Parse([]byte(`concerns:
   major:
     level: warning
-    autofix: false
+    fix: manual
 rules:
   major_tag_missing:
     level: error
-    autofix: true
+    fix: auto
     findings:
       major_tag_missing:
         level: warning
-        autofix: false
+        fix: manual
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +141,34 @@ rules:
 		if issue.Finding == "major_tag_missing" {
 			if issue.Severity != state.SeverityWarning || !issue.ManualOnly {
 				t.Fatalf("finding policy was not applied: %+v", issue)
+			}
+			return
+		}
+	}
+	t.Fatal("expected major_tag_missing finding")
+}
+
+func TestRuleCanOverrideManualConcernWithAutoFix(t *testing.T) {
+	over, err := Parse([]byte(`concerns:
+  major:
+    fix: manual
+rules:
+  major_tag_missing:
+    fix: auto
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := options.DefaultConfig()
+	Merge(Default(), over).Apply(&cfg, Pinned{})
+	st := state.New()
+	st.Tags = []*state.VersionRef{state.NewVersionRef("v1.0.0", "refs/tags/v1.0.0", "abc", state.TypeTag)}
+	rules.Run(st, &cfg, rules.All())
+	for _, issue := range st.Issues {
+		if issue.Finding == "major_tag_missing" {
+			if issue.ManualOnly {
+				t.Fatalf("auto fix setting was not applied: %+v", issue)
 			}
 			return
 		}

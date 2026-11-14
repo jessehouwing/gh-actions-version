@@ -38,7 +38,7 @@ rules:
     findings:
       release_duplicate:
         level: warning
-        autofix: false
+        fix: manual
 ```
 
 ### Level (`error`, `warning`, `none`)
@@ -53,7 +53,7 @@ Default: `error`.
 ### Auto-fix
 
 - CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
-- Config file: `concerns.releases.autofix: false` or `rules.duplicate_release.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
+- Config file: `concerns.releases.fix: manual` or `rules.duplicate_release.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

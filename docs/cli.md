@@ -65,16 +65,17 @@ In Actions, `GITHUB_TOKEN` with `contents: write` can push tags and create relea
 ## Version policy (`action-version.yml`)
 
 Defaults for the versioning strategy (tags or branches, major/minor/patch, releases, immutability) and
-for each concern's `error`/`warning`/`none` level and `autofix` come from a built-in policy. Commit an
+for each concern's `error`/`warning`/`none` level and `fix` policy come from a built-in policy. Commit an
 `action-version.yml` at the repository root (or `.github/`; the first found wins) to override it, per
 concern or per rule:
 
 ```yaml
 version: 1
 floating-versions-use: tags
+preview: include
 concerns:
   minor: { level: warning }
-  releases: { autofix: false }
+  releases: { fix: manual }
 rules:
   immutable_releases_enabled: { level: none }
 ```

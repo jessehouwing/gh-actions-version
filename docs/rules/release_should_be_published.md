@@ -38,7 +38,7 @@ rules:
     findings:
       release_is_draft:
         level: warning
-        autofix: false
+        fix: manual
 ```
 
 ### Level (`error`, `warning`, `none`)
@@ -53,7 +53,7 @@ Default: `error`.
 ### Auto-fix
 
 - CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
-- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_published.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
+- Config file: `concerns.immutability.fix: manual` or `rules.release_should_be_published.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

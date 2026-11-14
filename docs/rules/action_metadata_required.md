@@ -50,7 +50,7 @@ rules:
     findings:
       marketplace_metadata_missing:
         level: warning
-        autofix: false
+        fix: manual
 ```
 
 ### Level (`error`, `warning`, `none`)
@@ -65,7 +65,7 @@ Default: `error`.
 ### Auto-fix
 
 - CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
-- Config file: `concerns.marketplace.autofix: false` or `rules.action_metadata_required.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
+- Config file: `concerns.marketplace.fix: manual` or `rules.action_metadata_required.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

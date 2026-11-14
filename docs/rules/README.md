@@ -77,4 +77,4 @@ One page per validation rule. Levels and auto-fix are configured per concern or 
 
 ## Configuration precedence
 
-Every rule page lists its findings and configuration keys. Precedence is finding > rule > concern > built-in default; finding overrides use `rules.<rule>.findings.<finding>.level` and `.autofix`. Use `--level CONCERN=LEVEL` for any concern, `--rule-level RULE=LEVEL` for a rule, or `--finding-level FINDING=LEVEL` for a finding.
+Every rule page lists its findings and configuration keys. Precedence is finding > rule > concern > built-in default; finding overrides use `rules.<rule>.findings.<finding>.level` and `.fix` (`auto` or `manual`). Use `--level CONCERN=LEVEL` for any concern, `--rule-level RULE=LEVEL` for a rule, or `--finding-level FINDING=LEVEL` for a finding.

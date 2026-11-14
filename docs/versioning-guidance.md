@@ -133,7 +133,7 @@ git push origin <v1.0.1-sha>:refs/tags/v1.0 --force
 **When to update:**
 
 - After releasing any new stable version
-- Skip if using `ignore-preview-releases` and releasing a preview
+- Skip if using `preview: exclude` and releasing a preview
 
 **How to update:**
 

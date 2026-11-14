@@ -69,7 +69,7 @@ Keys:
 | `all` | The version is invisible: no rule reports it, nothing is created, moved or deleted for it, and it is not a candidate when choosing the latest patch. This is today's behavior. |
 | `selection` | The version is still validated and reported, but it is **not a candidate** when a floating ref (`vN`, `vN.M`, `latest`) or the latest release picks "the highest patch". Used for broken or locked releases. |
 | `validation` | The version is a candidate for selection but **no finding is reported** for it. Used for legacy versions that should keep being tracked. |
-| `fix` | Findings are reported but never fixed automatically; manual instructions are printed. Narrower than `autofix: false` because it is per version. |
+| `fix` | Findings are reported but never fixed automatically; manual instructions are printed. Narrower than `fix: manual` because it is per version. |
 
 Rules without a version (settings such as `immutable_releases_enabled`) are not affected by `ignore`.
 
