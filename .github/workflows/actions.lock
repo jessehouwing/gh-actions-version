@@ -7,21 +7,21 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'actions/dependency-review-action@v5.0.0'
         - 'jessehouwing/actions-dependency-submission@v2.0.2'
-        - 'step-security/harden-runner@v2.22.2'
+        - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/action-example-checker.yml':
         - 'actions/checkout@v7.0.1'
         - 'jessehouwing/actions-example-checker@v0.0.12'
-        - 'step-security/harden-runner@v2.22.2'
+        - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/action-semver-checker.yml':
         - 'actions/checkout@v7.0.1'
-        - 'step-security/harden-runner@v2.22.2'
+        - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/ci.yml':
         - 'actions/checkout@v4.4.0'
         - 'actions/setup-go@v5.6.0'
     '.github/workflows/copilot-setup-steps.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v5.6.0'
-        - 'step-security/harden-runner@v2.22.2'
+        - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/release.yml':
         - 'actions/checkout@v4.4.0'
         - 'actions/setup-go@v5.6.0'
@@ -29,9 +29,9 @@ workflows:
     '.github/workflows/scorecard.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'
-        - 'github/codeql-action@v4.39.0'
+        - 'github/codeql-action@v4.39.3'
         - 'ossf/scorecard-action@v2.5.0'
-        - 'step-security/harden-runner@v2.22.2'
+        - 'step-security/harden-runner@v2.22.4'
 dependencies:
     'actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32':
         ref: 'v4.1.0'
@@ -83,9 +83,9 @@ dependencies:
         uses:
             - 'actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32'
             - 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c'
-    'github/codeql-action@v4.39.0':
-        ref: 'v4.39.0'
-        commit: 'sha1-6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee'
+    'github/codeql-action@v4.39.3':
+        ref: 'v4.39.3'
+        commit: 'sha1-33d7b85da1a04171e211befe2c739303b9a4c066'
         owner_id: 9919
         repo_id: 259445878
     'jessehouwing/actions-dependency-submission@v2.0.2':
@@ -103,8 +103,8 @@ dependencies:
         commit: 'sha1-fa7117db83c52d787ae5a89f350999701505d78e'
         owner_id: 67707773
         repo_id: 421101922
-    'step-security/harden-runner@v2.22.2':
-        ref: 'v2.22.2'
-        commit: 'sha1-dc2769abcc0fcfbadfc1df54081c1608579ef6b2'
+    'step-security/harden-runner@v2.22.4':
+        ref: 'v2.22.4'
+        commit: 'sha1-1d88384fd173af6ecb012dfd0264a306b711241a'
         owner_id: 88700172
         repo_id: 422287306
