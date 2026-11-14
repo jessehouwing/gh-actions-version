@@ -11,6 +11,7 @@ import (
 )
 
 const docsURL = "https://github.com/jessehouwing/gh-actions-version/blob/"
+const SchemaVersion = 1
 
 type BuildOptions struct {
 	Mode        string
@@ -19,15 +20,18 @@ type BuildOptions struct {
 }
 
 type Report struct {
-	Repository Repository               `json:"repository"`
-	Mode       string                   `json:"mode"`
-	Config     Config                   `json:"config"`
-	Findings   []Finding                `json:"findings"`
-	Groups     []Group                  `json:"groups"`
-	Skipped    []SkippedCheck           `json:"skipped"`
-	Fixes      []Fix                    `json:"fixes"`
-	Summary    Summary                  `json:"summary"`
-	Timings    map[string]time.Duration `json:"timings"`
+	SchemaVersion int               `json:"schemaVersion"`
+	Repository    Repository        `json:"repository"`
+	Mode          string            `json:"mode"`
+	Local         bool              `json:"local"`
+	Config        Config            `json:"config"`
+	Findings      []Finding         `json:"findings"`
+	Groups        []Group           `json:"groups"`
+	Skipped       []SkippedCheck    `json:"skipped"`
+	Fixes         []Fix             `json:"fixes"`
+	Summary       Summary           `json:"summary"`
+	Timings       map[string]string `json:"timings"`
+	ExitCode      int               `json:"exitCode"`
 }
 
 type Repository struct {
@@ -72,7 +76,7 @@ type Finding struct {
 	Cause       string   `json:"cause,omitempty"`
 	Docs        string   `json:"docs"`
 	AutoFixable bool     `json:"autoFixable"`
-	Manual      []string `json:"manual"`
+	Manual      []string `json:"manualCommands"`
 	Status      string   `json:"status"`
 }
 
@@ -97,7 +101,7 @@ type Fix struct {
 	Version     string   `json:"version"`
 	Status      string   `json:"status"`
 	Description string   `json:"description,omitempty"`
-	Manual      []string `json:"manual"`
+	Manual      []string `json:"manualCommands"`
 }
 
 type Summary struct {
@@ -120,15 +124,17 @@ func Build(st *state.State, options BuildOptions) Report {
 		version = "main"
 	}
 	out := Report{
+		SchemaVersion: SchemaVersion,
 		Repository: Repository{
 			Host: st.Host, Owner: st.Owner, Name: st.Repo, NameWithOwner: st.Owner + "/" + st.Repo,
 		},
 		Mode:     options.Mode,
 		Config:   buildConfig(st.Config),
 		Findings: make([]Finding, 0, len(st.Issues)),
+		Groups:   []Group{},
 		Skipped:  make([]SkippedCheck, 0, len(st.SkippedChecks)),
 		Fixes:    []Fix{},
-		Timings:  cloneTimings(options.Timings),
+		Timings:  formatTimings(options.Timings),
 	}
 	for _, skipped := range st.SkippedChecks {
 		out.Skipped = append(out.Skipped, SkippedCheck{Check: skipped.Check, Reason: skipped.Reason})
@@ -275,10 +281,10 @@ func cloneSources(sources map[string]string) map[string]string {
 	return out
 }
 
-func cloneTimings(timings map[string]time.Duration) map[string]time.Duration {
-	out := make(map[string]time.Duration, len(timings))
+func formatTimings(timings map[string]time.Duration) map[string]string {
+	out := make(map[string]string, len(timings))
 	for stage, elapsed := range timings {
-		out[stage] = elapsed
+		out[stage] = elapsed.String()
 	}
 	return out
 }

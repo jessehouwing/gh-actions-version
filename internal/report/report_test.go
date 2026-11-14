@@ -71,10 +71,13 @@ func TestBuildCreatesSharedReportAndGroups(t *testing.T) {
 	if len(out.Fixes) != 2 || out.Fixes[0].Description != "Create the missing tag" {
 		t.Fatalf("unexpected fixes: %+v", out.Fixes)
 	}
+	if out.Timings["load-refs"] != "1s" {
+		t.Fatalf("timings = %+v", out.Timings)
+	}
 
 	out.Config.Sources["preview"] = "changed"
 	out.Config.IgnoreVersions[0] = "v9"
-	out.Timings["load-refs"] = 0
+	out.Timings["load-refs"] = "changed"
 	if st.Config.Sources["preview"] != "file:action-version.yml" || st.Config.IgnoreVersions[0] != "v2.*" ||
 		timings["load-refs"] != time.Second {
 		t.Fatal("Build mutated its input")

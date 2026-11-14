@@ -13,11 +13,12 @@ import (
 	"github.com/cli/go-gh/v2/pkg/term"
 
 	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/report"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // jsonFields are the top-level fields of the JSON report.
-var jsonFields = []string{"repository", "mode", "local", "config", "issues", "summary", "exitCode"}
+var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
 
 func parseJSONFields(in []string) ([]string, error) {
 	var out []string
@@ -41,92 +42,33 @@ func parseJSONFields(in []string) ([]string, error) {
 	return out, nil
 }
 
-type jsonAction struct {
-	Description    string   `json:"description"`
-	ManualCommands []string `json:"manualCommands"`
-}
-
-type jsonIssue struct {
-	Rule        string      `json:"rule"`
-	Finding     string      `json:"finding"`
-	Severity    string      `json:"severity"`
-	Message     string      `json:"message"`
-	Version     string      `json:"version"`
-	CurrentSha  string      `json:"currentSha"`
-	ExpectedSha string      `json:"expectedSha"`
-	Status      string      `json:"status"`
-	AutoFixable bool        `json:"autoFixable"`
-	Action      *jsonAction `json:"action"`
-}
-
-type jsonSummary struct {
-	Total             int `json:"total"`
-	Errors            int `json:"errors"`
-	Warnings          int `json:"warnings"`
-	Fixed             int `json:"fixed"`
-	Failed            int `json:"failed"`
-	ManualFixRequired int `json:"manualFixRequired"`
-	Unfixable         int `json:"unfixable"`
-	Pending           int `json:"pending"`
-}
-
-func buildReport(st *state.State, r *run, code int) map[string]any {
-	issues := make([]jsonIssue, 0, len(st.Issues))
-	for _, i := range st.Issues {
-		ji := jsonIssue{
-			Rule: i.Rule, Finding: i.Finding, Severity: i.Severity, Message: i.Message, Version: i.Version,
-			CurrentSha: i.CurrentSha, ExpectedSha: i.ExpectedSha, Status: i.Status, AutoFixable: i.IsAutoFixable(),
-		}
-		if i.Action != nil {
-			cmds := i.Action.ManualCommands(st)
-			if cmds == nil {
-				cmds = []string{}
-			}
-			ji.Action = &jsonAction{Description: i.Action.Description(), ManualCommands: cmds}
-		}
-		issues = append(issues, ji)
-	}
-	cfg := st.Config
-	ignore := cfg.IgnoreVersions
-	if ignore == nil {
-		ignore = []string{}
-	}
-	return map[string]any{
-		"repository": map[string]string{"host": st.Host, "owner": st.Owner, "name": st.Repo, "nameWithOwner": st.Owner + "/" + st.Repo},
-		"mode":       r.mode.String(),
-		"local":      r.f.local,
-		"config": map[string]any{
-			"checkMinorVersion":        cfg.CheckMinorVersion,
-			"checkReleases":            cfg.CheckReleases,
-			"checkReleaseImmutability": cfg.CheckImmutability,
-			"checkMarketplace":         cfg.CheckMarketplace,
-			"ignorePreviewReleases":    cfg.IgnorePreviewReleases,
-			"floatingVersionsUse":      cfg.FloatingVersionsUse,
-			"ignoreVersions":           ignore,
-		},
-		"issues": issues,
-		"summary": jsonSummary{
-			Total: len(st.Issues), Errors: len(st.ErrorIssues()), Warnings: len(st.WarningIssues()),
-			Fixed: st.FixedCount(), Failed: st.FailedCount(), ManualFixRequired: st.ManualFixCount(),
-			Unfixable: st.UnfixableCount(), Pending: st.CountStatus(state.StatusPending),
-		},
-		"exitCode": code,
-	}
+func buildReport(st *state.State, r *run, code int) report.Report {
+	out := report.Build(st, report.BuildOptions{Mode: r.mode.String(), DocsVersion: Version, Timings: r.progress.Timings()})
+	out.Local = r.f.local
+	out.ExitCode = code
+	return out
 }
 
 // writeJSON prints the report (optionally restricted to fields) through --jq, --template or as
 // JSON: indented with colors on a terminal, compact otherwise.
-func writeJSON(env Env, f *flags, fields []string, report map[string]any) error {
-	if len(fields) > 0 {
-		filtered := map[string]any{}
-		for _, k := range fields {
-			filtered[k] = report[k]
-		}
-		report = filtered
-	}
-	data, err := json.Marshal(report)
+func writeJSON(env Env, f *flags, fields []string, reportData any) error {
+	data, err := json.Marshal(reportData)
 	if err != nil {
 		return err
+	}
+	if len(fields) > 0 {
+		var values map[string]json.RawMessage
+		if err := json.Unmarshal(data, &values); err != nil {
+			return err
+		}
+		filtered := make(map[string]json.RawMessage, len(fields))
+		for _, k := range fields {
+			filtered[k] = values[k]
+		}
+		data, err = json.Marshal(filtered)
+		if err != nil {
+			return err
+		}
 	}
 	switch {
 	case f.jq != "":

@@ -28,6 +28,7 @@ type Options struct {
 type Reporter struct {
 	options Options
 	mu      sync.Mutex
+	timings map[string]time.Duration
 }
 
 type stage struct {
@@ -39,6 +40,7 @@ type stage struct {
 	mu       sync.Mutex
 	current  string
 	finished bool
+	silent   bool
 	once     sync.Once
 }
 
@@ -51,14 +53,14 @@ func New(options Options) *Reporter {
 	if options.Writer == nil {
 		options.Writer = io.Discard
 	}
-	return &Reporter{options: options}
+	return &Reporter{options: options, timings: make(map[string]time.Duration)}
 }
 
 func (r *Reporter) Start(name string) Stage {
-	if r.options.Quiet {
-		return NoopStage{}
+	s := &stage{reporter: r, name: name, started: time.Now(), stop: make(chan struct{}), done: make(chan struct{}), silent: r.options.Quiet}
+	if s.silent {
+		return s
 	}
-	s := &stage{reporter: r, name: name, started: time.Now(), stop: make(chan struct{}), done: make(chan struct{})}
 	switch {
 	case r.options.Actions:
 		r.write("::group::" + escape(name))
@@ -68,6 +70,16 @@ func (r *Reporter) Start(name string) Stage {
 		r.write(name + "...")
 	}
 	return s
+}
+
+func (r *Reporter) Timings() map[string]time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string]time.Duration, len(r.timings))
+	for name, elapsed := range r.timings {
+		out[name] = elapsed
+	}
+	return out
 }
 
 func (r *Reporter) Message(message string) {
@@ -93,6 +105,9 @@ func (s *stage) Update(message string) {
 	}
 	s.current = message
 	s.mu.Unlock()
+	if s.silent {
+		return
+	}
 	r := s.reporter
 	if r.options.Actions || !r.options.TTY || r.options.NoProgress {
 		if r.options.Actions {
@@ -109,10 +124,17 @@ func (s *stage) Done(result string) {
 		s.finished = true
 		s.mu.Unlock()
 		close(s.stop)
-		if s.reporter.options.TTY && !s.reporter.options.NoProgress && !s.reporter.options.Actions {
+		elapsed := time.Since(s.started)
+		s.reporter.mu.Lock()
+		s.reporter.timings[s.name] += elapsed
+		s.reporter.mu.Unlock()
+		if !s.silent && s.reporter.options.TTY && !s.reporter.options.NoProgress && !s.reporter.options.Actions {
 			<-s.done
 		}
-		elapsed := time.Since(s.started).Round(100 * time.Millisecond)
+		if s.silent {
+			return
+		}
+		elapsed = elapsed.Round(100 * time.Millisecond)
 		message := s.name
 		if result != "" {
 			message += ": " + result

@@ -46,10 +46,14 @@ func TestQuietStagesWriteNothing(t *testing.T) {
 	r := New(Options{Writer: &out, Quiet: true})
 	stage := r.Start("Loading releases")
 	stage.Update("page 1")
+	time.Sleep(time.Millisecond)
 	stage.Done("complete")
 	r.Message("rate limit")
 	if out.Len() != 0 {
 		t.Fatalf("quiet output = %q", out.String())
+	}
+	if got := r.Timings()["Loading releases"]; got <= 0 {
+		t.Fatalf("quiet stage timing = %s, want a positive duration", got)
 	}
 }
 

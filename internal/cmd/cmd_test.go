@@ -270,30 +270,30 @@ rules:
 
 func TestFiltersAndFailOn(t *testing.T) {
 	t.Run("--rule selects only the named rule", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--output=json", "--json-fields=issues")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--output=json", "--json-fields=findings")
 		if r.code != ExitValidation {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
-		for _, raw := range r.json(t)["issues"].([]any) {
+		for _, raw := range r.json(t)["findings"].([]any) {
 			if raw.(map[string]any)["rule"] != "major_tag_missing" {
 				t.Errorf("unexpected issue: %v", raw)
 			}
 		}
 	})
 	t.Run("--skip-rule excludes the named rule", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--output=json", "--json-fields=issues")
-		for _, raw := range r.json(t)["issues"].([]any) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--output=json", "--json-fields=findings")
+		for _, raw := range r.json(t)["findings"].([]any) {
 			if raw.(map[string]any)["rule"] == "major_tag_missing" {
 				t.Errorf("skipped rule reported: %v", raw)
 			}
 		}
 	})
 	t.Run("--finding selects only the named finding", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--output=json", "--json-fields=issues")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--output=json", "--json-fields=findings")
 		if r.code != ExitValidation {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
-		for _, raw := range r.json(t)["issues"].([]any) {
+		for _, raw := range r.json(t)["findings"].([]any) {
 			if raw.(map[string]any)["finding"] != "major_tag_missing" {
 				t.Errorf("unexpected finding: %v", raw)
 			}
@@ -564,7 +564,7 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should report warnings without failing", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--output=json", "--json-fields=issues,summary")...)
+		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--output=json", "--json-fields=findings,summary")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -797,13 +797,13 @@ func TestVersionScoping(t *testing.T) {
 	}
 	versions := func(r result, t *testing.T) []string {
 		var out []string
-		for _, i := range r.json(t)["issues"].([]any) {
+		for _, i := range r.json(t)["findings"].([]any) {
 			out = append(out, i.(map[string]any)["version"].(string))
 		}
 		return out
 	}
 	t.Run("scopes the report to the given versions", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=issues", "v2")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=findings", "v2")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v2") {
 				t.Errorf("unexpected issue for %s", v)
@@ -824,7 +824,7 @@ func TestVersionScoping(t *testing.T) {
 		}
 	})
 	t.Run("supports wildcards", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=issues", "v1.*")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=findings", "v1.*")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v1.") {
 				t.Errorf("unexpected issue for %s", v)
@@ -841,10 +841,13 @@ func TestJSONOutput(t *testing.T) {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
 		m := r.json(t)
-		for _, k := range []string{"repository", "mode", "local", "config", "issues", "summary", "exitCode"} {
+		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
 			if _, ok := m[k]; !ok {
 				t.Errorf("missing field %s", k)
 			}
+		}
+		if m["schemaVersion"].(float64) != 1 {
+			t.Errorf("schemaVersion = %v", m["schemaVersion"])
 		}
 		if m["mode"] != "report-only" || m["exitCode"].(float64) != 1 {
 			t.Errorf("mode/exitCode = %v/%v", m["mode"], m["exitCode"])
@@ -853,26 +856,34 @@ func TestJSONOutput(t *testing.T) {
 		if cfg["floatingVersionsUse"] != "tags" || cfg["checkReleases"] != "none" || cfg["ignorePreviewReleases"] != true {
 			t.Errorf("config = %v", cfg)
 		}
-		issues := m["issues"].([]any)
-		if len(issues) == 0 {
-			t.Fatal("no issues")
+		findings := m["findings"].([]any)
+		if len(findings) == 0 {
+			t.Fatal("no findings")
 		}
-		i := issues[0].(map[string]any)
-		for _, k := range []string{"rule", "finding", "severity", "message", "version", "currentSha", "expectedSha", "status", "autoFixable", "action"} {
+		i := findings[0].(map[string]any)
+		for _, k := range []string{"rule", "finding", "concern", "severity", "message", "version", "docs", "status", "autoFixable", "manualCommands"} {
 			if _, ok := i[k]; !ok {
-				t.Errorf("issue is missing %s: %v", k, i)
+				t.Errorf("finding is missing %s: %v", k, i)
 			}
 		}
 		if _, ok := i["type"]; ok {
-			t.Errorf("issue contains removed type field: %v", i)
+			t.Errorf("finding contains removed type field: %v", i)
 		}
-		act := i["action"].(map[string]any)
-		if act["description"] == "" || len(act["manualCommands"].([]any)) == 0 {
-			t.Errorf("action = %v", act)
+		if _, ok := i["action"]; ok {
+			t.Errorf("finding contains removed action field: %v", i)
+		}
+		if len(i["manualCommands"].([]any)) == 0 {
+			t.Errorf("finding has no manual commands: %v", i)
 		}
 		sum := m["summary"].(map[string]any)
-		if sum["total"].(float64) != float64(len(issues)) || sum["manualFixRequired"].(float64) == 0 {
+		if sum["total"].(float64) != float64(len(findings)) || sum["manualFixRequired"].(float64) == 0 {
 			t.Errorf("summary = %v", sum)
+		}
+		if len(m["timings"].(map[string]any)) == 0 {
+			t.Errorf("report contains no stage timings: %v", m["timings"])
+		}
+		if _, ok := m["issues"]; ok {
+			t.Errorf("report contains removed issues field: %v", m)
 		}
 		if !strings.Contains(r.err, "git push") && !strings.Contains(r.err, "ERROR") {
 			t.Errorf("human logs should go to stderr:\n%s", r.err)
@@ -886,6 +897,19 @@ func TestJSONOutput(t *testing.T) {
 		m := r.json(t)
 		if m["mode"] != "auto-fix" || m["summary"].(map[string]any)["fixed"].(float64) == 0 {
 			t.Errorf("report = %v", m["summary"])
+		}
+	})
+	t.Run("uses empty arrays for list fields", func(t *testing.T) {
+		r := newEnv(t, testutil.CleanFixture(t)).run("verify", "-R", "o/r", "--level=marketplace=none", "--output=json")
+		if r.code != ExitOK {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		m := r.json(t)
+		for _, field := range []string{"findings", "groups", "skipped", "fixes"} {
+			values, ok := m[field].([]any)
+			if !ok || len(values) != 0 {
+				t.Errorf("%s = %v, want an empty array", field, m[field])
+			}
 		}
 	})
 	t.Run("selects fields", func(t *testing.T) {
@@ -902,7 +926,7 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("--jq filters the output", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--jq", ".issues | map(.version) | length")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--jq", ".findings | map(.version) | length")...)
 		if strings.TrimSpace(r.out) == "" || strings.TrimSpace(r.out) == "0" || r.code != 1 {
 			t.Errorf("exit %d out %q", r.code, r.out)
 		}
@@ -912,7 +936,7 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("--template formats the output", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--template", `{{range .issues}}{{.version}} {{.status}}{{"\n"}}{{end}}`)...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--template", `{{range .findings}}{{.version}} {{.status}}{{"\n"}}{{end}}`)...)
 		if !strings.Contains(r.out, "v1 manual_fix_required") {
 			t.Errorf("out %q", r.out)
 		}
