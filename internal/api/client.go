@@ -94,6 +94,12 @@ func New(o Options) (*Client, error) {
 		Transport:    t,
 		LogIgnoreEnv: false,
 	}
+	if o.Token == "" {
+		// go-gh looks up (and requires) a token from the process environment when none is given;
+		// use a placeholder and strip it so anonymous access never depends on ambient credentials.
+		co.AuthToken = "anonymous"
+		co.Transport = stripAuth{t}
+	}
 	rest, err := ghapi.NewRESTClient(co)
 	if err != nil {
 		return nil, err
@@ -117,6 +123,14 @@ func New(o Options) (*Client, error) {
 		c.serverURL = serverURLFor(o.Repo.Host)
 	}
 	return c, nil
+}
+
+type stripAuth struct{ next http.RoundTripper }
+
+func (s stripAuth) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Del("Authorization")
+	return s.next.RoundTrip(r)
 }
 
 func serverURLFor(host string) string {
