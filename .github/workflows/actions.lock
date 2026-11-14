@@ -15,21 +15,17 @@ workflows:
     '.github/workflows/action-semver-checker.yml':
         - 'actions/checkout@v7.0.1'
         - 'step-security/harden-runner@v2.22.2'
+    '.github/workflows/ci.yml':
+        - 'actions/checkout@v4.4.0'
+        - 'actions/setup-go@v5.6.0'
     '.github/workflows/copilot-setup-steps.yml':
         - 'actions/checkout@v7.0.1'
+        - 'actions/setup-go@v5.6.0'
         - 'step-security/harden-runner@v2.22.2'
-    '.github/workflows/pester-tests.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/upload-artifact@v7.0.2'
-        - 'enricomi/publish-unit-test-result-action@v2.25.0'
-        - 'step-security/harden-runner@v2.22.2'
-    '.github/workflows/powershell.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.39.0'
-        - 'step-security/harden-runner@v2.22.2'
-    '.github/workflows/publish-psgallery.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'step-security/harden-runner@v2.22.2'
+    '.github/workflows/release.yml':
+        - 'actions/checkout@v4.4.0'
+        - 'actions/setup-go@v5.6.0'
+        - 'cli/gh-extension-precompile@v2.2.0'
     '.github/workflows/scorecard.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'
@@ -37,6 +33,23 @@ workflows:
         - 'ossf/scorecard-action@v2.5.0'
         - 'step-security/harden-runner@v2.22.2'
 dependencies:
+    'actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32':
+        ref: 'v4.1.0'
+        commit: 'sha1-a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32'
+        owner_id: 44036562
+        repo_id: 760702757
+        uses:
+            - 'actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26'
+    'actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26':
+        ref: 'v4.1.0'
+        commit: 'sha1-59d89421af93a897026c735860bf21b6eb4f7b26'
+        owner_id: 44036562
+        repo_id: 760701061
+    'actions/checkout@v4.4.0':
+        ref: 'v4.4.0'
+        commit: 'sha1-11d5960a326750d5838078e36cf38b85af677262'
+        owner_id: 44036562
+        repo_id: 197814629
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
@@ -47,16 +60,29 @@ dependencies:
         commit: 'sha1-a1d282b36b6f3519aa1f3fc636f609c47dddb294'
         owner_id: 44036562
         repo_id: 476372928
+    'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c':
+        ref: 'v6.4.0'
+        commit: 'sha1-4a3601121dd01d1626a1e23e37211e3254c1c06c'
+        owner_id: 44036562
+        repo_id: 192624594
+    'actions/setup-go@v5.6.0':
+        ref: 'v5.6.0'
+        commit: 'sha1-40f1582b2485089dde7abd97c1529aa768e1baff'
+        owner_id: 44036562
+        repo_id: 192624594
     'actions/upload-artifact@v7.0.2':
         ref: 'v7.0.2'
         commit: 'sha1-cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         owner_id: 44036562
         repo_id: 192625955
-    'enricomi/publish-unit-test-result-action@v2.25.0':
-        ref: 'v2.25.0'
-        commit: 'sha1-7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d'
-        owner_id: 44700269
-        repo_id: 290227969
+    'cli/gh-extension-precompile@v2.2.0':
+        ref: 'v2.2.0'
+        commit: 'sha1-76961aa3bd1123d0a6fd42d0a41aca0696937c39'
+        owner_id: 59704711
+        repo_id: 421583656
+        uses:
+            - 'actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32'
+            - 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c'
     'github/codeql-action@v4.39.0':
         ref: 'v4.39.0'
         commit: 'sha1-6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee'

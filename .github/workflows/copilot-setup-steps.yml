@@ -40,6 +40,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5.6.0
         with:
           go-version-file: go.mod
