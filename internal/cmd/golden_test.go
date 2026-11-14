@@ -66,7 +66,7 @@ func TestGolden(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if string(want) != output {
+				if normalizeGolden(string(want), gh.URL, tempDir) != output {
 					t.Errorf("output differs from %s; run go test ./internal/cmd -run '^TestGolden$' -update", path)
 				}
 			})
@@ -80,6 +80,7 @@ var (
 )
 
 func normalizeGolden(value, host, tempDir string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
 	value = strings.ReplaceAll(value, host, "<GITHUB_HOST>")
 	value = strings.ReplaceAll(value, tempDir, "<TEMP_DIR>")
 	value = strings.ReplaceAll(value, filepath.ToSlash(tempDir), "<TEMP_DIR>")
