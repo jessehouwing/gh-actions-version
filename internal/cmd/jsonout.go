@@ -16,10 +16,10 @@ import (
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
-// jsonFields are the top-level fields of the --json document.
+// jsonFields are the top-level fields of the JSON report.
 var jsonFields = []string{"repository", "mode", "local", "config", "issues", "summary", "exitCode"}
 
-func parseJSONFields(in []string, set bool) ([]string, error) {
+func parseJSONFields(in []string) ([]string, error) {
 	var out []string
 	for _, f := range in {
 		f = strings.TrimSpace(f)
@@ -147,8 +147,7 @@ func writeJSON(env Env, f *flags, fields []string, report map[string]any) error 
 	return err
 }
 
-// writeStepSummary appends a markdown report to GITHUB_STEP_SUMMARY. Manual remediation steps are
-// added separately by remediation.Finish.
+// writeStepSummary appends a markdown report to GITHUB_STEP_SUMMARY.
 func writeStepSummary(env Env, st *state.State, mode remediation.Mode, code int) {
 	path := env.Getenv("GITHUB_STEP_SUMMARY")
 	if path == "" {

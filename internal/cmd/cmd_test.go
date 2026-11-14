@@ -189,7 +189,7 @@ func TestParameterValidation(t *testing.T) {
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
 			"--fail-on", "--rule", "--skip-rule", "--finding",
-			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
+			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--json-fields", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
 			}
@@ -247,7 +247,7 @@ rules:
 
 func TestFiltersAndFailOn(t *testing.T) {
 	t.Run("--rule selects only the named rule", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--json=issues")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--output=json", "--json-fields=issues")
 		if r.code != ExitValidation {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -258,7 +258,7 @@ func TestFiltersAndFailOn(t *testing.T) {
 		}
 	})
 	t.Run("--skip-rule excludes the named rule", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--json=issues")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--output=json", "--json-fields=issues")
 		for _, raw := range r.json(t)["issues"].([]any) {
 			if raw.(map[string]any)["rule"] == "major_tag_missing" {
 				t.Errorf("skipped rule reported: %v", raw)
@@ -266,7 +266,7 @@ func TestFiltersAndFailOn(t *testing.T) {
 		}
 	})
 	t.Run("--finding selects only the named finding", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--json=issues")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--output=json", "--json-fields=issues")
 		if r.code != ExitValidation {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -400,7 +400,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 	t.Run("Should use GITHUB_REPOSITORY environment variable when Repository not provided", func(t *testing.T) {
 		e := newEnv(t, testutil.NewGitHub(t))
 		e.vars["GITHUB_REPOSITORY"] = "test-owner/test-repo"
-		r := e.run("--check", "--level=marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--output=json", "--json-fields=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -425,7 +425,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 		e.vars["GITHUB_REPOSITORY"] = "o/r"
 		e.vars["GITHUB_SERVER_URL"] = "https://ghe.example.com"
 		e.vars["GITHUB_API_URL"] = "https://ghe.example.com/api/v3"
-		r := e.run("--check", "--level=marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--output=json", "--json-fields=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -541,7 +541,7 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should report warnings without failing", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--json=issues,summary")...)
+		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--output=json", "--json-fields=issues,summary")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -608,13 +608,13 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d asked %v writes %v", r.code, p.asked, gh.Writes())
 		}
 	})
-	t.Run("--json on a terminal does not prompt unless -i is given", func(t *testing.T) {
+	t.Run("json output on a terminal does not prompt unless -i is given", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{}
 		e.prompter = p
-		if r := e.run(commandArgs("verify", args("--json")...)...); r.code != 1 || len(p.asked) != 0 {
+		if r := e.run(commandArgs("verify", args("--output=json")...)...); r.code != 1 || len(p.asked) != 0 {
 			t.Errorf("exit %d asked %v\n%s", r.code, p.asked, r.all())
 		}
 	})
@@ -767,7 +767,7 @@ func TestVersionScoping(t *testing.T) {
 		return out
 	}
 	t.Run("scopes the report to the given versions", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--json=issues", "v2")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=issues", "v2")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v2") {
 				t.Errorf("unexpected issue for %s", v)
@@ -788,7 +788,7 @@ func TestVersionScoping(t *testing.T) {
 		}
 	})
 	t.Run("supports wildcards", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--json=issues", "v1.*")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=issues", "v1.*")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v1.") {
 				t.Errorf("unexpected issue for %s", v)
@@ -798,9 +798,9 @@ func TestVersionScoping(t *testing.T) {
 }
 
 func TestJSONOutput(t *testing.T) {
-	t.Run("Should return the documented schema when --json is used", func(t *testing.T) {
+	t.Run("Should return the documented schema when --output=json is used", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).run(args("--check", "--json")...)
+		r := newEnv(t, gh).run(args("--check", "--output=json")...)
 		if r.code != 1 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -843,7 +843,7 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("keeps stdout machine readable", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--auto-fix", "--json")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--auto-fix", "--output=json")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -853,14 +853,14 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("selects fields", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--json=summary,exitCode")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--output=json", "--json-fields=summary,exitCode")...)
 		m := r.json(t)
 		if len(m) != 2 || m["summary"] == nil || m["exitCode"] == nil {
 			t.Errorf("fields = %v", m)
 		}
 	})
 	t.Run("rejects unknown fields", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--json=bogus")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--output=json", "--json-fields=bogus")...)
 		if r.code != 2 || !strings.Contains(r.all(), "unknown JSON field") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -887,9 +887,48 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("prints nothing on stdout for usage errors", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(commandArgs("verify", args("--json", "--bogus")...)...)
+		r := newEnv(t, ghWithPatch(t)).run(commandArgs("verify", args("--output=json", "--bogus")...)...)
 		if r.code != 2 || r.out != "" {
 			t.Errorf("exit %d out %q", r.code, r.out)
+		}
+	})
+}
+
+func TestOutputSelection(t *testing.T) {
+	t.Run("explicit console overrides the GitHub Actions default", func(t *testing.T) {
+		e := newEnv(t, ghWithPatch(t))
+		e.vars["GITHUB_ACTIONS"] = "true"
+		e.vars["GITHUB_STEP_SUMMARY"] = filepath.Join(t.TempDir(), "summary.md")
+		r := e.runRaw("verify", "-R", "o/r", "--output=console")
+		if r.code != ExitValidation || !strings.Contains(r.out, "ERROR:") || strings.Contains(r.all(), "::error") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+		if _, err := os.Stat(e.vars["GITHUB_STEP_SUMMARY"]); !os.IsNotExist(err) {
+			t.Errorf("console output wrote a step summary: %v", err)
+		}
+	})
+	t.Run("actions can be selected outside GitHub Actions", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--output=actions")
+		if r.code != ExitValidation || !strings.Contains(r.out, "::error") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("json-fields implies JSON output", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--json-fields=summary")
+		if r.code != ExitValidation || len(r.json(t)) != 1 || r.json(t)["summary"] == nil {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("rejects incompatible format options and removed --json", func(t *testing.T) {
+		for _, args := range [][]string{
+			{"verify", "-R", "o/r", "--output=console", "--jq=."},
+			{"verify", "-R", "o/r", "--output=unknown"},
+			{"verify", "-R", "o/r", "--json"},
+		} {
+			r := newEnv(t, testutil.NewGitHub(t)).runRaw(args...)
+			if r.code != ExitUsage {
+				t.Errorf("%v: exit %d\n%s", args, r.code, r.all())
+			}
 		}
 	})
 }
@@ -1041,7 +1080,7 @@ func TestAPIErrors(t *testing.T) {
 	t.Run("Should require manual fixes when the token lacks the workflows permission", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		gh.Fail("POST", "/git/refs", 403, `{"message":"Resource not accessible by integration"}`, 0)
-		r := newEnv(t, gh).run(args("--auto-fix", "--json=summary")...)
+		r := newEnv(t, gh).run(args("--auto-fix", "--output=json", "--json-fields=summary")...)
 		if r.code != 1 || r.json(t)["summary"].(map[string]any)["manualFixRequired"].(float64) == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -1147,7 +1186,7 @@ func TestLocalMode(t *testing.T) {
 		dir := setup(t)
 		e := newEnv(t, nil)
 		e.dir = dir
-		r := e.run("--local", "--check", "--json=summary")
+		r := e.run("--local", "--check", "--output=json", "--json-fields=summary")
 		if r.code != 1 || r.json(t)["summary"].(map[string]any)["errors"].(float64) == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}

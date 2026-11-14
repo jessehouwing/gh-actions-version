@@ -31,12 +31,9 @@ func TestGolden(t *testing.T) {
 			t.Run(fixture.name+"/"+format, func(t *testing.T) {
 				gh := fixture.new(t)
 				e := newEnv(t, gh)
-				args := []string{"verify", "-R", "o/r", "--level=marketplace=none"}
+				args := []string{"verify", "-R", "o/r", "--level=marketplace=none", "--output", format}
 				tempDir := t.TempDir()
 				var summaryPath string
-				if format == "json" {
-					args = append(args, "--json")
-				}
 				if format == "actions" {
 					summaryPath = filepath.Join(tempDir, "summary.md")
 					e.vars["GITHUB_ACTIONS"] = "true"

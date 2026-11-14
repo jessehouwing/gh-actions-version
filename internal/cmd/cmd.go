@@ -39,6 +39,7 @@ const (
 
 type flags struct {
 	repo                                             string
+	output                                           string
 	fix, interactive, autoMode, manualMode, yes      bool
 	dryRun, noVerifyAfter                            bool
 	local, fetchReleases, noConfig, verbose, noColor bool
@@ -52,9 +53,8 @@ type flags struct {
 	levels, ruleLevels, findingLevels                []string
 	ruleFilter, skipRule, findingFilter              []string
 	failOn                                           string
-	json                                             []string
+	jsonFields                                       []string
 	jq, template                                     string
-	jsonSet                                          bool
 	changed                                          map[string]bool // flags given on the command line
 }
 
@@ -73,7 +73,8 @@ floating versions (v1, v1.0, latest) must point at the latest compatible patch.
 Use verify for read-only validation and fix to apply remediations. Both commands accept optional
 version arguments (v1, v1.0, v1.*) to limit the report and fixes to those versions.
 
-Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate limit errors.`,
+Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate limit errors,
+3 fixes applied but qualifying findings remain.`,
 		Version:           Version,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
@@ -94,7 +95,6 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	addGlobalFlags(root.PersistentFlags(), &f)
 
 	runCommand := func(c *cobra.Command, versions []string) {
-		f.jsonSet = c.Flags().Changed("json")
 		f.changed = map[string]bool{}
 		c.Flags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
 		c.InheritedFlags().Visit(func(fl *pflag.Flag) { f.changed[fl.Name] = true })
@@ -131,6 +131,7 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 
 func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringVarP(&f.repo, "repo", "R", "", "Target repository as [HOST/]OWNER/REPO (default: GH_REPO, GITHUB_REPOSITORY or the git remote)")
+	fl.StringVarP(&f.output, "output", "o", "", "Output format: console, json or actions (defaults by environment)")
 	fl.BoolVar(&f.local, "local", false, "Read and fix refs in the local git repository; never pushes")
 	fl.BoolVar(&f.local, "local-only", false, "Alias of --local")
 	fl.BoolVar(&f.fetchReleases, "fetch-releases", false, "With --local: also read releases from GitHub (read-only)")
@@ -153,8 +154,7 @@ func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
 	fl.StringVar(&f.ignoreVersions, "ignore-versions", "", "Comma separated versions to skip; wildcards like v1.* are supported")
-	fl.StringSliceVar(&f.json, "json", nil, "Print machine-readable JSON to stdout (fields: "+strings.Join(jsonFields, ", ")+"); human logs go to stderr")
-	fl.Lookup("json").NoOptDefVal = "all"
+	fl.StringSliceVar(&f.jsonFields, "json-fields", nil, "Select JSON fields (available: "+strings.Join(jsonFields, ", ")+")")
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
 	fl.StringVarP(&f.template, "template", "t", "", "Format the JSON output with a Go template")
 }
@@ -321,7 +321,17 @@ type run struct {
 }
 
 func execute(ctx context.Context, f *flags, versions []string, env Env) int {
-	jsonMode := f.jsonSet || f.jq != "" || f.template != ""
+	if !f.changed["output"] {
+		switch {
+		case f.changed["json-fields"] || f.jq != "" || f.template != "":
+			f.output = "json"
+		case env.Getenv("GITHUB_ACTIONS") == "true":
+			f.output = "actions"
+		default:
+			f.output = "console"
+		}
+	}
+	jsonMode := f.output == "json"
 	human := env.Stdout
 	if jsonMode {
 		human = env.Stderr
@@ -330,22 +340,28 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		Out:      human,
 		DebugOut: env.Stderr,
 		Verbose:  f.verbose,
-		Actions:  env.Getenv("GITHUB_ACTIONS") == "true",
+		Actions:  f.output == "actions",
 		Color:    !f.noColor && (env.IsTTY || term.IsColorForced()) && !term.IsColorDisabled(),
 	}
 	r := &run{ctx: ctx, f: f, env: env, log: log, jsonMode: jsonMode}
 
 	// Flag validation.
+	if f.output != "console" && f.output != "json" && f.output != "actions" {
+		return usageError(log, "--output must be console, json or actions")
+	}
+	if !jsonMode && (f.changed["json-fields"] || f.jq != "" || f.template != "") {
+		return usageError(log, "--json-fields, --jq and --template require --output=json")
+	}
 	if f.jq != "" && f.template != "" {
 		return usageError(log, "--jq and --template are mutually exclusive")
 	}
-	fields, err := parseJSONFields(f.json, f.jsonSet)
+	fields, err := parseJSONFields(f.jsonFields)
 	if err != nil {
 		return usageError(log, err.Error())
 	}
 	for _, v := range versions {
 		if !version.IsValidPattern(v) {
-			return usageError(log, fmt.Sprintf("invalid version argument %q (expected vX, vX.Y, vX.Y.Z or a wildcard like v1.*; use --json=FIELDS to select JSON fields)", v))
+			return usageError(log, fmt.Sprintf("invalid version argument %q (expected vX, vX.Y, vX.Y.Z or a wildcard like v1.*; use --json-fields to select JSON fields)", v))
 		}
 	}
 	if f.fetchReleases && !f.local {
@@ -433,7 +449,8 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}
 	}
 
-	if env.Getenv("GITHUB_ACTIONS") == "true" {
+	if f.output == "actions" && env.Getenv("GITHUB_ACTIONS") == "true" {
+		remediation.WriteManualInstructionsToStepSummary(st)
 		writeStepSummary(env, st, mode, code)
 	}
 	if jsonMode {

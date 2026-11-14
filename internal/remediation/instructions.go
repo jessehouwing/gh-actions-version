@@ -282,7 +282,6 @@ func FinishWithFailOn(st *state.State, log *output.Logger, mode Mode, failOn str
 		}
 	}
 	WriteManualInstructions(st, log, false)
-	WriteManualInstructionsToStepSummary(st)
 	return code
 }
 
