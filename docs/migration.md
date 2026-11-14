@@ -13,14 +13,14 @@ Replace
 with
 
 ```yaml
-- uses: jessehouwing/gh-version-action@v1
-  with:
-    auto-fix: true
+- run: |
+    gh extension install jessehouwing/gh-version-action
+    gh version-action --auto-fix
+  env:
+    GH_TOKEN: ${{ github.token }}
 ```
 
-The composite `action.yaml` accepts the same inputs (`token`, `check-minor-version`, `check-releases`,
-`check-release-immutability`, `check-marketplace`, `ignore-preview-releases`, `floating-versions-use`, `auto-fix`,
-`ignore-versions`) and maps them to flags; `auto-fix: true` becomes `--auto-fix`, otherwise `--check`.
+Former inputs map to flags of the same name (for example `check-releases: warning` becomes `--check-releases=warning`).
 
 ## Locally
 
