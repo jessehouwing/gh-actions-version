@@ -40,9 +40,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install dependencies
-        run: |
-            Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -AllowClobber
-            Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser -AllowClobber
-            Install-Module -Name ConvertToSARIF -Force -Scope CurrentUser -AllowClobber
-        shell: pwsh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod

@@ -55,7 +55,16 @@ You can run this action for your GitHub Action's repository to ensure the correc
     # Supports wildcards (e.g., 'v1.*')
     # Default: "" (empty)
     ignore-versions: ''
+
+    # Allow auto-fix to delete a tag whose immutable release was deleted (cannot be undone)
+    # Default: false
+    dangerously-allow-destructive-tag-deletion: 'false'
 ```
+
+The action installs the `gh` extension that does the checking (pinned to the action's own version) and runs it
+with these inputs. Defaults can also be set per repository with an `action-version.yml`
+(see [`docs/cli.md`](docs/cli.md#version-policy-action-versionyml));
+inputs and CLI flags that are explicitly set override it (these inputs default to empty, which means "not set").
 
 ## GitHub's Immutable Release Strategy
 
@@ -106,35 +115,16 @@ And a set of suggested Git commands to fix this:
 > git push origin 1a13fd188ebef96fb179faedfabcc8de5cb6189d:latest --force
 > ```
 
-## CLI / PowerShell Module
+## CLI (`gh` extension)
 
-In addition to running as a GitHub Action, you can use this tool from the command line via the **GitHubActionVersioning** PowerShell module.
+The same checks are available from the command line as a `gh` extension:
 
-### Installation
-
-Install from the [PowerShell Gallery](https://www.powershellgallery.com/packages/GitHubActionVersioning/):
-
-```powershell
-Install-Module -Name GitHubActionVersioning -Scope CurrentUser
+```bash
+gh extension install jessehouwing/gh-version-action
+gh version-action --check -R owner/repo
 ```
 
-### Quick Start
-
-```powershell
-# Import the module
-Import-Module GitHubActionVersioning
-
-# Validate a repository (uses GitHub CLI token automatically)
-Test-GitHubActionVersioning -Owner 'owner' -Repo 'repo'
-
-# Validate with auto-fix enabled
-Test-GitHubActionVersioning -Owner 'owner' -Repo 'repo' -AutoFix
-
-# Use a specific token
-Test-GitHubActionVersioning -Owner 'owner' -Repo 'repo' -Token $env:GITHUB_TOKEN
-```
-
-📖 **[Full CLI documentation](module/README.md)** for detailed usage, parameters, and examples.
+See the [CLI documentation](docs/cli.md) for flags, modes, authentication and the `action-version.yml` policy.
 
 ## Supported Validation Rules
 
@@ -692,125 +682,10 @@ jobs:
 
 ## Architecture
 
-This action uses a modular architecture with a rule-based validation system, making it maintainable, testable, and extensible.
-
-### Module Structure
-
-```text
-actions-semver-checker/
-├── main.ps1              # Orchestrator (~350 lines)
-│   ├── Initialize State
-│   ├── Collect tags, branches, releases via GitHub API
-│   ├── Load and execute validation rules
-│   ├── Execute remediation actions (auto-fix)
-│   └── Report results
-│
-├── lib/                  # Core modules (~3,246 lines total)
-│   ├── StateModel.ps1    # Domain model (~639 lines)
-│   │   ├── VersionRef class - Represents version tags/branches
-│   │   ├── ReleaseInfo class - GitHub release metadata
-│   │   ├── ValidationIssue class - Tracks issues with status
-│   │   ├── RepositoryState class - Single source of truth
-│   │   └── RemediationPlan class - Dependency ordering
-│   │
-│   ├── GitHubApi.ps1     # GitHub REST API client (~1,165 lines)
-│   │   ├── Get releases with pagination
-│   │   ├── Create/update/delete tags and branches
-│   │   ├── Manage releases (create, publish, delete)
-│   │   ├── Retry logic with exponential backoff
-│   │   └── Handle rate limiting and errors
-│   │
-│   ├── ValidationRules.ps1  # Rule engine (~163 lines)
-│   │   ├── ValidationRule base class
-│   │   ├── Get-ValidationRule - Auto-discovery
-│   │   ├── Invoke-ValidationRule - Execute rules
-│   │   └── Helper functions for rule execution
-│   │
-│   ├── RemediationActions.ps1  # Action base (~48 lines)
-│   │   └── RemediationAction base class
-│   │
-│   ├── Remediation.ps1   # Auto-fix coordination (~301 lines)
-│   │   ├── Execute fixes via REST API
-│   │   ├── Handle HTTP 422 (unfixable) errors
-│   │   ├── Calculate next available versions
-│   │   └── Generate manual fix commands
-│   │
-│   ├── InputValidation.ps1  # Input parsing (~325 lines)
-│   │   ├── Read-ActionInput - Parse from environment
-│   │   ├── Test-ActionInput - Validate configuration
-│   │   └── Write-InputDebugInfo - Debug output
-│   │
-│   ├── Logging.ps1       # Safe output (~105 lines)
-│   │   ├── Workflow command injection protection
-│   │   └── GitHub Actions formatting helpers
-│   │
-│   └── VersionParser.ps1 # Version parsing (~150 lines)
-│       └── ConvertTo-Version - Semantic version parsing
-│
-├── lib/rules/            # Validation rules (22 rules organized by category)
-│   ├── ref_type/         # Reference type validation (5 rules)
-│   │   ├── tag_should_be_branch/
-│   │   ├── branch_should_be_tag/
-│   │   ├── duplicate_floating_version_ref/
-│   │   ├── duplicate_latest_ref/
-│   │   └── duplicate_patch_version_ref/
-│   │
-│   ├── releases/         # Release validation (6 rules)
-│   │   ├── patch_release_required/
-│   │   ├── release_should_be_published/
-│   │   ├── release_should_be_immutable/
-│   │   ├── highest_patch_release_should_be_latest/
-│   │   ├── floating_version_no_release/
-│   │   └── duplicate_release/
-│   │
-│   ├── version_tracking/ # Version tracking (9 rules)
-│   │   ├── major_tag_missing/
-│   │   ├── major_tag_tracks_highest_patch/
-│   │   ├── major_branch_missing/
-│   │   ├── major_branch_tracks_highest_patch/
-│   │   ├── minor_tag_missing/
-│   │   ├── minor_tag_tracks_highest_patch/
-│   │   ├── minor_branch_missing/
-│   │   ├── minor_branch_tracks_highest_patch/
-│   │   └── patch_tag_missing/
-│   │
-│   └── latest/           # Latest version tracking (2 rules)
-│       ├── latest_tag_tracks_global_highest/
-│       └── latest_branch_tracks_global_highest/
-│
-└── lib/actions/          # Remediation actions (14 actions organized by type)
-    ├── base/             # Base class and documentation
-    ├── tags/             # Tag operations (3 actions)
-    │   ├── CreateTagAction/
-    │   ├── UpdateTagAction/
-    │   └── DeleteTagAction/
-    │
-    ├── branches/         # Branch operations (3 actions)
-    │   ├── CreateBranchAction/
-    │   ├── UpdateBranchAction/
-    │   └── DeleteBranchAction/
-    │
-    ├── releases/         # Release operations (5 actions)
-    │   ├── CreateReleaseAction/
-    │   ├── PublishReleaseAction/
-    │   ├── RepublishReleaseAction/
-    │   ├── SetLatestReleaseAction/
-    │   └── DeleteReleaseAction/
-    │
-    └── conversions/      # Type conversions (2 actions)
-        ├── ConvertTagToBranchAction/
-        └── ConvertBranchToTagAction/
-```
-
-### Contributing
-
-Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Module guide with detailed responsibilities
-- Testing guidelines
-- Code style conventions
-- Pull request process
+The action is a thin wrapper around the Go `gh` extension in this repository. `main.go` starts the CLI,
+`internal/cmd` parses flags and builds the configuration, `internal/api` and `internal/localgit` load tags,
+branches and releases, `internal/rules` holds the validation rules, `internal/actions` the remediation
+actions, and `internal/policy` the `action-version.yml` defaults. See [docs/cli.md](docs/cli.md).
 
 ## Migration from v1 to v2
 

@@ -2,341 +2,39 @@
 
 ## Project Overview
 
-PowerShell-based GitHub Action that validates semantic versioning tags and branches. Ensures floating versions (`v1`, `v1.0`) point to the latest patch release and that releases follow GitHub's immutable release strategy.
+A Go `gh` CLI extension (`gh version-action`) plus a composite GitHub Action (`action.yaml`) that installs and runs it. It validates semantic version tags/branches/releases: floating versions (`v1`, `v1.0`) must point to the latest patch, and patch releases must be published and immutable ([GitHub's immutable release strategy](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases)).
 
-## GitHub Actions Versioning Strategy
+**Prerelease status comes only from the GitHub Release API (`prerelease` field)**, never from tag suffixes. Tags such as `v1.0.0-beta` are not supported.
 
-This action enforces [GitHub's immutable release strategy](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases):
+## Layout
 
-| Version Type | Example | Mutability | Mechanism |
-|-------------|---------|------------|-----------|
-| Patch (full semver) | `v1.0.0` | **Immutable** | GitHub Release (non-draft) |
-| Major floating | `v1` | Mutable | Git tag, force-pushed |
-| Minor floating | `v1.0` | Mutable | Git tag, force-pushed |
-| Latest | `latest` | Mutable | Git tag or branch |
+| Path | Purpose |
+|------|---------|
+| `main.go` | Entry point |
+| `internal/cmd` | Cobra command, flags, config building, interactive flow, JSON output |
+| `internal/state` | Domain model (`State`, `VersionRef`, `ReleaseInfo`, `Issue`, `Config`, `Client` interface) |
+| `internal/api` | GitHub REST/GraphQL client (go-gh), retry and rate limiting |
+| `internal/localgit` | Local git implementation of `state.Client` |
+| `internal/rules` | Validation rules; self-register via `init()`/`Register` |
+| `internal/actions` | Remediation actions (create/update/delete tag, releases, ...) |
+| `internal/remediation` | Fix coordination, manual instructions |
+| `internal/policy` | `action-version.yml` parsing/merging; embedded default in `internal/policy/action-version.yml` |
+| `internal/scenarios`, `internal/testutil` | Scenario tests and the fake GitHub server |
 
-**Key rules:**
-- Every patch version (`v1.0.0`) must have a published GitHub Release
-- Floating versions (`v1`, `v1.0`) must point to the latest compatible patch
-- Releases become immutable once published (non-draft) - tags cannot be moved
+## Conventions
 
-### CRITICAL: Prerelease Status Determination
+- All state lives in `state.State`; rules read it and never call the network.
+- Config precedence: CLI flag > `action-version.yml` > built-in default. Boolean flags are opt-in (no `=false` to change a default).
+- Tokens come from go-gh (`auth.TokenForHost`); there is no `--token` flag. Reuse go-gh (`term`, `auth`, REST client) instead of reimplementing.
+- Every rule must belong to exactly one concern in `internal/policy/policy.go` (`concernRules`); a test enforces this.
+- Deleting a tag whose immutable release was deleted requires `--dangerously-allow-destructive-tag-deletion`.
+- GraphQL queries must have a test verifying that all fields the code relies on are queried.
+- Action inputs that override `action-version.yml` default to empty in `action.yaml`; only set inputs become flags.
 
-**GitHub Actions does NOT support semver prerelease suffixes.** The prerelease status is determined **exclusively** from the GitHub Release API's `prerelease` field.
+## Build and test
 
-| Approach | Supported | Notes |
-|----------|-----------|-------|
-| GitHub Release `prerelease: true` | ✅ Yes | The ONLY way to mark a release as prerelease |
-| Tag suffix `-beta`, `-rc`, `-preview` | ❌ No | These have NO special meaning in GitHub Actions |
-| Tag suffix `-alpha`, `-dev` | ❌ No | Ignored - will cause parsing errors |
-
-**Examples:**
-```yaml
-# CORRECT: Use clean semver tags, set prerelease via GitHub Release
-v1.0.0  # Tag name
-prerelease: true  # Set on GitHub Release object
-
-# WRONG: Do NOT use semver suffixes
-v1.0.0-beta    # ❌ Not recognized as prerelease
-v1.0.0-rc1     # ❌ Will cause VersionRef parsing errors
-v2.0.0-preview # ❌ Suffix is meaningless to GitHub Actions
+```bash
+gofmt -l .
+go vet ./...
+go test ./...
 ```
-
-When checking if a version is a prerelease, always use `ReleaseInfo.IsPrerelease` from the GitHub Release API.
-
-## Architecture
-
-```
-main.ps1 (orchestrator) → lib/*.ps1 (modules) → GitHub REST API
-                       ↓
-              $script:State (RepositoryState singleton)
-```
-
-**Key design principle**: All state lives in `$script:State` (a `RepositoryState` object). Modules read/write to this single source of truth. Never introduce additional script-level state variables.
-
-## Core Domain Model (lib/StateModel.ps1)
-
-- **`VersionRef`**: Tag or branch with parsed semantic version (`Major`, `Minor`, `Patch`, `IsPatch`, `IsIgnored`). **Does NOT support semver suffixes** like `-beta` or `-rc`.
-- **`ReleaseInfo`**: GitHub release with immutability and prerelease status. **`IsPrerelease` comes from GitHub Release API only** - never from tag name parsing.
-- **`MarketplaceMetadata`**: Action metadata required for GitHub Marketplace publication (name, description, branding, README).
-- **`ValidationIssue`**: Problem found during validation with status (`pending` → `fixed`/`failed`/`unfixable`)
-- **`RepositoryState`**: Central state container with calculated methods (`GetFixedIssuesCount()`, `GetReturnCode()`)
-- **`RemediationAction`**: Base class for auto-fix actions (see `lib/RemediationActions.ps1` for implementations)
-
-## Action Inputs
-
-| Input | Purpose | Default |
-|-------|---------|---------|
-| `token` | GitHub API access (falls back to `GITHUB_TOKEN`) | `""` |
-| `check-minor-version` | Validate minor version tags | `error` |
-| `check-releases` | Require releases for patch versions | `error` |
-| `check-release-immutability` | Require releases to be published (not draft) | `error` |
-| `check-marketplace` | Validate marketplace metadata (name, description, branding, README) | `error` |
-| `ignore-preview-releases` | Exclude prereleases from floating version calculation | `true` |
-| `floating-versions-use` | Use `tags` or `branches` for floating versions | `tags` |
-| `auto-fix` | Automatically fix issues (requires `contents: write`) | `false` |
-| `ignore-versions` | Comma-separated list of versions to skip (supports wildcards like `v1.*`) | `""` |
-
-### Input Access Pattern
-
-Inputs are passed as JSON via `$env:inputs` (set by `action.yaml` using `tojson(inputs)`):
-
-```powershell
-$inputs = $env:inputs | ConvertFrom-Json
-$checkReleases = $inputs.'check-releases' ?? "error"
-```
-
-### GitHub Context Variables
-
-GitHub context is accessed via `$env:GITHUB_*` environment variables ([docs](https://docs.github.com/en/actions/reference/workflows-and-actions/variables)):
-
-| Variable | Purpose |
-|----------|---------|
-| `$env:GITHUB_REPOSITORY` | `owner/repo` string |
-| `$env:GITHUB_TOKEN` | Default authentication token |
-| `$env:GITHUB_API_URL` | API base URL (for GHES) |
-| `$env:GITHUB_SERVER_URL` | Server URL (for GHES) |
-
-## GitHub Actions Workflow Commands
-
-This action uses [workflow commands](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) for GitHub Actions integration:
-
-### Used Commands
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `::add-mask::` | Hide sensitive values in logs | `Write-Host "::add-mask::$token"` |
-| `::error::` | Report validation errors | `Write-Host "::error::Missing release"` |
-| `::warning::` | Report non-critical issues | `Write-Host "::warning::Tag mismatch"` |
-| `::debug::` | Debug output (hidden by default) | `Write-Host "::debug::Found 5 tags"` |
-| `##[group]` / `##[endgroup]` | Collapsible log sections | Used in `lib/StateModel.ps1` |
-| `::stop-commands::` | Prevent command injection | Used in `lib/Logging.ps1` |
-
-### Preventing Workflow Command Injection
-
-When outputting untrusted data (user content, error messages), use `Write-SafeOutput` from `lib/Logging.ps1`:
-
-```powershell
-# WRONG - untrusted message could contain ::set-env or other commands
-Write-Host "::warning::$untrustedMessage"
-
-# CORRECT - wraps untrusted content in stop-commands
-Write-SafeOutput -Message $untrustedMessage -Prefix "::warning::"
-```
-
-## GitHub Actions Token Limitations
-
-The default `GITHUB_TOKEN` **cannot** perform certain operations:
-
-| Operation | GITHUB_TOKEN | PAT/GitHub App |
-|-----------|--------------|----------------|
-| Push tags | ✅ | ✅ |
-| Push tags that modify `.github/workflows/*` | ❌ | ✅ |
-| Create releases | ✅ | ✅ |
-| Trigger workflow runs | ❌ | ✅ |
-
-**Workaround:** Users needing to update workflow files must provide a Personal Access Token or GitHub App token via the `token` input.
-
-## Module Responsibilities
-
-| Module | Purpose |
-|--------|---------|
-| `main.ps1` | Orchestration, input parsing, validation logic |
-| `lib/StateModel.ps1` | Domain classes - add new entities here |
-| `lib/GitHubApi.ps1` | All REST API calls with retry logic |
-| `lib/Remediation.ps1` | Auto-fix coordination and manual instructions |
-| `lib/RemediationActions.ps1` | Concrete fix implementations |
-| `lib/VersionParser.ps1` | Version string parsing utilities |
-| `lib/Logging.ps1` | GitHub Actions-safe output functions |
-| `lib/ValidationRules.ps1` | Rule engine base classes and helpers |
-| `lib/rules/**/*.ps1` | Individual validation rule implementations |
-
-## RemediationAction Classes
-
-To add a new auto-fix action, subclass `RemediationAction` in `lib/RemediationActions.ps1`:
-
-```powershell
-class MyNewAction : RemediationAction {
-    MyNewAction([string]$version) : base("Description", $version) {
-        $this.Priority = 30  # Lower = runs first
-    }
-    
-    [bool] Execute([RepositoryState]$state) {
-        # Return $true on success, $false on failure
-    }
-    
-    [string[]] GetManualCommands([RepositoryState]$state) {
-        # Return array of CLI commands for manual fix
-    }
-}
-```
-
-**Existing actions:** `CreateTagAction`, `UpdateTagAction`, `DeleteTagAction`, `CreateBranchAction`, `UpdateBranchAction`, `CreateReleaseAction`, `PublishReleaseAction`, `RepublishReleaseAction`
-
-## Error Handling
-
-### HTTP 422 on Release Operations
-
-GitHub returns 422 when a tag was previously used by an **immutable release that was deleted**. Such releases are most likely deleted for security reasons, so `RepublishReleaseAction` runs `DeleteTagAction` for the tag. If the delete fails (e.g. a tag ruleset with a `deletion` rule), `Get-GitHubTagProtection` finds the blocking rulesets and the issue becomes `manual_fix_required`, with manual commands naming the rulesets and `git push origin :refs/tags/<tag>`.
-
-Other actions may still use `IsUnfixableError` / `MarkAsUnfixable` for 422 errors (resolve via `ignore-versions` or a new patch version).
-
-### Issue Statuses
-- `pending` → Not yet processed
-- `fixed` → Auto-fix succeeded
-- `failed` → Auto-fix attempted but failed (retryable)
-- `unfixable` → Cannot be fixed automatically (e.g., 422 errors)
-- `manual_fix_required` → Needs human intervention
-
-## GitHub API Coverage
-
-### REST API (Used)
-| Endpoint | Function | Purpose |
-|----------|----------|---------|
-| `GET /repos/{owner}/{repo}/releases` | `Get-GitHubRelease` | List all releases |
-| `GET /repos/{owner}/{repo}/git/refs/tags` | `Get-GitHubTag` | List all tags |
-| `GET /repos/{owner}/{repo}/branches` | `Get-GitHubBranch` | List all branches |
-| `POST /repos/{owner}/{repo}/git/refs` | `New-GitHubRef` | Create tag/branch |
-| `PATCH /repos/{owner}/{repo}/git/refs/{ref}` | `Update-GitHubRef` | Update tag/branch |
-| `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | `Remove-GitHubRef` | Delete tag/branch |
-| `POST /repos/{owner}/{repo}/releases` | `New-GitHubRelease` | Create release |
-| `DELETE /repos/{owner}/{repo}/releases/{id}` | `Remove-GitHubRelease` | Delete release |
-| `PATCH /repos/{owner}/{repo}/releases/{id}` | `Publish-GitHubRelease` | Publish draft release |
-| `GET /repos/{owner}/{repo}/immutable-releases` | `Get-GitHubImmutableReleaseStatus` | Check if release immutability is enabled |
-| `PUT /repos/{owner}/{repo}/immutable-releases` | `Enable-GitHubImmutableRelease` | Enable release immutability (needs admin) |
-| `GET /repos/{owner}/{repo}/rulesets` | `Get-GitHubTagProtection` | Find rulesets blocking tag deletion |
-
-### GraphQL API (Used)
-| Query | Function | Purpose | Queried Fields |
-|-------|----------|---------|----------------|
-| `repository.release` (single) | `Test-ReleaseImmutability` | Check if release is immutable | `tagName`, `isDraft`, `immutable` |
-| `repository.releases` (list) | `Get-GitHubRelease` | List all releases with metadata | `databaseId`, `tagName`, `isPrerelease`, `isDraft`, `immutable`, `isLatest` |
-
-**CRITICAL:** When code uses properties from GraphQL responses (e.g., `IsLatest`, `immutable`), a unit test in `tests/unit/GitHubApi.Tests.ps1` MUST verify that the GraphQL query includes those fields. See "Get-GitHubRelease GraphQL query validation" test for the pattern. This prevents runtime errors from missing fields in queries.
-
-### Missing APIs (Not Available from GitHub)
-| Feature | Status | Workaround |
-|---------|--------|------------|
-| Check if tag is blocked by deleted immutable release | ❌ Not exposed | Only discoverable via 422 error on create |
-| Force-delete immutable release | ❌ Not possible | Must use `ignore-versions` |
-
-## Testing Patterns
-
-### Test Structure
-```
-tests/
-├── unit/          # Test individual module functions
-├── integration/   # Example-based scenario tests
-└── e2e/           # Full validation workflow tests
-```
-
-### Running Tests
-```powershell
-Invoke-Pester -Path ./tests -Output Detailed    # All tests
-Invoke-Pester -Path ./tests/unit               # Unit only
-```
-
-### Mocking GitHub API
-
-Tests mock `Invoke-WebRequestWrapper` to intercept API calls. The mock uses local git commands to return API-formatted responses:
-
-```powershell
-# In test file - set up mock before running main.ps1
-function global:Invoke-WebRequestWrapper { param($Uri, $Headers, $Method, $TimeoutSec)
-    if ($Uri -match '/git/refs/tags') {
-        $tags = git tag -l
-        # ... format as GitHub API response
-        return @{ Content = ($refs | ConvertTo-Json); Headers = @{} }
-    }
-}
-. "$PSScriptRoot/../../main.ps1"
-```
-
-See `tests/e2e/SemVerValidation.Tests.ps1` function `New-GitBasedApiMock` for the full pattern.
-
-### Test Repo Setup
-Tests create temporary git repos in `$TestDrive`. Use the `Initialize-TestRepo` helper:
-
-```powershell
-Initialize-TestRepo -Path $script:testRepoPath -WithRemote
-git tag v1.0.0  # Create test tags
-git tag v1
-```
-
-### Efficient Pester Runs
-- Prefer Pester v5 configuration objects; use `New-PesterConfiguration` or simple `-Path` syntax.
-- Always emit logs to disk on every run so failures are inspectable without re-running:
-    - XML: enable `TestResult` with `OutputFormat = 'NUnitXml'` and `OutputPath = './artifacts/pester/results.xml'` (create the folder if absent).
-    - JSON: write results object using `ConvertTo-Json -Depth 10` to `./artifacts/pester/results.json`.
-    - Example (configuration object):
-        ```powershell
-        $logDir = './artifacts/pester'
-        New-Item -Path $logDir -ItemType Directory -Force | Out-Null
-        $config = New-PesterConfiguration
-        $config.Run.Path = './tests'
-        $config.Run.PassThru = $true
-        $config.Output.Verbosity = 'Detailed'
-        $config.TestResult.Enabled = $true
-        $config.TestResult.OutputFormat = 'NUnitXml'
-        $config.TestResult.OutputPath = "$logDir/results.xml"
-        $results = Invoke-Pester -Configuration $config
-        $results | ConvertTo-Json -Depth 10 | Set-Content "$logDir/results.json"
-        ```
-    - Example (simple syntax):
-        ```powershell
-        Invoke-Pester -Path ./tests -Output Detailed
-        ```
-- Reuse the same log paths across runs so Copilot can read previous failures directly.
-
-
-IMPORTANT: When running the tests fom the commandline, ALWAYS use a clean PowerShell session to avoid any interference from previously loaded modules or variables.
-
-```powershell
-pwsh -NoProfile -Command "Invoke-Pester -Path './tests/cli/GitHubActionVersioning.Tests.ps1' -Output Detailed"
-```
-
-## Critical Conventions
-
-1. **No `git` commands for tag/branch fetching** - Use `Get-GitHubTag`/`Get-GitHubBranch` from `lib/GitHubApi.ps1`
-2. **Status-based calculations** - Never store counts; calculate from issue statuses via `RepositoryState` methods
-3. **Retry wrapper** - All API calls use `Invoke-WithRetry` for transient failures
-4. **GitHub Actions output** - Use `Write-SafeHost`, `Write-SafeWarning` from `lib/Logging.ps1` to prevent injection
-5. **Token masking** - Always call `::add-mask::` when handling tokens
-6. **PowerShell class reloading** - After editing any PowerShell class (`VersionRef`, `ReleaseInfo`, `ValidationIssue`, `RepositoryState`, `RemediationAction`, `ValidationRule`), **ALWAYS** start a fresh PowerShell terminal before running tests or validation. PowerShell creates new class definitions with different assembly versions when classes are reloaded in the same session, causing type comparison failures (`-is [ClassName]` returns false). Close the existing terminal and open a new one to ensure clean class loading.
-7. **PSScriptAnalyzer TypeNotFound warnings** - TypeNotFound warnings are expected and should be ignored. PSScriptAnalyzer is a static analyzer that examines each file independently and cannot follow dot-sourcing paths or resolve classes defined in other files. When running PSScriptAnalyzer, always filter out TypeNotFound warnings: `Invoke-ScriptAnalyzer ... | Where-Object { $_.RuleName -ne 'TypeNotFound' }`. These warnings don't indicate actual problems - the test suite validates that types are correctly defined and used.
-8. **GraphQL query field validation** - When adding new GraphQL queries or modifying existing ones, **ALWAYS** add or update a unit test in `tests/unit/GitHubApi.Tests.ps1` that validates all required fields are present in the query. This prevents runtime errors from missing fields. See the "Get-GitHubRelease GraphQL query validation" test as an example. When code relies on a GraphQL property (e.g., `IsLatest`, `immutable`), the corresponding test must verify that property is queried.
-9. **API functions return domain objects directly** - `Get-GitHubTag`, `Get-GitHubBranch`, and `Get-GitHubRelease` return `VersionRef[]` and `ReleaseInfo[]` objects directly, ready to assign to `$script:State`. No manual mapping in `main.ps1` is needed. When adding new fields:
-   - Update the GraphQL query in `lib/GitHubApi.ps1` to include the new field
-   - Update the `$releaseData` PSCustomObject creation within `Get-GitHubRelease` to map the field
-   - The GraphQL response returns camelCase properties (e.g., `isLatest`), while REST API uses snake_case (e.g., `is_latest`). The `ReleaseInfo` constructor handles both formats.
-10. **Ignore-versions wildcard support** - The `Test-VersionShouldBeIgnored` function in `lib/GitHubApi.ps1` uses PowerShell's `-like` operator for pattern matching. Valid patterns are validated by `Test-ValidVersionPattern` in `lib/VersionParser.ps1`:
-   - Exact versions: `v1`, `v1.0`, `v1.0.0`
-   - Wildcard patterns: `v1.*`, `v1.0.*` (matches `v1.0`, `v1.0.0`, `v1.1.0`, etc.)
-   - Note: `v1.*` does NOT match `v1` (no dot), only versions with a dot after `v1`
-
-## Adding New Validation Rules
-
-1. Add validation logic in `main.ps1` in the validation section (~line 800+)
-2. Create `ValidationIssue` objects with appropriate `RemediationAction`
-3. If auto-fixable, implement a `RemediationAction` subclass in `lib/RemediationActions.ps1`
-4. Add tests in `tests/e2e/SemVerValidation.Tests.ps1`
-
-## Adding New API Endpoints
-
-1. Add function to `lib/GitHubApi.ps1`
-2. Wrap calls in `Invoke-WithRetry` for reliability
-3. Check for `Invoke-WebRequestWrapper` to enable test mocking:
-   ```powershell
-   if (Get-Command Invoke-WebRequestWrapper -ErrorAction SilentlyContinue) {
-       Invoke-WebRequestWrapper -Uri $url ...
-   } else {
-       Invoke-WebRequest -Uri $url ...
-   }
-   ```
-
-## GitHub Actions Integration
-
-- Entry point: `action.yaml` → runs `main.ps1` via `pwsh`
-- Inputs passed as JSON via `$env:inputs` (using `tojson(inputs)`)
-- GitHub context via `$env:GITHUB_*` variables
-- Outputs set via `echo "name=value" >> $env:GITHUB_OUTPUT`
-- Exit code 0 = success, 1 = validation errors found

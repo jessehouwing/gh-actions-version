@@ -1,0 +1,85 @@
+# action-version.yml - the versioning strategy enforced by gh version-action.
+#
+# This is the built-in default. It applies when a repository has no action-version.yml of its own.
+# A repository file is looked up next to action.yaml (the repository root), then in .github/, and its
+# settings are layered over this file. Command line flags override both.
+#
+# Strategy (GitHub's immutable release strategy for actions):
+#
+#   v1.0.0   patch     immutable   A published (non-draft) GitHub Release makes it immutable. Never moved.
+#   v1.0     minor     mutable     Floating ref, force-moved to the latest v1.0.x patch.
+#   v1       major     mutable     Floating ref, force-moved to the latest v1.x.y patch.
+#   latest   latest    mutable     Floating ref, moved to the highest patch overall.
+#
+# Prerelease status is read from the GitHub Release (prerelease: true); version suffixes such as -beta
+# have no meaning to GitHub Actions.
+version: 1
+
+# Floating refs (v1, v1.0, latest) are Git tags, or branches when you need to use them from workflows
+# that cannot pin tags. Allowed: tags, branches.
+floating-versions-use: tags
+
+# Skip releases marked as prerelease when deciding which patch a floating ref must point to.
+ignore-preview-releases: true
+
+# Versions that are never validated or changed. Supports exact versions and wildcards (v1.*, v1.0.*).
+ignore-versions: []
+
+# Every rule belongs to one concern. A concern sets how its problems are reported and whether they may
+# be fixed automatically:
+#
+#   level     error    the problem fails the run (exit code 1)
+#             warning  the problem is reported but does not fail the run
+#             none     the check is skipped
+#   autofix   true     fixed by --auto-fix / --interactive
+#             false    always reported with manual instructions, never changed by the tool
+#
+# Without a file every concern reports errors and may be fixed automatically.
+concerns:
+  # vN must exist for every major with a patch release and point at its latest patch.
+  major:
+    level: error
+    autofix: true
+  # vN.M must exist for every minor with a patch release and point at its latest patch.
+  # Equivalent to --check-minor-version.
+  minor:
+    level: error
+    autofix: true
+  # Every vN.M.P ref must exist as a tag (created from its release when missing).
+  patch:
+    level: error
+    autofix: true
+  # 'latest' must exist and point at the highest patch, and must not exist as both tag and branch.
+  latest:
+    level: error
+    autofix: true
+  # Refs must have the configured type (tag or branch) and must not exist twice.
+  refs:
+    level: error
+    autofix: true
+  # Every patch needs a GitHub Release, floating versions must not have releases, and the highest
+  # patch is the "latest" release. Equivalent to --check-releases.
+  releases:
+    level: error
+    autofix: true
+  # The repository setting 'Release immutability' is enabled and patch releases are published and
+  # immutable. Equivalent to --check-release-immutability.
+  # Republishing a release whose tag was used by a deleted immutable release also needs
+  # --dangerously-allow-destructive-tag-deletion, whatever the autofix setting.
+  immutability:
+    level: error
+    autofix: true
+  # action.yaml has name, description and branding, README.md exists, and the release is published to
+  # the Marketplace. Equivalent to --check-marketplace.
+  marketplace:
+    level: error
+    autofix: true
+
+# Override one rule; settings left out are inherited from its concern. Example:
+#
+# rules:
+#   minor_tag_tracks_highest_patch:
+#     level: warning
+#   duplicate_release:
+#     autofix: false
+rules: {}

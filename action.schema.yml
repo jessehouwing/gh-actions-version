@@ -52,6 +52,9 @@ inputs:
   auto-fix:
     type: boolean
 
+  dangerously-allow-destructive-tag-deletion:
+    type: boolean
+
   # Floating versions backend choice
   floating-versions-use:
     type: floating-backend

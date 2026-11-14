@@ -1,9 +1,0 @@
-/gh-version-action
-/gh-version-action.exe
-/dist/
-*.test
-*.out
-coverage.*
-artifacts/
-.vscode/
-.idea/
