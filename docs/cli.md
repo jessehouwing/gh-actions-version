@@ -40,6 +40,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `fix --mode manual` | Print remediation instructions without changing anything. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
 | `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
+| `--group-by version\|rule\|concern` | Group console findings by version (default), rule, or concern. |
 | `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
 | `--no-progress` | Use plain progress lines instead of a terminal spinner. |
 | `--quiet` | Suppress progress and informational output; findings, warnings, and errors remain visible. `-q` is reserved for `--jq`. |

@@ -115,4 +115,22 @@ func TestBuildExplainsUnknownImmutabilitySetting(t *testing.T) {
 	}
 }
 
+func TestBuildCountsDistinctIgnoredVersions(t *testing.T) {
+	st := state.New()
+	tag := state.NewVersionRef("v1.0.0", "refs/tags/v1.0.0", "sha", state.TypeTag)
+	tag.IsIgnored = true
+	branch := state.NewVersionRef("v1.0.0", "refs/heads/v1.0.0", "sha", state.TypeBranch)
+	branch.IsIgnored = true
+	st.Tags = []*state.VersionRef{tag}
+	st.Branches = []*state.VersionRef{branch}
+	st.Releases = []*state.ReleaseInfo{
+		{TagName: "v1.0.0", IsIgnored: true},
+		{TagName: "v2.0.0", IsIgnored: true},
+	}
+
+	if got := Build(st, BuildOptions{}).Summary.Ignored; got != 2 {
+		t.Fatalf("ignored versions = %d, want 2", got)
+	}
+}
+
 func boolPointer(value bool) *bool { return &value }

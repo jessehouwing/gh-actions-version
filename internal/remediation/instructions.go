@@ -235,10 +235,7 @@ func Finish(st *state.State, log *output.Logger, mode Mode) int {
 // FinishWithFailOn logs unresolved issues and returns a code based on failOn.
 func FinishWithFailOn(st *state.State, log *output.Logger, mode Mode, failOn string) int {
 	WriteUnresolvedIssues(st, log)
-	code := ExitCodeFor(st, failOn)
-	if (mode == AutoFix || mode == Interactive) && code == 1 && st.FixedCount() > 0 {
-		code = 3
-	}
+	code := ExitCodeWithFailOn(st, mode, failOn)
 	if mode == DryRun {
 		log.Info("")
 		log.Info("### Dry Run (no changes made)")
@@ -282,6 +279,14 @@ func FinishWithFailOn(st *state.State, log *output.Logger, mode Mode, failOn str
 		}
 	}
 	WriteManualInstructions(st, log, false)
+	return code
+}
+
+func ExitCodeWithFailOn(st *state.State, mode Mode, failOn string) int {
+	code := ExitCodeFor(st, failOn)
+	if (mode == AutoFix || mode == Interactive) && code == 1 && st.FixedCount() > 0 {
+		code = 3
+	}
 	return code
 }
 

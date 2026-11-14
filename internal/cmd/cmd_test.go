@@ -209,7 +209,7 @@ func TestParameterValidation(t *testing.T) {
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
 			"--fail-on", "--rule", "--skip-rule", "--finding",
-			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--json-fields", "--jq", "--template"} {
+			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--group-by", "--json-fields", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
 			}
@@ -324,7 +324,7 @@ func TestFiltersAndFailOn(t *testing.T) {
 		gh := ghWithPatch(t)
 		gh.Fail("POST", "/git/refs", 500, `{"message":"temporary failure"}`, 1)
 		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
-		if r.code != 3 || !strings.Contains(r.all(), "Fixed issues: 1") || !strings.Contains(r.all(), "Failed fixes: 1") {
+		if r.code != 3 || !strings.Contains(r.all(), "Fixes: 1 fixed, 1 failed") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -363,7 +363,7 @@ func TestSubcommands(t *testing.T) {
 	t.Run("dry-run names actions but does not write", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--dry-run", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
-		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "Would apply: Create tag (v1)") || !strings.Contains(r.all(), "Dry Run (no changes made)") {
+		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "Would apply: Create tag (v1)") || !strings.Contains(r.all(), "Dry run: no changes made.") {
 			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
 		}
 	})
@@ -501,7 +501,7 @@ func TestTokenResolution(t *testing.T) {
 func TestEmptyRepository(t *testing.T) {
 	t.Run("Should work without tags (new repository scenario)", func(t *testing.T) {
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("--check")...)
-		if r.code != 0 || !strings.Contains(r.all(), "No issues found") {
+		if r.code != 0 || !strings.Contains(r.all(), "No findings.") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -514,8 +514,8 @@ func TestModes(t *testing.T) {
 		if r.code != 1 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
 		}
-		if !strings.Contains(r.all(), "git push origin") {
-			t.Errorf("manual instructions missing:\n%s", r.all())
+		if strings.Contains(r.all(), "git push origin") || !strings.Contains(r.all(), "fix --mode auto") {
+			t.Errorf("verify should show a fix hint without remediation commands:\n%s", r.all())
 		}
 	})
 	t.Run("Should report only without a terminal when no mode flag is given", func(t *testing.T) {
@@ -936,11 +936,27 @@ func TestOutputSelection(t *testing.T) {
 		e.vars["GITHUB_ACTIONS"] = "true"
 		e.vars["GITHUB_STEP_SUMMARY"] = filepath.Join(t.TempDir(), "summary.md")
 		r := e.runRaw("verify", "-R", "o/r", "--output=console")
-		if r.code != ExitValidation || !strings.Contains(r.out, "ERROR:") || strings.Contains(r.all(), "::error") {
+		if r.code != ExitValidation || !strings.Contains(r.out, "[ERROR] finding") ||
+			!strings.Contains(r.out, "gh actions-version fix --mode auto") || strings.Contains(r.all(), "::error") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 		if _, err := os.Stat(e.vars["GITHUB_STEP_SUMMARY"]); !os.IsNotExist(err) {
 			t.Errorf("console output wrote a step summary: %v", err)
+		}
+	})
+	t.Run("console output supports rule grouping", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw(
+			"verify", "-R", "o/r", "--output=console", "--group-by=rule",
+			"--level=releases=none", "--level=immutability=none", "--level=marketplace=none",
+		)
+		if r.code != ExitValidation || !strings.Contains(r.out, "major / major_tag_missing") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("group-by rejects unsupported values", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw("verify", "--group-by=other")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "--group-by must be version, rule or concern") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("actions can be selected outside GitHub Actions", func(t *testing.T) {

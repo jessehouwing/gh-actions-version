@@ -17,12 +17,14 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/console"
 	"github.com/jessehouwing/gh-actions-version/internal/localgit"
 	"github.com/jessehouwing/gh-actions-version/internal/options"
 	"github.com/jessehouwing/gh-actions-version/internal/output"
 	"github.com/jessehouwing/gh-actions-version/internal/policy"
 	"github.com/jessehouwing/gh-actions-version/internal/progress"
 	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/report"
 	"github.com/jessehouwing/gh-actions-version/internal/rules" // importing registers the validation rules
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 	"github.com/jessehouwing/gh-actions-version/internal/version"
@@ -41,6 +43,7 @@ const (
 type flags struct {
 	repo                                             string
 	output                                           string
+	groupBy                                          string
 	fix, interactive, autoMode, manualMode, yes      bool
 	dryRun, noVerifyAfter                            bool
 	local, fetchReleases, noConfig, verbose, noColor bool
@@ -134,6 +137,7 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringVarP(&f.repo, "repo", "R", "", "Target repository as [HOST/]OWNER/REPO (default: GH_REPO, GITHUB_REPOSITORY or the git remote)")
 	fl.StringVarP(&f.output, "output", "o", "", "Output format: console, json or actions (defaults by environment)")
+	fl.StringVar(&f.groupBy, "group-by", "version", "Group console findings by version, rule or concern")
 	fl.BoolVar(&f.local, "local", false, "Read and fix refs in the local git repository; never pushes")
 	fl.BoolVar(&f.local, "local-only", false, "Alias of --local")
 	fl.BoolVar(&f.fetchReleases, "fetch-releases", false, "With --local: also read releases from GitHub (read-only)")
@@ -366,6 +370,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if f.output != "console" && f.output != "json" && f.output != "actions" {
 		return usageError(log, "--output must be console, json or actions")
 	}
+	if f.groupBy != "version" && f.groupBy != "rule" && f.groupBy != "concern" {
+		return usageError(log, "--group-by must be version, rule or concern")
+	}
 	if !jsonMode && (f.changed["json-fields"] || f.jq != "" || f.template != "") {
 		return usageError(log, "--json-fields, --jq and --template require --output=json")
 	}
@@ -439,7 +446,7 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		scopeIssues(st, versions)
 	}
 	filterIssues(st, f)
-	if len(st.Issues) == 0 && mode == remediation.ReportOnly {
+	if len(st.Issues) == 0 && mode == remediation.ReportOnly && f.output != "console" {
 		log.Notice("No issues found!")
 	}
 
@@ -467,7 +474,21 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 			return r.fail(err)
 		}
 	}
-	code := remediation.FinishWithFailOn(st, log, mode, f.failOn)
+	var code int
+	if f.output == "console" {
+		code = remediation.ExitCodeWithFailOn(st, mode, f.failOn)
+		consoleReport := report.Build(st, report.BuildOptions{Mode: mode.String(), DocsVersion: Version})
+		if err := console.Write(env.Stdout, consoleReport, console.Options{
+			GroupBy: f.groupBy, Quiet: f.quiet, Color: log.Color,
+		}); err != nil {
+			return r.fail(err)
+		}
+		if mode == remediation.Manual {
+			remediation.WriteManualInstructions(st, log, false)
+		}
+	} else {
+		code = remediation.FinishWithFailOn(st, log, mode, f.failOn)
+	}
 	if f.local {
 		printPushCommands(st, log)
 	}

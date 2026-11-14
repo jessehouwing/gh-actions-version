@@ -1,14 +1,11 @@
 exit code: 1
 --- stdout ---
-ERROR: Manual fix required issue: Release v1.0.0 is still in draft status and should be published
-== Manual Remediation Instructions ==
-# Setup - Clone the repository and fetch all tags and branches:
-git clone https://github.com/o/r.git
-cd r
-git fetch --all --tags
+v1.0.0 — 1 error
+  [ERROR] finding immutability / release_is_draft: Release v1.0.0 is still in draft status and should be published
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_published.md
 
-# Remediation Steps:
-gh release edit v1.0.0 --repo o/r --draft=false
+Summary: 1 error, 0 warnings, 0 ignored.
+1 finding can be fixed automatically (run: gh actions-version fix --mode auto).
 --- stderr ---
 Resolve repository, token and policy...
 Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)

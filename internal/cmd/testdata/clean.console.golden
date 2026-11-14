@@ -1,6 +1,6 @@
 exit code: 0
 --- stdout ---
-NOTICE: No issues found!
+No findings.
 --- stderr ---
 Resolve repository, token and policy...
 Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)

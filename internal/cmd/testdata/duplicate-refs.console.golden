@@ -1,18 +1,14 @@
 exit code: 1
 --- stdout ---
-ERROR: Manual fix required issue: Version 'v1' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
-ERROR: Manual fix required issue: Version 'v1.0' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
-== Manual Remediation Instructions ==
-# Setup - Clone the repository and fetch all tags and branches:
-git clone https://github.com/o/r.git
-cd r
-git fetch --all --tags
+v1 — 1 error
+  [ERROR] finding refs / floating_tag_and_branch_both_exist: Version 'v1' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/duplicate_floating_version_ref.md
+v1.0 — 1 error
+  [ERROR] finding refs / floating_tag_and_branch_both_exist: Version 'v1.0' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/duplicate_floating_version_ref.md
 
-# Remediation Steps:
-git branch -d v1
-git push origin :refs/heads/v1
-git branch -d v1.0
-git push origin :refs/heads/v1.0
+Summary: 2 errors, 0 warnings, 0 ignored.
+2 findings can be fixed automatically (run: gh actions-version fix --mode auto).
 --- stderr ---
 Resolve repository, token and policy...
 Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)

@@ -188,10 +188,31 @@ func Build(st *state.State, options BuildOptions) Report {
 			out.Fixes = append(out.Fixes, fix)
 		}
 	}
+	out.Summary.Ignored = ignoredVersionCount(st)
 	out.Groups = append(out.Groups, groupsFromMap(versionGroups)...)
 	out.Groups = append(out.Groups, groupsFromMap(ruleGroups)...)
 	out.Groups = append(out.Groups, groupsFromMap(concernGroups)...)
 	return out
+}
+
+func ignoredVersionCount(st *state.State) int {
+	ignored := map[string]bool{}
+	for _, ref := range st.Tags {
+		if ref.IsIgnored {
+			ignored[ref.Version] = true
+		}
+	}
+	for _, ref := range st.Branches {
+		if ref.IsIgnored {
+			ignored[ref.Version] = true
+		}
+	}
+	for _, release := range st.Releases {
+		if release.IsIgnored {
+			ignored[release.TagName] = true
+		}
+	}
+	return len(ignored)
 }
 
 func causeFor(st *state.State, issue *state.Issue) string {
