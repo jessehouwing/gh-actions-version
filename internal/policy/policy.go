@@ -71,6 +71,18 @@ func Concerns() []string {
 	return out
 }
 
+// ConcernForRule returns the concern that owns a rule.
+func ConcernForRule(name string) (string, bool) {
+	for concern, names := range concernRules {
+		for _, rule := range names {
+			if rule == name {
+				return concern, true
+			}
+		}
+	}
+	return "", false
+}
+
 // checkLevel returns the Config field controlled by the concern, or nil.
 func checkLevel(cfg *state.Config, concern string) *string {
 	switch concern {
