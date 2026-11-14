@@ -27,22 +27,33 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `refs` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `refs` concern.
+```yaml
+concerns:
+  refs:
+    level: warning
+rules:
+  tag_should_be_branch:
+    level: error
+    findings:
+      floating_ref_should_be_branch:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level refs=<level>` sets this concern; `--rule-level tag_should_be_branch=<level>` overrides this rule.
 - Config file: `concerns.refs.level` for all rules of the concern, or `rules.tag_should_be_branch.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.refs.autofix: false` or `rules.tag_should_be_branch.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.refs.autofix: false` or `rules.tag_should_be_branch.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 

@@ -23,22 +23,33 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `major` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `major` concern.
+```yaml
+concerns:
+  major:
+    level: warning
+rules:
+  major_tag_tracks_highest_patch:
+    level: error
+    findings:
+      major_tag_wrong_target:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level major=<level>` sets this concern; `--rule-level major_tag_tracks_highest_patch=<level>` overrides this rule.
 - Config file: `concerns.major.level` for all rules of the concern, or `rules.major_tag_tracks_highest_patch.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.major.autofix: false` or `rules.major_tag_tracks_highest_patch.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.major.autofix: false` or `rules.major_tag_tracks_highest_patch.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -48,7 +59,7 @@ Default: `error`.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `UpdateTagAction` which:
+When you run `fix --mode auto`, this rule uses `UpdateTagAction` which:
 
 1. Force-pushes the major tag to point to the highest patch version's SHA
 2. Preserves all other tags (only updates the major tag)

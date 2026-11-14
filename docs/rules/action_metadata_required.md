@@ -25,7 +25,7 @@ GitHub Marketplace requires the following for an action to be published:
 
 This rule runs when:
 
-- `--check-marketplace` is set to `error` or `warning`
+- `--level marketplace=error` or `--level marketplace=warning`
 - The repository is being validated for marketplace readiness
 
 **Note:** This rule checks metadata availability, not content quality. It verifies that required fields exist but does not validate their values beyond basic format checks.
@@ -38,23 +38,34 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `marketplace` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `marketplace` concern.
+```yaml
+concerns:
+  marketplace:
+    level: warning
+rules:
+  action_metadata_required:
+    level: error
+    findings:
+      marketplace_metadata_missing:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-marketplace=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level marketplace=<level>` sets this concern; `--rule-level action_metadata_required=<level>` overrides this rule.
 - Config file: `concerns.marketplace.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.action_metadata_required.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.marketplace.autofix: false` or `rules.action_metadata_required.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.marketplace.autofix: false` or `rules.action_metadata_required.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -185,7 +196,7 @@ The `branding.color` field must be one of:
 The `branding.icon` field must be a valid [Feather icon](https://feathericons.com/) name. Common choices include:
 
 - `activity`, `airplay`, `alert-circle`, `alert-triangle`
-- `check`, `--check-circle`, `code`, `command`
+- `check`, `check-circle`, `code`, `command`
 - `git-branch`, `git-commit`, `git-merge`, `git-pull-request`
 - `package`, `play`, `plus`, `refresh-cw`
 - `shield`, `star`, `terminal`, `upload`, `zap`

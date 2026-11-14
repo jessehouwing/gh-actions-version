@@ -12,7 +12,7 @@ Validates that published (non-draft) releases for patch versions are truly immut
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-release-immutability` is set to `error` or `warning`
+- `--level immutability=error` or `--level immutability=warning`
 - A published (non-draft) release exists for a patch version (vX.Y.Z)
 - The release does not have the `immutable: true` flag (checked via GraphQL API)
 
@@ -26,23 +26,34 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `immutability` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `immutability` concern.
+```yaml
+concerns:
+  immutability:
+    level: warning
+rules:
+  release_should_be_immutable:
+    level: error
+    findings:
+      release_not_immutable:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-release-immutability=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level immutability=<level>` sets this concern; `--rule-level release_should_be_immutable=<level>` overrides this rule.
 - Config file: `concerns.immutability.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.release_should_be_immutable.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_immutable.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_immutable.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -51,7 +62,7 @@ Default: `error`.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `RepublishReleaseAction` which:
+When you run `fix --mode auto`, this rule uses `RepublishReleaseAction` which:
 
 1. Queries whether "Release immutability" is enabled (`GET /repos/{owner}/{repo}/immutable-releases`) and enables it (`PUT`) if it is off
 2. Converts the release to draft

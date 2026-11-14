@@ -15,18 +15,21 @@ with
 ```yaml
 - run: |
     gh extension install jessehouwing/gh-actions-version
-    gh actions-version --auto-fix
+    gh actions-version fix --mode auto
   env:
     GH_TOKEN: ${{ github.token }}
 ```
 
-Former inputs map to flags of the same name (for example `check-releases: warning` becomes `--check-releases=warning`).
+Former inputs map to the new CLI options. For example, `check-releases: warning` becomes
+`gh actions-version verify --level releases=warning`, and `auto-fix: true` becomes
+`gh actions-version fix --mode auto`. Use `--level CONCERN=LEVEL` for concern levels and
+`--rule-level RULE=LEVEL` or `--finding-level FINDING=LEVEL` for more specific overrides.
 
 ## Locally
 
 ```sh
 gh extension install jessehouwing/gh-actions-version
-gh actions-version --check
+gh actions-version verify
 ```
 
 ## Deprecating the PowerShell code

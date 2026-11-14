@@ -6,14 +6,14 @@ Validates that draft releases for patch versions (e.g., `v1.0.0`) are published 
 
 ## Why This Is An Issue
 
-- **Impact:** Draft releases are mutable and can be edited. When `--check-releases` is enabled, a draft release indicates an incomplete release process. When `--check-release-immutability` is enabled, draft releases violate GitHub's immutable release strategy for Actions.
+- **Impact:** Draft releases are mutable and can be edited. When the releases level is not `none`, a draft release indicates an incomplete release process. When the immutability level is not `none`, draft releases violate GitHub's immutable release strategy for Actions.
 - **Best Practice:** GitHub's [immutable release strategy](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases) requires that patch versions use **published** (non-draft) releases to prevent content changes.
 
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-releases` is set to `error` or `warning`, OR
-- `--check-release-immutability` is set to `error` or `warning`
+- `--level releases=error` or `--level releases=warning`, OR
+- `--level immutability=error` or `--level immutability=warning`
 - AND a draft release exists for a patch version (vX.Y.Z)
 
 **Note:** This rule only checks patch versions. Floating versions (vX, vX.Y) should not have releases at all - they are checked by the `floating_version_no_release` rule instead.
@@ -26,23 +26,34 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `immutability` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `immutability` concern.
+```yaml
+concerns:
+  immutability:
+    level: warning
+rules:
+  release_should_be_published:
+    level: error
+    findings:
+      release_is_draft:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-release-immutability=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level immutability=<level>` sets this concern; `--rule-level release_should_be_published=<level>` overrides this rule.
 - Config file: `concerns.immutability.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.release_should_be_published.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_published.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_published.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -58,7 +69,7 @@ Without write access, draft releases will not be detected by this rule. Instead,
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `PublishReleaseAction` which:
+When you run `fix --mode auto`, this rule uses `PublishReleaseAction` which:
 
 1. Publishes the draft release, making it immutable
 2. Preserves all release metadata (notes, assets, etc.)
@@ -97,7 +108,7 @@ This rule complements `patch_release_required`:
 1. `patch_release_required` (Priority 10) creates releases (either draft or published based on config)
 2. `release_should_be_published` (Priority 11) publishes any remaining drafts
 
-When `--check-release-immutability` is enabled:
+When the immutability level is not `none`:
 - `patch_release_required` creates releases directly as published (AutoPublish=true)
 - This rule handles any pre-existing drafts that need publishing
 
@@ -111,7 +122,7 @@ Repository state:
 - Release: v1.0.0 (draft)
 
 Configuration:
-- --check-release-immutability=error
+- --level immutability=error
 
 Issue: draft_release for v1.0.0
 Action: PublishReleaseAction (will publish the draft)

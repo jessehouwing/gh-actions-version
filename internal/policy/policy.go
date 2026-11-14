@@ -70,7 +70,7 @@ func Concerns() []string {
 	return out
 }
 
-// checkLevel returns the Config field that the check-* flag of the concern controls, or nil.
+// checkLevel returns the Config field controlled by the concern, or nil.
 func checkLevel(cfg *state.Config, concern string) *string {
 	switch concern {
 	case "minor":

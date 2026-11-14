@@ -31,7 +31,7 @@ ignore-versions: []
 #   level     error    the problem fails the run (exit code 1)
 #             warning  the problem is reported but does not fail the run
 #             none     the check is skipped
-#   autofix   true     fixed by --auto-fix / --interactive
+#   autofix   true     fixed by `fix --mode auto` / `fix --mode interactive`
 #             false    always reported with manual instructions, never changed by the tool
 #
 # Without a file every concern reports errors and may be fixed automatically.
@@ -41,7 +41,7 @@ concerns:
     level: error
     autofix: true
   # vN.M must exist for every minor with a patch release and point at its latest patch.
-  # Equivalent to --check-minor-version.
+  # Override with --level minor=LEVEL.
   minor:
     level: error
     autofix: true
@@ -58,19 +58,19 @@ concerns:
     level: error
     autofix: true
   # Every patch needs a GitHub Release, floating versions must not have releases, and the highest
-  # patch is the "latest" release. Equivalent to --check-releases.
+  # patch is the "latest" release. Override with --level releases=LEVEL.
   releases:
     level: error
     autofix: true
   # The repository setting 'Release immutability' is enabled and patch releases are published and
-  # immutable. Equivalent to --check-release-immutability.
+  # immutable. Override with --level immutability=LEVEL.
   # Republishing a release whose tag was used by a deleted immutable release also needs
   # --dangerously-allow-destructive-tag-deletion, whatever the autofix setting.
   immutability:
     level: error
     autofix: true
   # action.yaml has name, description and branding, README.md exists, and the release is published to
-  # the Marketplace. Equivalent to --check-marketplace.
+  # the Marketplace. Override with --level marketplace=LEVEL.
   marketplace:
     level: error
     autofix: true

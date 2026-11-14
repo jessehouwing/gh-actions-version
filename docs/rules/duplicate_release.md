@@ -12,7 +12,7 @@ Validates that there are no duplicate draft releases pointing to the same patch 
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-releases` is set to `error` or `warning`
+- `--level releases=error` or `--level releases=warning`
 - AND multiple releases exist for the same patch version tag (vX.Y.Z)
 - AND at least one of the duplicates is a draft release
 
@@ -26,23 +26,34 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `releases` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `releases` concern.
+```yaml
+concerns:
+  releases:
+    level: warning
+rules:
+  duplicate_release:
+    level: error
+    findings:
+      release_duplicate:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-releases=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level releases=<level>` sets this concern; `--rule-level duplicate_release=<level>` overrides this rule.
 - Config file: `concerns.releases.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.duplicate_release.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.releases.autofix: false` or `rules.duplicate_release.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.releases.autofix: false` or `rules.duplicate_release.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -66,7 +77,7 @@ Only draft releases can be deleted. If multiple published/immutable releases exi
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `DeleteReleaseAction` which:
+When you run `fix --mode auto`, this rule uses `DeleteReleaseAction` which:
 
 1. Deletes the duplicate draft release by its specific release ID
 2. Preserves the primary release (published/immutable/oldest)
@@ -125,7 +136,7 @@ Repository state:
 - Release: v1.0.0 (id: 200, draft)
 
 Configuration:
-- --check-releases=error
+- --level releases=error
 
 Issue: duplicate_release for v1.0.0 (release ID: 200)
 Action: DeleteReleaseAction (will delete release id 200)
@@ -140,7 +151,7 @@ Repository state:
 - Release: v1.0.0 (id: 200, draft)
 
 Configuration:
-- --check-releases=error
+- --level releases=error
 
 Issue: duplicate_release for v1.0.0 (release ID: 200)
 Action: DeleteReleaseAction (will delete release id 200, keep id 100)

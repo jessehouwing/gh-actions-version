@@ -15,11 +15,11 @@ Floating versions should always point to a concrete patch version. If a floating
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-releases=none` (when releases are required, the `patch_release_required` rule handles both tag and release creation)
+- `--level releases=none` (when releases are required, the `patch_release_required` rule handles both tag and release creation)
 - At least one floating version exists (`v1`, `v1.0`, or `latest`)
 - No corresponding patch version exists
 
-**Important:** When `--check-releases` is `error` or `warning`, this rule is **skipped** because the `patch_release_required` rule will create both the release AND the tag (GitHub creates tags implicitly when creating releases).
+**Important:** When `--level releases` is `error` or `warning`, this rule is **skipped** because the `patch_release_required` rule will create both the release AND the tag (GitHub creates tags implicitly when creating releases).
 
 ## Findings
 
@@ -29,22 +29,33 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `patch` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `patch` concern.
+```yaml
+concerns:
+  patch:
+    level: warning
+rules:
+  patch_tag_missing:
+    level: error
+    findings:
+      patch_tag_missing:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level patch=<level>` sets this concern; `--rule-level patch_tag_missing=<level>` overrides this rule.
 - Config file: `concerns.patch.level` for all rules of the concern, or `rules.patch_tag_missing.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.patch.autofix: false` or `rules.patch_tag_missing.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.patch.autofix: false` or `rules.patch_tag_missing.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -89,7 +100,7 @@ git push origin v1.0.0
 
 ## Related Rules
 
-- [`patch_release_required`](./patch_release_required.md) - Creates releases (and tags) when `--check-releases` is enabled
+- [`patch_release_required`](./patch_release_required.md) - Creates releases (and tags) when `--level releases` is enabled
 - [`major_tag_missing`](./major_tag_missing.md) - Creates major floating versions
 - [`minor_tag_missing`](./minor_tag_missing.md) - Creates minor floating versions
 
@@ -97,7 +108,7 @@ git push origin v1.0.0
 
 This rule coordinates with `patch_release_required`:
 
-| `--check-releases` | `patch_tag_missing` | `patch_release_required` | Result |
+| `--level releases` | `patch_tag_missing` | `patch_release_required` | Result |
 |------------------|---------------------|--------------------------|--------|
 | `none` | ✅ Creates tag | Skipped | Tag only |
 | `error`/`warning` | Skipped | ✅ Creates release + tag | Release (tag created implicitly) |
@@ -106,7 +117,7 @@ When releases are required, GitHub's release API creates the tag automatically, 
 
 ## Examples
 
-### Failing Scenario (--check-releases=none)
+### Failing Scenario (--level releases=none)
 
 ```
 Repository state:
@@ -127,7 +138,7 @@ Repository state:
 Floating version has a corresponding patch ✓
 ```
 
-### Skipped Scenario (--check-releases=error)
+### Skipped Scenario (--level releases=error)
 
 ```
 Repository state:

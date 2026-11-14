@@ -467,7 +467,7 @@ If tags exist but weren't fetched:
 ```yaml
 - run: |
     gh extension install jessehouwing/gh-actions-version
-    gh actions-version --auto-fix
+    gh actions-version fix --mode auto
   env:
     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Add this!
 ```
@@ -503,7 +503,7 @@ If tags exist but weren't fetched:
    
    - run: |
        gh extension install jessehouwing/gh-actions-version
-       gh actions-version --auto-fix
+       gh actions-version fix --mode auto
      env:
        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
    ```

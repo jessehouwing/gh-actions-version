@@ -16,9 +16,9 @@ gh extension upgrade actions-version
 
 ```sh
 cd my-action-repo
-gh actions-version                 # report problems (read-only)
-gh actions-version --auto-fix      # fix them
-gh actions-version -R owner/repo   # run against another repository
+gh actions-version verify          # report problems (read-only)
+gh actions-version fix --mode auto      # fix them
+gh actions-version verify -R owner/repo # run against another repository
 ```
 
 ## What it checks
@@ -30,23 +30,26 @@ gh actions-version -R owner/repo   # run against another repository
 
 Prerelease status comes only from the GitHub Release API, never from tag suffixes.
 
-## Modes
+## Commands and output
 
-| Flag | Behavior |
+| Command or flag | Behavior |
 |---|---|
-| `--check` (alias `--no-fix`) | Report only; exit 1 when errors are found. |
-| `--auto-fix` | Apply fixes (needs write access). |
-| `--interactive` / `-i` | Review and confirm each fix on a terminal; `--yes` turns it into auto-fix. |
+| `verify [versions...]` | Report only; exit 1 when errors meet `--fail-on` (default: `error`). |
+| `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
+| `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
+| `fix --mode manual` | Print remediation instructions without changing anything. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
-| `--json fields` (`--jq`, `--template`) | Machine-readable output, as in other `gh` commands. |
+| `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
+| `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
 
-Rule options: `--check-minor-version`, `--check-releases`, `--check-release-immutability`, `--check-marketplace`
-(`error`, `warning`, `none`), `--include-preview-releases`, `--floating-versions-use` (`tags`, `branches`, `both`),
-`--ignore-versions` (supports `v1.*`), `--max-wait`. See `gh actions-version --help`.
+Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
+(`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
+Other options include `--include-preview-releases`, `--floating-versions-use` (`tags`, `branches`, `both`),
+`--ignore-versions` (supports `v1.*`), and `--max-wait`. See `gh actions-version --help`.
 
 `--dangerously-allow-destructive-tag-deletion` is needed only when a tag was used by an immutable release that has since been deleted: such a tag can't be republished, and deleting it is irreversible. Without the flag the issue is reported as a manual fix with the `git push origin :refs/tags/<tag>` command. Other tag deletions are not affected.
 
-Exit codes: `0` success, `1` validation errors remain, `2` usage error.
+Exit codes: `0` success, `1` qualifying findings remain, `2` usage or runtime error, `3` fixes applied but qualifying findings remain.
 
 ## Authentication
 
@@ -106,7 +109,7 @@ steps:
   - uses: actions/checkout@v7
   - run: |
       gh extension install jessehouwing/gh-actions-version
-      gh actions-version --auto-fix
+      gh actions-version fix --mode auto
     env:
       GH_TOKEN: ${{ github.token }}
 ```
@@ -117,11 +120,10 @@ steps:
 |---|---|---|
 | Runtime | `pwsh` on a runner | single Go binary via `gh` |
 | Local use | no | yes (`--local`, interactive) |
-| Output | log annotations | annotations, `--json`, `--jq`, `--template` |
-| Inputs | action inputs | same names as flags; composite `action.yaml` maps them |
+| Output | log annotations | console, JSON, or GitHub Actions workflow commands (`--output`, `--jq`, `--template`) |
+| Inputs | action inputs | command-line flags |
 
-See [docs/migration.md](docs/migration.md), [docs/troubleshooting.md](docs/troubleshooting.md) and
-[docs/test-parity.md](docs/test-parity.md).
+See [migration](migration.md), [troubleshooting](troubleshooting.md) and the [rule reference](rules/README.md).
 
 ## License
 

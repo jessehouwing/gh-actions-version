@@ -13,7 +13,7 @@ Validates that minor version tags (e.g., `v1.0`, `v1.1`) point to the same commi
 
 This rule runs when:
 - `floating-versions-use` is set to `tags` (default)
-- `--check-minor-version` is set to `error` or `warning`
+- `--level minor=error` or `--level minor=warning`
 - A minor version tag exists (vX.Y)
 
 ## Findings
@@ -24,23 +24,34 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `minor` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `minor` concern.
+```yaml
+concerns:
+  minor:
+    level: warning
+rules:
+  minor_tag_tracks_highest_patch:
+    level: error
+    findings:
+      minor_tag_wrong_target:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-minor-version=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level minor=<level>` sets this concern; `--rule-level minor_tag_tracks_highest_patch=<level>` overrides this rule.
 - Config file: `concerns.minor.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.minor_tag_tracks_highest_patch.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.minor.autofix: false` or `rules.minor_tag_tracks_highest_patch.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.minor.autofix: false` or `rules.minor_tag_tracks_highest_patch.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
@@ -50,7 +61,7 @@ Default: `error`.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `UpdateTagAction` which:
+When you run `fix --mode auto`, this rule uses `UpdateTagAction` which:
 
 1. Force-pushes the minor tag to point to the highest patch version's SHA within that minor series
 2. Preserves all other tags (only updates the minor tag)
@@ -118,10 +129,10 @@ Result: No issues - no patches exist in this minor series to track
 
 ### Severity: Warning
 
-When `--check-minor-version` is set to `warning`, this rule reports issues with warning severity instead of error:
+When `--level minor=warning` is set, this rule reports issues with warning severity instead of error:
 
 ```bash
-gh actions-version --check-minor-version=warning
+gh actions-version verify --level minor=warning
 ```
 
 This allows minor version mismatches to be flagged without failing the run.

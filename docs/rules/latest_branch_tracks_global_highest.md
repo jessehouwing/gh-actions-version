@@ -26,22 +26,33 @@ This rule runs when:
 
 ## Configuration
 
-Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+This rule belongs to the `latest` concern. Configure it and its findings in `action-version.yml`:
 
-
-This rule belongs to the `latest` concern.
+```yaml
+concerns:
+  latest:
+    level: warning
+rules:
+  latest_branch_tracks_global_highest:
+    level: error
+    findings:
+      latest_branch_wrong_target:
+        level: warning
+        autofix: false
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level latest=<level>` sets this concern; `--rule-level latest_branch_tracks_global_highest=<level>` overrides this rule.
 - Config file: `concerns.latest.level` for all rules of the concern, or `rules.latest_branch_tracks_global_highest.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.latest.autofix: false` or `rules.latest_branch_tracks_global_highest.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.latest.autofix: false` or `rules.latest_branch_tracks_global_highest.autofix: false` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
