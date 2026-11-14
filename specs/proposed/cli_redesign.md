@@ -1,6 +1,6 @@
 # Proposed: subcommand-based CLI (`setup`, `verify`, `fix`)
 
-Status: proposed, nothing implemented.
+Status: proposed; Phase 2 decisions recorded, implementation pending.
 
 ## Goals
 
@@ -21,6 +21,8 @@ gh actions-version ignore PATTERN [flags]  Add, list or remove ignored versions 
 
 Exit codes (all commands): `0` success, `1` findings at level `error` remain, `2` usage or runtime error,
 `3` (fix only) some fixes were applied but findings remain.
+
+Invoking the binary without a subcommand prints root help and exits `2`.
 
 ## Global flags (all commands)
 
@@ -49,7 +51,12 @@ These override `action-version.yml`. Value flags take one value; boolean flags a
 | `--ignore-version` | repeatable pattern; quote wildcards (`'v1.*'`) | `ignore` / `ignore-versions` |
 | `--level CONCERN=LEVEL` | repeatable; `LEVEL` is `error`, `warning`, `none` | `concerns.<c>.level` |
 | `--rule-level RULE=LEVEL` | repeatable | `rules.<r>.level` |
-| `--check-minor-version`, `--check-releases`, `--check-release-immutability`, `--check-marketplace` | `error`, `warning`, `none` | `concerns.{minor,releases,immutability,marketplace}.level` |
+| `--level CONCERN=LEVEL` | repeatable; `LEVEL` is `error`, `warning`, `none` | `concerns.<concern>.level` |
+| `--rule-level RULE=LEVEL` | repeatable | `rules.<rule>.level` |
+| `--finding-level FINDING=LEVEL` | repeatable | `rules.<rule>.findings.<finding>.level` |
+
+Level flags are validated against the registered concerns, rules and findings. The four legacy
+`--check-*` flags are removed.
 
 ## `setup`
 
@@ -85,7 +92,8 @@ Edits `action-version.yml` offline; see `ignored_versions.md` for flags, scopes 
 
 ## `verify`
 
-Read-only. Never writes, never prompts.
+Read-only. Never writes, never prompts. Positional version patterns (for example `v1` or `v2.*`)
+limit the findings to report.
 
 | Flag | Description |
 |---|---|
@@ -128,15 +136,16 @@ gh actions-version verify -o json > findings.json   # equivalent to --save
 
 ## `fix`
 
-Validates (or reads `--from`), then applies remediations. Mode is a required choice with a default:
+Validates (or reads `--from`), then applies remediations. Positional version patterns limit the
+findings to fix. Mode is a required choice with a default:
 
 | Form | Behavior |
 |---|---|
-| `fix --mode interactive` (`-i`) | Show each fix and ask; terminal required. Default on a terminal. |
-| `fix --mode auto` | Apply every auto-fixable remediation without prompting. Default when not on a terminal. |
+| `fix --mode interactive` or `--interactive` (`-i`) | Show each fix and ask; terminal required. Default on a terminal. |
+| `fix --mode auto` or `--auto` | Apply every auto-fixable remediation without prompting. Default when not on a terminal. |
 | `fix --mode manual` | Apply nothing; print manual instructions (commands) for every finding. |
 
-Shorthands: `--interactive`, `--auto`, `--manual`. Only one mode may be given; conflicting modes exit `2`.
+`--manual` selects manual mode. Only one mode may be given; conflicting modes exit `2`.
 
 | Flag | Description |
 |---|---|
@@ -166,7 +175,7 @@ manualCommands), `fixes[]` (action, status, error), `summary`. Additional flags:
 | Flag | Description |
 |---|---|
 | `--json-fields a,b,c` | Select the fields to print. |
-| `--jq EXPR`, `--template TMPL` | As in other `gh` commands; imply `json`. |
+| `--jq EXPR` (`-q`), `--template TMPL` (`-t`) | As in other `gh` commands; imply `json`. These flags are mutually exclusive. |
 
 ### `actions`
 
@@ -180,9 +189,12 @@ manualCommands), `fixes[]` (action, status, error), `summary`. Additional flags:
   (`success`/`failed`).
 - `--output actions` outside Actions (no `GITHUB_STEP_SUMMARY`) logs the commands only and skips the summary.
 
-## Open questions
+## Decisions
 
-- Should `fix --mode auto` be the default when not on a terminal, or should it require an explicit mode so CI
-  can never write by accident?
-- `--level` / `--rule-level` as repeatable key=value flags: acceptable, or keep only the four `--check-*` flags?
-- Exit code `3` for "partially fixed": needed, or fold into `1`?
+- Bare invocation prints root help and exits `2`.
+- `fix` defaults to `interactive` on a terminal and `auto` without a terminal.
+- Exit code `3` is retained when fixes were applied but error-level findings remain.
+- Level overrides use only repeatable `--level`, `--rule-level` and `--finding-level` `KEY=LEVEL` flags;
+  the legacy `--check-*` flags are removed.
+- Positional version patterns remain supported on both `verify` and `fix`.
+- `--jq`/`-q`, `--template`/`-t` and `--json-fields` remain supported; jq and template are mutually exclusive.
