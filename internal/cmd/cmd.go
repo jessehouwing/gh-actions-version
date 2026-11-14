@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/jessehouwing/gh-actions-version/internal/actionsoutput"
 	"github.com/jessehouwing/gh-actions-version/internal/api"
 	"github.com/jessehouwing/gh-actions-version/internal/console"
 	"github.com/jessehouwing/gh-actions-version/internal/localgit"
@@ -483,6 +484,16 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}); err != nil {
 			return r.fail(err)
 		}
+	} else if f.output == "actions" {
+		code = remediation.ExitCodeWithFailOn(st, mode, f.failOn)
+		summaryPath, outputsPath := "", ""
+		if env.Getenv("GITHUB_ACTIONS") == "true" {
+			summaryPath = env.Getenv("GITHUB_STEP_SUMMARY")
+			outputsPath = env.Getenv("GITHUB_OUTPUT")
+		}
+		if err := actionsoutput.Render(env.Stdout, summaryPath, outputsPath, buildReport(st, r, code), code); err != nil {
+			return r.fail(err)
+		}
 	} else {
 		code = remediation.FinishWithFailOn(st, log, mode, f.failOn)
 	}
@@ -495,10 +506,6 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}
 	}
 
-	if f.output == "actions" && env.Getenv("GITHUB_ACTIONS") == "true" {
-		remediation.WriteManualInstructionsToStepSummary(st)
-		writeStepSummary(env, st, mode, code)
-	}
 	if jsonMode {
 		if err := writeJSON(env, f, fields, buildReport(st, r, code)); err != nil {
 			return usageError(log, err.Error())

@@ -33,11 +33,13 @@ func TestGolden(t *testing.T) {
 				e := newEnv(t, gh)
 				args := []string{"verify", "-R", "o/r", "--level=marketplace=none", "--output", format}
 				tempDir := t.TempDir()
-				var summaryPath string
+				var summaryPath, outputsPath string
 				if format == "actions" {
 					summaryPath = filepath.Join(tempDir, "summary.md")
+					outputsPath = filepath.Join(tempDir, "outputs")
 					e.vars["GITHUB_ACTIONS"] = "true"
 					e.vars["GITHUB_STEP_SUMMARY"] = summaryPath
+					e.vars["GITHUB_OUTPUT"] = outputsPath
 				}
 				result := e.run(args...)
 				output := fmt.Sprintf("exit code: %d\n--- stdout ---\n%s--- stderr ---\n%s", result.code, result.out, result.err)
@@ -47,6 +49,11 @@ func TestGolden(t *testing.T) {
 						t.Fatal(err)
 					}
 					output += "--- step summary ---\n" + string(summary)
+					outputs, err := os.ReadFile(outputsPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					output += "--- step outputs ---\n" + string(outputs)
 				}
 				output = normalizeGolden(output, gh.URL, tempDir)
 				path := filepath.Join("testdata", fixture.name+"."+format+".golden")

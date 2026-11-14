@@ -1201,7 +1201,7 @@ func TestGitHubActions(t *testing.T) {
 		e.vars["GITHUB_STEP_SUMMARY"] = path
 		e.run(args("--check")...)
 		b := readFile(t, path)
-		if !strings.Contains(b, "Version validation: o/r") || !strings.Contains(b, "Manual Remediation Required") {
+		if !strings.Contains(b, "Version validation: o/r") || strings.Contains(b, "## Manual remediation") {
 			t.Errorf("summary:\n%s", b)
 		}
 	})
