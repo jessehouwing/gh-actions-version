@@ -147,6 +147,8 @@ func Build(st *state.State, options BuildOptions) Report {
 			if commands := issue.Action.ManualCommands(st); commands != nil {
 				manual = append(manual, commands...)
 			}
+		} else if issue.ManualFixCommand != "" {
+			manual = append(manual, issue.ManualFixCommand)
 		}
 		finding := Finding{
 			Rule: issue.Rule, Finding: issue.Finding, Concern: concern, Severity: issue.Severity,

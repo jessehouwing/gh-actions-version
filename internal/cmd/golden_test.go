@@ -71,6 +71,38 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+func TestManualConsoleGolden(t *testing.T) {
+	gh := testutil.CheckoutFixture(t)
+	e := newEnv(t, gh)
+	result := e.run("fix", "-R", "o/r", "--mode=manual", "--level=marketplace=none", "--output=console")
+	output := fmt.Sprintf("exit code: %d\n--- stdout ---\n%s--- stderr ---\n%s", result.code, result.out, result.err)
+	tempDir := t.TempDir()
+	output = normalizeGolden(output, gh.URL, tempDir)
+	path := filepath.Join("testdata", "manual.console.golden")
+	if *updateGoldens {
+		if err := os.WriteFile(path, []byte(output), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalizeGolden(string(want), gh.URL, tempDir) != output {
+		t.Errorf("output differs from %s; run go test ./internal/cmd -run '^TestManualConsoleGolden$' -update", path)
+	}
+	verbose := e.run("fix", "-R", "o/r", "--mode=manual", "--level=marketplace=none", "--output=console", "-v")
+	for _, command := range []string{
+		"[v4.5.1] gh release edit v4.5.1 --repo o/r --draft=true",
+		"[v4.5.0] gh release edit v4.5.0 --repo o/r --draft=true",
+	} {
+		if !strings.Contains(verbose.out, command) {
+			t.Errorf("verbose output %q does not contain %q", verbose.out, command)
+		}
+	}
+}
+
 var (
 	goldenMarkerPattern   = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`)
 	goldenDurationPattern = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:ns|µs|ms|s)\b`)

@@ -54,6 +54,57 @@ func TestWriteDefaultsToVersionGroupsAndOmitsRemediation(t *testing.T) {
 	}
 }
 
+func TestWriteManualModeDeduplicatesCommandsWithTagPlaceholder(t *testing.T) {
+	result := sampleReport()
+	result.Mode = "manual"
+	first := result.Findings[0]
+	first.Manual = []string{"gh release edit v1.0.0 --draft=true"}
+	second := first
+	second.Version = "v1.0.1"
+	second.Manual = []string{"gh release edit v1.0.1 --draft=true"}
+	result.Findings = []report.Finding{first, second}
+
+	var out bytes.Buffer
+	if err := Write(&out, result, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if count := strings.Count(got, "gh release edit <tag> --draft=true"); count != 1 {
+		t.Fatalf("deduplicated command count = %d, output:\n%s", count, got)
+	}
+	if strings.Contains(got, "gh release edit v1.0.") {
+		t.Fatalf("manual command did not use tag placeholder:\n%s", got)
+	}
+}
+
+func TestWriteManualModeVerboseExpandsCommandsPerVersion(t *testing.T) {
+	result := sampleReport()
+	result.Mode = "manual"
+	first := result.Findings[0]
+	first.Manual = []string{"gh release edit v1.0.0 --draft=true"}
+	second := first
+	second.Version = "v1.0.1"
+	second.Manual = []string{"gh release edit v1.0.1 --draft=true"}
+	result.Findings = []report.Finding{first, second}
+
+	var out bytes.Buffer
+	if err := Write(&out, result, Options{Verbose: true}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, command := range []string{
+		"[v1.0.0] gh release edit v1.0.0 --draft=true",
+		"[v1.0.1] gh release edit v1.0.1 --draft=true",
+	} {
+		if !strings.Contains(got, command) {
+			t.Errorf("output %q does not contain %q", got, command)
+		}
+	}
+	if strings.Contains(got, "<tag>") {
+		t.Fatalf("verbose output unexpectedly used tag placeholder:\n%s", got)
+	}
+}
+
 func TestWriteRuleGroupsDeduplicateVersions(t *testing.T) {
 	result := sampleReport()
 	first := result.Findings[0]

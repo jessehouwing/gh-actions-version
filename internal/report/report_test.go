@@ -40,6 +40,7 @@ func TestBuildCreatesSharedReportAndGroups(t *testing.T) {
 		{
 			Rule: "major_tag_missing", Finding: "major_tag_missing", Severity: state.SeverityWarning,
 			Version: "v2", Message: "missing major tag", Status: state.StatusManualFixRequired,
+			ManualFixCommand: "manual fix v2",
 		},
 	}
 	timings := map[string]time.Duration{"load-refs": time.Second}
@@ -55,6 +56,9 @@ func TestBuildCreatesSharedReportAndGroups(t *testing.T) {
 	if out.Findings[0].Docs != "https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/major_tag_missing.md" ||
 		!out.Findings[0].AutoFixable || len(out.Findings[0].Manual) != 1 {
 		t.Fatalf("finding fields missing: %+v", out.Findings[0])
+	}
+	if len(out.Findings[1].Manual) != 1 || out.Findings[1].Manual[0] != "manual fix v2" {
+		t.Fatalf("standalone manual command missing: %+v", out.Findings[1])
 	}
 	if out.Summary.Total != 2 || out.Summary.Errors != 1 || out.Summary.Warnings != 1 ||
 		out.Summary.AutoFixable != 1 || out.Summary.Fixed != 1 || out.Summary.ManualFixRequired != 1 {

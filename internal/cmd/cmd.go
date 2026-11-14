@@ -479,12 +479,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		code = remediation.ExitCodeWithFailOn(st, mode, f.failOn)
 		consoleReport := report.Build(st, report.BuildOptions{Mode: mode.String(), DocsVersion: Version})
 		if err := console.Write(env.Stdout, consoleReport, console.Options{
-			GroupBy: f.groupBy, Quiet: f.quiet, Color: log.Color,
+			GroupBy: f.groupBy, Quiet: f.quiet, Color: log.Color, Verbose: f.verbose,
 		}); err != nil {
 			return r.fail(err)
-		}
-		if mode == remediation.Manual {
-			remediation.WriteManualInstructions(st, log, false)
 		}
 	} else {
 		code = remediation.FinishWithFailOn(st, log, mode, f.failOn)

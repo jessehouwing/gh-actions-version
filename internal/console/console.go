@@ -14,6 +14,7 @@ type Options struct {
 	GroupBy string
 	Quiet   bool
 	Color   bool
+	Verbose bool
 }
 
 type findingKey struct {
@@ -39,6 +40,9 @@ func Write(w io.Writer, result report.Report, options Options) error {
 	for _, group := range groups {
 		writeGroup(&b, group, result.Mode, options.Color)
 	}
+	if result.Mode == "manual" {
+		writeManualInstructions(&b, result.Findings, options.Verbose)
+	}
 	if !options.Quiet {
 		writeSummary(&b, result)
 	}
@@ -47,6 +51,52 @@ func Write(w io.Writer, result report.Report, options Options) error {
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+type manualFinding struct {
+	rule, finding string
+	commands      []string
+	seen          map[string]bool
+}
+
+func writeManualInstructions(b *strings.Builder, findings []report.Finding, verbose bool) {
+	var grouped []*manualFinding
+	byFinding := make(map[string]*manualFinding)
+	for _, finding := range findings {
+		if len(finding.Manual) == 0 {
+			continue
+		}
+		key := finding.Rule + "\x00" + finding.Finding
+		group := byFinding[key]
+		if group == nil {
+			group = &manualFinding{rule: finding.Rule, finding: finding.Finding, seen: make(map[string]bool)}
+			byFinding[key] = group
+			grouped = append(grouped, group)
+		}
+		for _, command := range finding.Manual {
+			versioned := finding.Version != "" && strings.Contains(command, finding.Version)
+			if verbose && versioned {
+				command = "[" + finding.Version + "] " + command
+			} else if !verbose && finding.Version != "" {
+				command = strings.ReplaceAll(command, finding.Version, "<tag>")
+			}
+			if group.seen[command] {
+				continue
+			}
+			group.seen[command] = true
+			group.commands = append(group.commands, command)
+		}
+	}
+	if len(grouped) == 0 {
+		return
+	}
+	fmt.Fprintln(b, "Manual instructions:")
+	for _, group := range grouped {
+		fmt.Fprintf(b, "  %s / %s:\n", group.rule, group.finding)
+		for _, command := range group.commands {
+			fmt.Fprintf(b, "    Fix: %s\n", strings.ReplaceAll(command, "\n", "\n    "))
+		}
+	}
 }
 
 func groupsBy(result report.Report, by string) []report.Group {
