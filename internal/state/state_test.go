@@ -126,8 +126,8 @@ func TestReleaseInfo(t *testing.T) {
 
 func TestIssue(t *testing.T) {
 	t.Run("creates issue with all parameters", func(t *testing.T) {
-		i := NewIssue("missing_patch_version", SeverityError, "msg")
-		if i.Type != "missing_patch_version" || i.Severity != SeverityError || i.Message != "msg" {
+		i := NewIssue("patch_tag_missing", SeverityError, "msg")
+		if i.Finding != "patch_tag_missing" || i.Severity != SeverityError || i.Message != "msg" {
 			t.Errorf("%+v", i)
 		}
 	})

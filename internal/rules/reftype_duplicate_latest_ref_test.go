@@ -67,7 +67,7 @@ func TestDuplicateLatestRef(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				issue := rule(t).CreateIssue(item, state.New(), cfg(c.use))
-				if issue == nil || issue.Type != "duplicate_latest_ref" || issue.Severity != "error" || issue.Version != "latest" || issue.Message != c.msg {
+				if issue == nil || issue.Finding != "latest_tag_and_branch_both_exist" || issue.Severity != "error" || issue.Version != "latest" || issue.Message != c.msg {
 					t.Fatalf("unexpected issue %+v", issue)
 				}
 				if rtActionType(issue.Action) != c.action || issue.Action.Version() != "latest" {

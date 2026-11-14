@@ -1,0 +1,5 @@
+exit code: 0
+--- stdout ---
+{"config":{"checkMarketplace":"none","checkMinorVersion":"error","checkReleaseImmutability":"error","checkReleases":"error","floatingVersionsUse":"tags","ignorePreviewReleases":true,"ignoreVersions":[]},"exitCode":0,"issues":[],"local":false,"mode":"report-only","repository":{"host":"github.com","name":"r","nameWithOwner":"o/r","owner":"o"},"summary":{"total":0,"errors":0,"warnings":0,"fixed":0,"failed":0,"manualFixRequired":0,"unfixable":0,"pending":0}}
+--- stderr ---
+NOTICE: No issues found!

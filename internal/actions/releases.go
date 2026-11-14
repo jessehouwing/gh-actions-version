@@ -35,8 +35,21 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 		outf("✓ Success: %s for %s", desc, a.TagName)
 		return true
 	}
-	if res.Unfixable || errors.Is(err, state.ErrUnfixable) {
-		a.markAsUnfixable(st, "missing_release", fmt.Sprintf("Release %s cannot be created because this tag was previously used by an immutable release that was deleted. GitHub does not allow recreating a release on this tag. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\"), and/or publish a new patch (or minor) release so floating versions and 'latest' can advance to a version with a valid release.", a.TagName, a.TagName, a.suggestedIgnoreVersions(st)))
+	if errors.Is(err, state.ErrUnfixable) {
+		message := fmt.Sprintf("Release %s cannot be created because this tag was previously used by an immutable release that was deleted. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\").", a.TagName, a.TagName, a.suggestedIgnoreVersions(st))
+		if issue := a.findIssue(st, "release_missing"); issue != nil {
+			issue.Finding = "patch_tag_locked_by_deleted_release"
+			issue.Message = message
+		}
+		if st.Config.AllowDestructiveTagDeletion {
+			if NewDeleteTagAction(a.TagName).Execute(ctx, st, c) {
+				return true
+			}
+			message += " Tag deletion failed; delete it manually or add the version to ignore-versions."
+		} else {
+			message += " Deleting the tag is irreversible; rerun with --dangerously-allow-destructive-tag-deletion to delete it."
+		}
+		a.markAsManualFixRequired(st, "patch_tag_locked_by_deleted_release", message)
 	} else {
 		outf("✗ Failed: %s for %s", desc, a.TagName)
 	}
@@ -44,7 +57,10 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 }
 
 func (a *CreateReleaseAction) ManualCommands(st *state.State) []string {
-	if a.isIssueUnfixable(st, "missing_release") {
+	if a.findIssue(st, "patch_tag_locked_by_deleted_release") != nil {
+		return a.ignoreVersionsYamlSnippet(st)
+	}
+	if a.isIssueUnfixable(st, "release_missing") {
 		return a.ignoreVersionsYamlSnippet(st)
 	}
 	target := ""
@@ -109,7 +125,7 @@ func (a *PublishReleaseAction) Execute(ctx context.Context, st *state.State, c s
 		return true
 	}
 	if res.Unfixable || errors.Is(err, state.ErrUnfixable) {
-		a.markAsUnfixable(st, "draft_release", fmt.Sprintf("Release %s cannot be published because this tag was previously used by an immutable release that was deleted. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\"), and/or publish a new patch (or minor) release so floating versions and 'latest' can advance to a version with a valid release.", a.TagName, a.TagName, a.suggestedIgnoreVersions(st)))
+		a.markAsUnfixable(st, "release_is_draft", fmt.Sprintf("Release %s cannot be published because this tag was previously used by an immutable release that was deleted. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\"), and/or publish a new patch (or minor) release so floating versions and 'latest' can advance to a version with a valid release.", a.TagName, a.TagName, a.suggestedIgnoreVersions(st)))
 	} else {
 		outf("✗ Failed: Publish release for %s", a.TagName)
 	}
@@ -117,7 +133,7 @@ func (a *PublishReleaseAction) Execute(ctx context.Context, st *state.State, c s
 }
 
 func (a *PublishReleaseAction) ManualCommands(st *state.State) []string {
-	if a.isIssueUnfixable(st, "draft_release") {
+	if a.isIssueUnfixable(st, "release_is_draft") {
 		return a.ignoreVersionsYamlSnippet(st)
 	}
 	return []string{fmt.Sprintf("gh release edit %s%s --draft=false%s", a.TagName, repoArg(st), latestArg(a.MakeLatest))}
@@ -146,7 +162,7 @@ func (a *SetLatestReleaseAction) Execute(ctx context.Context, st *state.State, c
 		return true
 	}
 	if errors.Is(err, state.ErrUnfixable) {
-		a.markAsUnfixable(st, "wrong_latest_release", fmt.Sprintf("Cannot set %s as latest release", a.TagName))
+		a.markAsUnfixable(st, "latest_release_wrong", fmt.Sprintf("Cannot set %s as latest release", a.TagName))
 	} else {
 		outf("✗ Failed: Set release %s as latest", a.TagName)
 	}
@@ -154,7 +170,7 @@ func (a *SetLatestReleaseAction) Execute(ctx context.Context, st *state.State, c
 }
 
 func (a *SetLatestReleaseAction) ManualCommands(st *state.State) []string {
-	if a.isIssueUnfixable(st, "wrong_latest_release") {
+	if a.isIssueUnfixable(st, "latest_release_wrong") {
 		return []string{}
 	}
 	return []string{fmt.Sprintf("gh release edit %s%s --latest", a.TagName, repoArg(st))}
@@ -205,7 +221,7 @@ func immutableReleasesEndpoint(st *state.State) string {
 func (a *RepublishReleaseAction) markImmutabilityManualFix(st *state.State, reason string) {
 	enable := "gh api -X PUT " + immutableReleasesEndpoint(st)
 	a.ImmutabilityEnableFailed = true
-	a.markAsManualFixRequired(st, "non_immutable_release", fmt.Sprintf("%s Enable 'Release immutability' for the repository (requires repository admin permissions): %s", reason, enable))
+	a.markAsManualFixRequired(st, "release_not_immutable", fmt.Sprintf("%s Enable 'Release immutability' for the repository (requires repository admin permissions): %s", reason, enable))
 	outf("::warning::Release %s is not immutable. Enable 'Release immutability' with: %s", a.TagName, enable)
 }
 
@@ -231,7 +247,7 @@ func (a *RepublishReleaseAction) Execute(ctx context.Context, st *state.State, c
 	// it only happens when the user explicitly allowed it.
 	if !st.Config.AllowDestructiveTagDeletion {
 		a.TagDeletionFailed = true
-		a.markAsManualFixRequired(st, "non_immutable_release", fmt.Sprintf("Release %s cannot be republished because this tag was previously used by an immutable release that was deleted. Deleting the tag is irreversible, so it was not done automatically; rerun with --dangerously-allow-destructive-tag-deletion or delete the tag manually.", a.TagName))
+		a.markAsManualFixRequired(st, "release_not_immutable", fmt.Sprintf("Release %s cannot be republished because this tag was previously used by an immutable release that was deleted. Deleting the tag is irreversible, so it was not done automatically; rerun with --dangerously-allow-destructive-tag-deletion or delete the tag manually.", a.TagName))
 		outf("::warning::Release %s was previously deleted; the tag was not deleted because --dangerously-allow-destructive-tag-deletion is not set", a.TagName)
 		return false
 	}
@@ -251,7 +267,7 @@ func (a *RepublishReleaseAction) Execute(ctx context.Context, st *state.State, c
 	} else {
 		msg += " Delete the tag manually; check the tag rulesets and the permissions of the token."
 	}
-	a.markAsManualFixRequired(st, "non_immutable_release", msg)
+	a.markAsManualFixRequired(st, "release_not_immutable", msg)
 	return false
 }
 
@@ -274,7 +290,7 @@ func (a *RepublishReleaseAction) ManualCommands(st *state.State) []string {
 		}
 	}
 	for _, i := range st.Issues {
-		if i.Type == "non_immutable_release" && i.Status == state.StatusFixed {
+		if i.Finding == "release_not_immutable" && i.Status == state.StatusFixed {
 			enabled = true
 			break
 		}

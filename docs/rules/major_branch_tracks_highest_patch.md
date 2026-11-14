@@ -16,7 +16,16 @@ This rule runs when:
 - `floating-versions-use` is set to `branches`
 - A major version branch exists (vX)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `major_branch_wrong_target` | A major version branch points to the wrong patch version |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `major` concern.
 

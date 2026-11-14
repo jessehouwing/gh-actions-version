@@ -44,6 +44,7 @@ func init() {
 	Register(&Rule{
 		Name:        "latest_branch_tracks_global_highest",
 		Description: "Latest branch must point to the global highest patch version",
+		Findings:    []FindingDef{{ID: "latest_branch_wrong_target", Summary: "The latest branch points to the wrong patch version"}},
 		Priority:    30,
 		Category:    "latest",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -54,7 +55,7 @@ func init() {
 		},
 		Check: latestCheck,
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
-			issue, h := latestIssue("incorrect_latest_branch", item, st, cfg)
+			issue, h := latestIssue("latest_branch_wrong_target", item, st, cfg)
 			if issue != nil {
 				issue.Action = actions.NewUpdateBranchAction("latest", h.Sha, true)
 			}

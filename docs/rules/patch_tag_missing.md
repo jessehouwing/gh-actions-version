@@ -21,7 +21,16 @@ This rule runs when:
 
 **Important:** When `--check-releases` is `error` or `warning`, this rule is **skipped** because the `patch_release_required` rule will create both the release AND the tag (GitHub creates tags implicitly when creating releases).
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `patch_tag_missing` | A patch version tag is missing |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `patch` concern.
 

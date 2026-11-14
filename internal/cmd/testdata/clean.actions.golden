@@ -1,0 +1,14 @@
+exit code: 0
+--- stdout ---
+::add-mask::tok
+::debug::File action-version.yml not found in repository
+::debug::File action-version.yaml not found in repository
+::debug::File .github/action-version.yml not found in repository
+::debug::File .github/action-version.yaml not found in repository
+::notice::No issues found!
+--- stderr ---
+--- step summary ---
+## Version validation: o/r
+
+✅ No issues found.
+

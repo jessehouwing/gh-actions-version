@@ -1,0 +1,13 @@
+exit code: 1
+--- stdout ---
+{"config":{"checkMarketplace":"none","checkMinorVersion":"error","checkReleaseImmutability":"error","checkReleases":"error","floatingVersionsUse":"tags","ignorePreviewReleases":true,"ignoreVersions":[]},"exitCode":1,"issues":[{"rule":"release_should_be_published","finding":"release_is_draft","severity":"error","message":"Release v1.0.0 is still in draft status and should be published","version":"v1.0.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Publish release","manualCommands":["gh release edit v1.0.0 --repo o/r --draft=false"]}}],"local":false,"mode":"report-only","repository":{"host":"github.com","name":"r","nameWithOwner":"o/r","owner":"o"},"summary":{"total":1,"errors":1,"warnings":0,"fixed":0,"failed":0,"manualFixRequired":1,"unfixable":0,"pending":0}}
+--- stderr ---
+ERROR: Manual fix required issue: Release v1.0.0 is still in draft status and should be published
+== Manual Remediation Instructions ==
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+gh release edit v1.0.0 --repo o/r --draft=false

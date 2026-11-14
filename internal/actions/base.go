@@ -92,9 +92,9 @@ func newReleaseBase(desc, tag string, prio int) ReleaseBase {
 	return ReleaseBase{Base: newBase(desc, tag, prio), TagName: tag}
 }
 
-func (b *ReleaseBase) findIssue(st *state.State, issueType string) *state.Issue {
+func (b *ReleaseBase) findIssue(st *state.State, finding string) *state.Issue {
 	for _, i := range st.Issues {
-		if i.Version == b.TagName && i.Type == issueType {
+		if i.Version == b.TagName && i.Finding == finding {
 			return i
 		}
 	}
@@ -124,24 +124,24 @@ func (b *ReleaseBase) ignoreVersionsYamlSnippet(st *state.State) []string {
 	}
 }
 
-func (b *ReleaseBase) markAsUnfixable(st *state.State, issueType, msg string) {
+func (b *ReleaseBase) markAsUnfixable(st *state.State, finding, msg string) {
 	outf("✗ Unfixable: %s", msg)
-	if i := b.findIssue(st, issueType); i != nil {
+	if i := b.findIssue(st, finding); i != nil {
 		i.Status = state.StatusUnfixable
 		i.Message = msg
 	}
 }
 
-func (b *ReleaseBase) markAsManualFixRequired(st *state.State, issueType, msg string) {
+func (b *ReleaseBase) markAsManualFixRequired(st *state.State, finding, msg string) {
 	outf("⚠ Manual fix required: %s", msg)
-	if i := b.findIssue(st, issueType); i != nil {
+	if i := b.findIssue(st, finding); i != nil {
 		i.Status = state.StatusManualFixRequired
 		i.Message = msg
 	}
 }
 
-func (b *ReleaseBase) isIssueUnfixable(st *state.State, issueType string) bool {
-	i := b.findIssue(st, issueType)
+func (b *ReleaseBase) isIssueUnfixable(st *state.State, finding string) bool {
+	i := b.findIssue(st, finding)
 	return i != nil && i.Status == state.StatusUnfixable
 }
 

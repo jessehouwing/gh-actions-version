@@ -42,10 +42,9 @@ func TestConvertToCheckLevel(t *testing.T) {
 func TestConvertToIgnoreVersionsList(t *testing.T) {
 	cases := []struct {
 		name string
-		in   any
+		in   string
 		want []string
 	}{
-		{"Should return empty array for null input", nil, nil},
 		{"Should return empty array for empty string", "", nil},
 		{"Should return empty array for whitespace-only string", "   ", nil},
 		{"Should parse single version", "v1.0.0", []string{"v1.0.0"}},
@@ -55,10 +54,6 @@ func TestConvertToIgnoreVersionsList(t *testing.T) {
 		{"Should parse newline-separated versions", "v1.0.0\nv2.0.0\nv3.0.0", []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
 		{"Should handle Windows-style line endings (CRLF)", "v1.0.0\r\nv2.0.0\r\nv3.0.0", []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
 		{"Should handle mixed newlines and commas", "v1.0.0,v2.0.0\nv3.0.0", []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
-		{"Should parse JSON array string", `["v1.0.0", "v2.0.0"]`, []string{"v1.0.0", "v2.0.0"}},
-		{"Should handle pre-parsed array", []string{"v1.0.0", "v2.0.0", "v3.0.0"}, []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
-		{"Should handle pre-parsed JSON array", []any{"v1.0.0", "v2.0.0"}, []string{"v1.0.0", "v2.0.0"}},
-		{"Should handle empty JSON array", "[]", nil},
 		{"Should accept valid version patterns v1", "v1", []string{"v1"}},
 		{"Should accept valid version patterns v1.0", "v1.0", []string{"v1.0"}},
 		{"Should accept valid version patterns v1.0.0", "v1.0.0", []string{"v1.0.0"}},
@@ -67,7 +62,7 @@ func TestConvertToIgnoreVersionsList(t *testing.T) {
 		{"Should skip invalid version patterns", "invalid, v1.0.0, badpattern", []string{"v1.0.0"}},
 		{"Should skip versions without 'v' prefix", "1.0.0, v2.0.0", []string{"v2.0.0"}},
 		{"Should handle empty entries in lists", "v1.0.0, , , v2.0.0", []string{"v1.0.0", "v2.0.0"}},
-		{"Should handle JSON-like string that is not valid JSON", "[v1.0.0, v2.0.0]", nil},
+		{"Should not parse JSON arrays", `["v1.0.0", "v2.0.0"]`, nil},
 		{"Should handle consecutive delimiters", "v1.0.0,,,v2.0.0", []string{"v1.0.0", "v2.0.0"}},
 	}
 	for _, c := range cases {
@@ -81,11 +76,10 @@ func TestConvertToIgnoreVersionsList(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Should warn about invalid patterns and invalid JSON", func(t *testing.T) {
+	t.Run("Should warn about invalid patterns", func(t *testing.T) {
 		var b bytes.Buffer
-		ParseIgnoreVersions("[bad]", &output.Logger{Out: &b, Actions: true})
 		ParseIgnoreVersions("badpattern", &output.Logger{Out: &b, Actions: true})
-		if !strings.Contains(b.String(), "::warning title=Invalid JSON in ignore-versions::") || !strings.Contains(b.String(), "Pattern 'badpattern' does not match") {
+		if !strings.Contains(b.String(), "Pattern 'badpattern' does not match") {
 			t.Fatal(b.String())
 		}
 	})
@@ -137,97 +131,6 @@ func TestValidate(t *testing.T) {
 		c := state.Config{CheckMinorVersion: "bad1", CheckReleases: "bad2", CheckImmutability: "bad3", CheckMarketplace: "bad4", FloatingVersionsUse: "bad5"}
 		if e := Validate(c); len(e) != 5 {
 			t.Fatal(e)
-		}
-	})
-}
-
-func TestReadActionInput(t *testing.T) {
-	read := func(json, token string) *ActionInput {
-		t.Helper()
-		r, err := ReadActionInput(json, token, "", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return r
-	}
-	t.Run("Should return error when inputs env var is not set", func(t *testing.T) {
-		if _, err := ReadActionInput("", "", "", nil); err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("Should return error for invalid JSON", func(t *testing.T) {
-		if _, err := ReadActionInput("not valid json", "", "", nil); err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("Should use default values when inputs are empty", func(t *testing.T) {
-		c := read("{}", "test-token").Config
-		if c.CheckMinorVersion != "error" || c.CheckReleases != "error" || c.CheckImmutability != "error" || c.CheckMarketplace != "error" ||
-			!c.IgnorePreviewReleases || c.FloatingVersionsUse != "tags" || c.AutoFix || len(c.IgnoreVersions) != 0 {
-			t.Fatalf("%+v", c)
-		}
-	})
-	t.Run("Should parse custom check levels", func(t *testing.T) {
-		c := read(`{"check-minor-version":"warning","check-releases":"none","check-release-immutability":"warning"}`, "t").Config
-		if c.CheckMinorVersion != "warning" || c.CheckReleases != "none" || c.CheckImmutability != "warning" {
-			t.Fatalf("%+v", c)
-		}
-	})
-	t.Run("Should parse boolean inputs", func(t *testing.T) {
-		c := read(`{"ignore-preview-releases":"false","auto-fix":"true"}`, "t").Config
-		if c.IgnorePreviewReleases || !c.AutoFix {
-			t.Fatalf("%+v", c)
-		}
-	})
-	t.Run("Should parse real JSON booleans", func(t *testing.T) {
-		c := read(`{"auto-fix":true,"check-releases":false}`, "t").Config
-		if !c.AutoFix || c.CheckReleases != "none" {
-			t.Fatalf("%+v", c)
-		}
-	})
-	t.Run("Should parse floating-versions-use", func(t *testing.T) {
-		if c := read(`{"floating-versions-use":"branches"}`, "t").Config; c.FloatingVersionsUse != "branches" {
-			t.Fatal(c.FloatingVersionsUse)
-		}
-	})
-	t.Run("Should parse ignore-versions list", func(t *testing.T) {
-		c := read(`{"ignore-versions":"v1.0.0, v2.0.0"}`, "t").Config
-		if !reflect.DeepEqual(c.IgnoreVersions, []string{"v1.0.0", "v2.0.0"}) {
-			t.Fatal(c.IgnoreVersions)
-		}
-	})
-	t.Run("Should use token from inputs when provided", func(t *testing.T) {
-		var b bytes.Buffer
-		r, _ := ReadActionInput(`{"token":"custom-token"}`, "state-token", "env-token", &output.Logger{Out: &b, Actions: true})
-		if r.Token != "custom-token" || !strings.Contains(b.String(), "::add-mask::custom-token") {
-			t.Fatalf("%s %s", r.Token, b.String())
-		}
-	})
-	t.Run("Should not mask the token when it equals GITHUB_TOKEN", func(t *testing.T) {
-		var b bytes.Buffer
-		_, _ = ReadActionInput(`{"token":"same"}`, "", "same", &output.Logger{Out: &b, Actions: true})
-		if strings.Contains(b.String(), "add-mask") {
-			t.Fatal(b.String())
-		}
-	})
-	t.Run("Should fall back to state token when input token is empty", func(t *testing.T) {
-		if read(`{"token":""}`, "state-token").Token != "state-token" {
-			t.Fatal("token")
-		}
-	})
-	t.Run("Should fall back to state token when input token is not specified", func(t *testing.T) {
-		if read(`{}`, "state-token").Token != "state-token" {
-			t.Fatal("token")
-		}
-	})
-	t.Run("Should convert string 'true' to check level 'error'", func(t *testing.T) {
-		if read(`{"check-minor-version":"true"}`, "t").Config.CheckMinorVersion != "error" {
-			t.Fatal("level")
-		}
-	})
-	t.Run("Should convert string 'false' to check level 'none'", func(t *testing.T) {
-		if read(`{"check-minor-version":"false"}`, "t").Config.CheckMinorVersion != "none" {
-			t.Fatal("level")
 		}
 	})
 }

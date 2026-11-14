@@ -18,7 +18,16 @@ This rule runs when:
 - `floating-versions-use: branches`
 - A "latest" branch exists
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `latest_branch_wrong_target` | The latest branch points to the wrong patch version |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `latest` concern.
 

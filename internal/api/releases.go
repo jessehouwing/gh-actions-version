@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -180,7 +181,11 @@ func (c *Client) CreateReleaseWithLatest(ctx context.Context, tag string, draft 
 	var r restRelease
 	if err := c.do(ctx, http.MethodPost, c.repoPath("/releases"), body, &r); err != nil {
 		c.logf("Failed to create release for %s: %s", tag, ErrorDetail(err))
-		return releaseFailure(err), err
+		res := releaseFailure(err)
+		if res.Unfixable {
+			return res, fmt.Errorf("%w: %w", state.ErrUnfixable, err)
+		}
+		return res, err
 	}
 	return state.ReleaseResult{Success: true, ID: r.ID, HtmlUrl: r.HtmlUrl}, nil
 }

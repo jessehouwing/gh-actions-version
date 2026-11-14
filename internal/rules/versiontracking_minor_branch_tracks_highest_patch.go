@@ -6,6 +6,7 @@ func init() {
 	Register(&Rule{
 		Name:        "minor_branch_tracks_highest_patch",
 		Description: "Minor version branches must point to the highest patch version within that minor series",
+		Findings:    []FindingDef{{ID: "minor_branch_wrong_target", Summary: "A minor version branch points to the wrong patch version"}},
 		Priority:    22,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {

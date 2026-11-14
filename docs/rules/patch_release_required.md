@@ -16,7 +16,17 @@ The rule also detects when floating versions (e.g., `v1`, `v1.0`) exist but thei
 This rule runs when:
 - `--check-releases` is set to `error` or `warning`
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_missing` | A patch version does not have a GitHub Release |
+| `patch_tag_locked_by_deleted_release` | A patch tag is locked by a deleted immutable release |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `releases` concern.
 
@@ -53,10 +63,9 @@ When `--auto-fix` is enabled, this rule uses `CreateReleaseAction` which:
 2. If `--check-release-immutability` is enabled, publishes the release immediately (making it immutable)
 3. If the tag doesn't exist yet, GitHub's API will create it automatically
 
-**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422 and the issue will be marked as **unfixable**. This tag can never have a release again. Floating versions (major/minor tags) and `latest` can track any version, but they *should* track the latest released version. Recommended remediation (do both):
+**Note:** If release creation returns HTTP 422 because this tag was used by a deleted immutable release, the issue is reclassified as `patch_tag_locked_by_deleted_release`. The default fix does not delete the tag. Deleting it is irreversible and only happens when `--dangerously-allow-destructive-tag-deletion` is explicitly enabled. Without that option, the finding requires manual attention.
 
-1. Add the affected version to `ignore-versions` so floating versions and `latest` fall back to the previous version that still has a valid release. The unfixable issue message includes the ready-to-paste new `ignore-versions` value, computed from your current configured list (wildcard patterns preserved) plus the affected version. For example: `--ignore-versions "v1.*,v6.3.0"`, or `ignore-versions: ["v1.*", v6.3.0]` in `action-version.yml`.
-2. Publish a new patch (or minor) release so floating versions and `latest` can advance forward to a version with a valid release, instead of remaining pinned to the previous one indefinitely.
+Add the affected version to `ignore-versions` so floating versions and `latest` fall back to the previous version that still has a valid release. The finding message includes the ready-to-paste updated value; publish a new patch (or minor) release so floating versions and `latest` can advance to a valid release.
 
 ## Manual Remediation
 

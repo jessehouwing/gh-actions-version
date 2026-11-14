@@ -3,10 +3,7 @@
 package options
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jessehouwing/gh-actions-version/internal/output"
@@ -43,42 +40,17 @@ func ConvertToCheckLevel(value string) string {
 	return n
 }
 
-// ParseIgnoreVersions parses ignore-versions from a comma/newline separated string, a JSON array string
-// or an already parsed []string / []any. Invalid patterns are skipped with a warning.
-func ParseIgnoreVersions(raw any, log *output.Logger) []string {
+// ParseIgnoreVersions parses ignore-versions from a comma/newline separated string. Invalid patterns
+// are skipped with a warning.
+func ParseIgnoreVersions(raw string, log *output.Logger) []string {
 	if log == nil {
 		log = output.Discard()
 	}
-	var items []string
-	switch v := raw.(type) {
-	case nil:
-		return nil
-	case []string:
-		items = v
-	case []any:
-		for _, e := range v {
-			items = append(items, fmt.Sprint(e))
-		}
-	case string:
-		trimmed := strings.TrimSpace(v)
-		parsed := false
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			var arr []any
-			if err := json.Unmarshal([]byte(trimmed), &arr); err != nil {
-				log.Annotate("warning", "Invalid JSON in ignore-versions", "Failed to parse JSON array. Treating as comma/newline-separated list.")
-			} else {
-				parsed = len(arr) > 0
-				for _, e := range arr {
-					items = append(items, fmt.Sprint(e))
-				}
-			}
-		}
-		if !parsed && trimmed != "" {
-			items = strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == '\r' || r == '\n' })
-		}
-	default:
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
 		return nil
 	}
+	items := strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == '\r' || r == '\n' })
 	var out []string
 	for _, it := range items {
 		it = strings.TrimSpace(it)
@@ -94,70 +66,7 @@ func ParseIgnoreVersions(raw any, log *output.Logger) []string {
 	return out
 }
 
-// ActionInput is the parsed action input.
-type ActionInput struct {
-	Token  string
-	Config state.Config
-}
-
-func asString(v any) (string, bool) {
-	switch t := v.(type) {
-	case nil:
-		return "", false
-	case string:
-		return t, true
-	case bool:
-		return strconv.FormatBool(t), true
-	case float64:
-		return strconv.FormatFloat(t, 'f', -1, 64), true
-	}
-	return fmt.Sprint(v), true
-}
-
-// ReadActionInput parses the action inputs JSON (the `inputs` environment variable). fallbackToken is
-// used when the token input is empty; a token that differs from envToken is masked in the log.
-func ReadActionInput(inputsJSON, fallbackToken, envToken string, log *output.Logger) (*ActionInput, error) {
-	if log == nil {
-		log = output.Discard()
-	}
-	if inputsJSON == "" {
-		return nil, errors.New("inputs environment variable is not set")
-	}
-	var in map[string]any
-	if err := json.Unmarshal([]byte(inputsJSON), &in); err != nil {
-		return nil, errors.New("failed to parse inputs JSON")
-	}
-	get := func(key, def string) string {
-		if s, ok := asString(in[key]); ok {
-			return s
-		}
-		return def
-	}
-
-	res := &ActionInput{Token: fallbackToken}
-	if tok, _ := asString(in["token"]); strings.TrimSpace(tok) != "" {
-		res.Token = tok
-		if tok != envToken {
-			log.Mask(tok)
-		}
-	}
-	cfg := DefaultConfig()
-	cfg.CheckMinorVersion = ConvertToCheckLevel(get("check-minor-version", "error"))
-	cfg.CheckReleases = ConvertToCheckLevel(get("check-releases", "error"))
-	cfg.CheckImmutability = ConvertToCheckLevel(get("check-release-immutability", "error"))
-	cfg.CheckMarketplace = ConvertToCheckLevel(get("check-marketplace", "error"))
-	cfg.IgnorePreviewReleases = strings.EqualFold(strings.TrimSpace(get("ignore-preview-releases", "true")), "true")
-	cfg.AutoFix = strings.EqualFold(strings.TrimSpace(get("auto-fix", "false")), "true")
-	cfg.FloatingVersionsUse = strings.ToLower(strings.TrimSpace(get("floating-versions-use", "tags")))
-	cfg.IgnoreVersions = ParseIgnoreVersions(in["ignore-versions"], log)
-	if len(cfg.IgnoreVersions) > 0 {
-		log.Debug("Ignoring versions: " + strings.Join(cfg.IgnoreVersions, ", "))
-	}
-	res.Config = cfg
-	return res, nil
-}
-
-// Validate returns one message per invalid value (Test-ActionInput); empty when valid.
+// Validate returns one message per invalid value; empty when valid.
 func Validate(cfg state.Config) []string {
 	var errs []string
 	check := func(name, v string) {

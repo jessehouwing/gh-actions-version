@@ -50,7 +50,16 @@ gh release edit v1.0.0 --latest
 - `release_should_be_published` - Ensures draft releases are published
 - `release_should_be_immutable` - Ensures releases are immutable
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `latest_release_wrong` | The highest patch release is not marked as latest |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `releases` concern.
 

@@ -1,6 +1,6 @@
 # Proposed: output redesign
 
-Status: proposed, nothing implemented. Companion to `cli_redesign.md`, `rule_refactoring.md` and
+Status: proposed, nothing implemented. Companion to `cli_redesign.md`, `../rule_refactoring.md` and
 `ignored_versions.md`.
 
 ## Problem
@@ -93,7 +93,7 @@ Rules:
 
 Every finding carries the same fields: `rule`, `finding`, `severity`, `version`, `message`, `cause` (optional),
 `docs` (path or URL), `autoFixable`, `manual` (commands, JSON only in `verify`), `ignored` (with reason, when applicable). Renaming
-finding IDs is covered by `rule_refactoring.md`.
+finding IDs is covered by `../rule_refactoring.md`.
 
 ## JSON
 

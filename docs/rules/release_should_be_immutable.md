@@ -18,7 +18,16 @@ This rule runs when:
 
 **Note:** This rule only checks patch versions. Floating versions (vX, vX.Y) should not have releases at all.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_not_immutable` | A published patch release is not immutable |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `immutability` concern.
 

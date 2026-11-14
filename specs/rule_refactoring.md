@@ -1,6 +1,6 @@
-# Proposed: rule → finding refactoring
+# Rule → finding refactoring
 
-Status: proposed, nothing implemented.
+Status: implemented in Phase 1 (Explicit Findings).
 
 ## Problem
 
@@ -27,11 +27,10 @@ the live GraphQL schema and the REST OpenAPI description:
   `/orgs/{org}/settings/immutable-releases*` (organization setting). Nothing about tags.
 - GitHub docs: a tag of a deleted immutable release can be deleted but its name can never be reused.
 
-The only signal is the HTTP 422 when creating a release on the tag. Detection is therefore only possible by
-probing (a mutation, so `--auto-fix` only) or when a fix fails. The audit log may record release deletions;
-not evaluated (likely needs org-level access).
+The only signal is the HTTP 422 when creating a release on the tag. Detect it only after release creation
+fails; never probe preemptively. The audit log is not used because it may require organization access.
 
-## Proposed finding catalog
+## Finding catalog
 
 Rule | Current type | Proposed finding
 --- | --- | ---
@@ -50,7 +49,12 @@ Rule | Current type | Proposed finding
 `patch_tag_missing` | `missing_patch_version` | `patch_tag_missing`
 `major_tag_missing` / `major_branch_missing` | `missing_major_version` | `major_tag_missing` / `major_branch_missing`
 `minor_tag_missing` / `minor_branch_missing` | `missing_minor_version` | `minor_tag_missing` / `minor_branch_missing`
-`*_tracks_highest_patch`, `latest_*_tracks_global_highest` | type from helper (not yet verified) | one finding per rule, e.g. `major_tag_wrong_target`
+`major_tag_tracks_highest_patch` | `incorrect_version` | `major_tag_wrong_target`
+`major_branch_tracks_highest_patch` | `incorrect_version` | `major_branch_wrong_target`
+`minor_tag_tracks_highest_patch` | `incorrect_minor_version` | `minor_tag_wrong_target`
+`minor_branch_tracks_highest_patch` | `incorrect_minor_version` | `minor_branch_wrong_target`
+`latest_tag_tracks_global_highest` | `incorrect_latest_tag` | `latest_tag_wrong_target`
+`latest_branch_tracks_global_highest` | `incorrect_latest_branch` | `latest_branch_wrong_target`
 `action_metadata_required` | `missing_marketplace_metadata` | `marketplace_metadata_missing`
 `marketplace_publication_required` | `marketplace_not_published` | `marketplace_not_published`
 
@@ -61,7 +65,7 @@ creation; its fix deletes the tag and stays behind `--dangerously-allow-destruct
 
 ### Option A: keep rules, make findings explicit
 
-Each rule declares a closed list of finding IDs (constants) with default severity, message and auto-fix.
+Each rule declares a closed list of finding IDs and summaries; severity and auto-fix are configured by concern, rule or finding.
 
 - Docs: each rule page gets a findings table.
 - Config: `rules.<rule>.findings.<id>.level` and `.autofix`, in addition to concern and rule level.
@@ -82,12 +86,14 @@ Add the findings table to each rule page and keep config at rule level.
 ## Rules for any option
 
 - Finding IDs are unique across rules and each belongs to exactly one rule.
-- Renaming an ID is a breaking change for JSON output (`--json`) consumers; keep the old `type` as an alias
-  for one major version or document the break.
+- Finding IDs are renamed without aliases; the issue type strings are not yet a public compatibility contract.
 - `action-version.yml` keeps rejecting unknown keys so typos do not silently weaken the policy.
 
-## Open questions
+## Decisions
 
-- Which option (A, B or C)?
-- Is probing for burned tags acceptable under `--auto-fix`, or should the finding only appear after a failed fix?
-- Should the audit log be investigated as a detection source?
+- **Finding model:** Option A. Keep the existing rules and declare their findings explicitly.
+- **Finding identity:** Every issue carries its owning rule and finding; JSON emits `rule` and `finding`, with no legacy `type`.
+- **Configuration:** Finding overrides win over rule settings, which win over concern settings. Unknown finding IDs are errors.
+- **Burned tags:** Detect only after release creation returns the matching HTTP 422. Deleting the tag is gated by `--dangerously-allow-destructive-tag-deletion`.
+- **Audit log:** No audit-log lookup.
+- **Compatibility:** Finding IDs are renamed without legacy aliases.

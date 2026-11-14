@@ -6,6 +6,7 @@ func init() {
 	Register(&Rule{
 		Name:        "major_tag_missing",
 		Description: "Major version tags should exist for all major versions that have patches",
+		Findings:    []FindingDef{{ID: "major_tag_missing", Summary: "A major version tag is missing"}},
 		Priority:    21,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {

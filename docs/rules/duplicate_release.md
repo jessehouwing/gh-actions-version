@@ -18,7 +18,16 @@ This rule runs when:
 
 **Note:** This rule only checks patch versions (vX.Y.Z). Floating version releases (vX, vX.Y) are handled by the `floating_version_no_release` rule.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_duplicate` | A duplicate draft release exists |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `releases` concern.
 

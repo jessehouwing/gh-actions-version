@@ -1,0 +1,12 @@
+exit code: 1
+--- stdout ---
+ERROR: Manual fix required issue: Release v1.0.0 is still in draft status and should be published
+== Manual Remediation Instructions ==
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+gh release edit v1.0.0 --repo o/r --draft=false
+--- stderr ---

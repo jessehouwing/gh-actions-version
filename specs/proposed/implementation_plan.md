@@ -1,6 +1,6 @@
 # Implementation plan for the proposed specs
 
-Status: proposed. Covers `rule_refactoring.md`, `cli_redesign.md`, `output_redesign.md` and `ignored_versions.md`.
+Status: proposed. Covers `../rule_refactoring.md`, `cli_redesign.md`, `output_redesign.md` and `ignored_versions.md`.
 
 ## Principles
 
@@ -85,7 +85,7 @@ Exit criterion: any later change to output fails a golden test until `-update` i
 
 ## Phase 1: explicit findings (Option A)
 
-Spec: `rule_refactoring.md`. Goal: every issue carries `rule` and `finding`; finding IDs are declared,
+Spec: `../rule_refactoring.md`. Goal: every issue carries `rule` and `finding`; finding IDs are declared,
 unique, documented and configurable.
 
 | PR | Branch | Content | Tests |

@@ -35,6 +35,7 @@ func init() {
 	Register(&Rule{
 		Name:        "duplicate_floating_version_ref",
 		Description: "Floating versions should not exist as both tag and branch simultaneously",
+		Findings:    []FindingDef{{ID: "floating_tag_and_branch_both_exist", Summary: "A floating version exists as both a tag and a branch"}},
 		Priority:    6,
 		Category:    "ref_type",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -46,11 +47,11 @@ func init() {
 			d := item.(*DuplicateRef)
 			var issue *state.Issue
 			if floatingUse(cfg) == "tags" {
-				issue = state.NewIssue("duplicate_ref", state.SeverityError,
+				issue = state.NewIssue("floating_tag_and_branch_both_exist", state.SeverityError,
 					fmt.Sprintf("Version '%s' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)", d.Version))
 				issue.Action = actions.NewDeleteBranchAction(d.Version)
 			} else {
-				issue = state.NewIssue("duplicate_ref", state.SeverityError,
+				issue = state.NewIssue("floating_tag_and_branch_both_exist", state.SeverityError,
 					fmt.Sprintf("Version '%s' exists as both tag and branch. Tag will be deleted (floating-versions-use: branches)", d.Version))
 				issue.Action = actions.NewDeleteTagAction(d.Version)
 			}

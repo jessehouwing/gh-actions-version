@@ -16,7 +16,16 @@ This rule runs when:
 - `--check-minor-version` is set to `error` or `warning`
 - A minor version tag exists (vX.Y)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `minor_tag_wrong_target` | A minor version tag points to the wrong patch version |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `minor` concern.
 

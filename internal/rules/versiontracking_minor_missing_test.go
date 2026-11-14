@@ -80,26 +80,26 @@ func TestMinorTagMissing(t *testing.T) {
 		warn := vtMinorCfg("tags", "warning", true)
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: minorItem{Major: 1}, cfg: pre,
-				typ: "missing_minor_version", version: "v1.0", checkAction: wantCreateTag("v1.0", "abc123"),
+				typ: "minor_tag_missing", version: "v1.0", checkAction: wantCreateTag("v1.0", "abc123"),
 				message: "Minor version tag v1.0 does not exist. It should point to v1.0.0 at abc123"},
 			{name: "should create warning severity when check-minor-version is warning", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: minorItem{Major: 1}, cfg: warn,
-				typ: "missing_minor_version", severity: "warning"},
+				typ: "minor_tag_missing", severity: "warning"},
 			{name: "should configure CreateTagAction with highest patch SHA in minor series", refs: []vtRef{tg("v2.1.0", "old123"), tg("v2.1.1", "new456")}, missing: minorItem{Major: 2, Minor: 1}, cfg: pre,
-				typ: "missing_minor_version", checkAction: wantCreateTag("v2.1", "new456")},
+				typ: "minor_tag_missing", checkAction: wantCreateTag("v2.1", "new456")},
 			{name: "should use SourceSha when major tag exists without patches", refs: []vtRef{tg("v1", "major123")}, missing: minorItem{Major: 1, SourceSha: "major123"}, cfg: pre,
-				typ: "missing_minor_version", version: "v1.0", expectedSha: "major123", checkAction: wantCreateTag("v1.0", "major123"),
+				typ: "minor_tag_missing", version: "v1.0", expectedSha: "major123", checkAction: wantCreateTag("v1.0", "major123"),
 				message: "Minor version tag v1.0 does not exist. It should point to v1 at major123"},
 			{name: "should fallback to major tag lookup when no SourceSha and no patches", refs: []vtRef{tg("v1", "major123")}, missing: minorItem{Major: 1}, cfg: pre,
-				typ: "missing_minor_version", version: "v1.0", expectedSha: "major123", checkAction: wantCreateTag("v1.0", "major123")},
+				typ: "minor_tag_missing", version: "v1.0", expectedSha: "major123", checkAction: wantCreateTag("v1.0", "major123")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
 		refs := []vtRef{tg("v1.0.0", "stable123"), tg("v1.0.1", "prerel456")}
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.0.1"}, refs: refs, missing: minorItem{Major: 1}, cfg: vtMinorCfg("tags", "error", true),
-				typ: "missing_minor_version", expectedSha: "stable123"},
+				typ: "minor_tag_missing", expectedSha: "stable123"},
 			{name: "should use prerelease SHA in CreateIssue when ignore-preview-releases is false", prerelease: []string{"v1.0.1"}, refs: refs, missing: minorItem{Major: 1}, cfg: vtMinorCfg("tags", "error", false),
-				typ: "missing_minor_version", expectedSha: "prerel456"},
+				typ: "minor_tag_missing", expectedSha: "prerel456"},
 		})
 	})
 }
@@ -127,21 +127,21 @@ func TestMinorBranchMissing(t *testing.T) {
 		pre := vtMinorCfg("branches", "error", true)
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: minorItem{Major: 1}, cfg: pre,
-				typ: "missing_minor_version", version: "v1.0", checkAction: wantCreateBranch("v1.0", "abc123"),
+				typ: "minor_branch_missing", version: "v1.0", checkAction: wantCreateBranch("v1.0", "abc123"),
 				message: "Minor version branch v1.0 does not exist. It should point to v1.0.0 at abc123"},
 			{name: "should create warning severity when check-minor-version is warning", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: minorItem{Major: 1}, cfg: vtMinorCfg("branches", "warning", true),
-				typ: "missing_minor_version", severity: "warning"},
+				typ: "minor_branch_missing", severity: "warning"},
 			{name: "should configure CreateBranchAction with highest patch SHA in minor series", refs: []vtRef{tg("v2.1.0", "old123"), tg("v2.1.1", "new456")}, missing: minorItem{Major: 2, Minor: 1}, cfg: pre,
-				typ: "missing_minor_version", checkAction: wantCreateBranch("v2.1", "new456")},
+				typ: "minor_branch_missing", checkAction: wantCreateBranch("v2.1", "new456")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
 		refs := []vtRef{tg("v1.0.0", "stable123"), tg("v1.0.1", "prerel456")}
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.0.1"}, refs: refs, missing: minorItem{Major: 1}, cfg: vtMinorCfg("branches", "error", true),
-				typ: "missing_minor_version", expectedSha: "stable123"},
+				typ: "minor_branch_missing", expectedSha: "stable123"},
 			{name: "should use prerelease SHA in CreateIssue when ignore-preview-releases is false", prerelease: []string{"v1.0.1"}, refs: refs, missing: minorItem{Major: 1}, cfg: vtMinorCfg("branches", "error", false),
-				typ: "missing_minor_version", expectedSha: "prerel456"},
+				typ: "minor_branch_missing", expectedSha: "prerel456"},
 		})
 	})
 }

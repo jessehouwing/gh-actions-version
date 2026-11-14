@@ -96,7 +96,7 @@ func runLatestRuleTests(t *testing.T, k latestKind) {
 			st := state.New()
 			st.Tags = []*state.VersionRef{rtTag("v1.1.0", "def456")}
 			issue := rule(t).CreateIssue(k.latest("abc123"), st, preview(true))
-			if issue.Type != k.issueType || issue.Severity != "error" || issue.Version != "latest" || issue.CurrentSha != "abc123" || issue.ExpectedSha != "def456" {
+			if issue.Finding != k.issueType || issue.Severity != "error" || issue.Version != "latest" || issue.CurrentSha != "abc123" || issue.ExpectedSha != "def456" {
 				t.Fatalf("unexpected issue %+v", issue)
 			}
 			if want := "latest points to abc123 but should point to v1.1.0 at def456"; issue.Message != want {
@@ -168,5 +168,5 @@ func runLatestRuleTests(t *testing.T, k latestKind) {
 }
 
 func TestLatestBranchTracksGlobalHighest(t *testing.T) {
-	runLatestRuleTests(t, latestKind{"latest_branch_tracks_global_highest", true, "branches", "tags", "incorrect_latest_branch"})
+	runLatestRuleTests(t, latestKind{"latest_branch_tracks_global_highest", true, "branches", "tags", "latest_branch_wrong_target"})
 }

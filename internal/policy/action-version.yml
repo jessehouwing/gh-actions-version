@@ -75,11 +75,15 @@ concerns:
     level: error
     autofix: true
 
-# Override one rule; settings left out are inherited from its concern. Example:
+# Override one rule or finding; settings left out are inherited from the rule, then its concern.
 #
 # rules:
 #   minor_tag_tracks_highest_patch:
 #     level: warning
 #   duplicate_release:
 #     autofix: false
+#   patch_tag_missing:
+#     findings:
+#       patch_tag_missing:
+#         level: warning
 rules: {}

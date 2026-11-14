@@ -86,7 +86,7 @@ func TestPatchReleaseRequiredRule(t *testing.T) {
 		v := tag("v1.0.0", "abc123")
 		t.Run("should create issue with error severity", func(t *testing.T) {
 			issue := rule.CreateIssue(v, state.New(), cfg("error", "none"))
-			if _, ok := issue.Action.(*actions.CreateReleaseAction); issue.Type != "missing_release" || issue.Severity != "error" ||
+			if _, ok := issue.Action.(*actions.CreateReleaseAction); issue.Finding != "release_missing" || issue.Severity != "error" ||
 				issue.Message != "Release required for patch version v1.0.0" || !ok {
 				t.Errorf("unexpected issue %+v", issue)
 			}

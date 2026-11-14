@@ -42,6 +42,7 @@ func init() {
 	Register(&Rule{
 		Name:        "branch_should_be_tag",
 		Description: "Floating version and patch version branches should be tags when floating-versions-use is 'tags'",
+		Findings:    []FindingDef{{ID: "floating_ref_should_be_tag", Summary: "A floating version should be a tag"}},
 		Priority:    5,
 		Category:    "ref_type",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -69,7 +70,7 @@ func init() {
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
 			b := item.(*state.VersionRef)
 			target := conversionTarget(b, st, cfg)
-			issue := state.NewIssue("wrong_ref_type", state.SeverityError,
+			issue := state.NewIssue("floating_ref_should_be_tag", state.SeverityError,
 				fmt.Sprintf("Branch '%s' should be a tag (floating-versions-use: tags).%s", b.Version, conversionWarning(b, target)))
 			issue.Version = b.Version
 			issue.Action = actions.NewConvertBranchToTagAction(b.Version, target)

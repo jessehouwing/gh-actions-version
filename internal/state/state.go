@@ -156,7 +156,8 @@ type Action interface {
 
 // Issue is a validation problem.
 type Issue struct {
-	Type             string
+	Rule             string
+	Finding          string
 	Severity         string
 	Message          string
 	Version          string
@@ -170,8 +171,8 @@ type Issue struct {
 	ManualOnly bool
 }
 
-func NewIssue(typ, severity, message string) *Issue {
-	return &Issue{Type: typ, Severity: severity, Message: message, Status: StatusPending}
+func NewIssue(finding, severity, message string) *Issue {
+	return &Issue{Finding: finding, Severity: severity, Message: message, Status: StatusPending}
 }
 
 func (i *Issue) IsAutoFixable() bool { return i.Action != nil && !i.ManualOnly }
@@ -204,8 +205,15 @@ type Config struct {
 
 // RulePolicy overrides how the issues of one rule are reported and fixed. Empty fields change nothing.
 type RulePolicy struct {
-	Level   string // error|warning|none
-	AutoFix *bool  // false: always a manual fix
+	Level    string // error|warning|none
+	AutoFix  *bool  // false: always a manual fix
+	Findings map[string]FindingPolicy
+}
+
+// FindingPolicy overrides a rule's reporting and autofix settings for one finding.
+type FindingPolicy struct {
+	Level   string
+	AutoFix *bool
 }
 
 // State is the single source of truth (port of RepositoryState).

@@ -511,7 +511,6 @@ func TestIgnoreVersions(t *testing.T) {
 		"Should handle empty ignore-versions gracefully":                               {"", 1},
 		"Should handle ignore-versions with extra whitespace and commas":               {" v1.0.0 , , ", 0},
 		"Should support newline-separated ignore-versions":                             {"v1.0.0\nv1.1.0", 0},
-		"Should support JSON array format for ignore-versions":                         {`["v1.0.0","v2.0.0"]`, 0},
 		"Should support mixed newline and comma separators":                            {"v2.0.0,\nv1.0.0", 0},
 		"Should not ignore versions that do not match":                                 {"v2.0.0", 1},
 	}
@@ -593,10 +592,13 @@ func TestJSONOutput(t *testing.T) {
 			t.Fatal("no issues")
 		}
 		i := issues[0].(map[string]any)
-		for _, k := range []string{"type", "severity", "message", "version", "currentSha", "expectedSha", "status", "autoFixable", "action"} {
+		for _, k := range []string{"rule", "finding", "severity", "message", "version", "currentSha", "expectedSha", "status", "autoFixable", "action"} {
 			if _, ok := i[k]; !ok {
 				t.Errorf("issue is missing %s: %v", k, i)
 			}
+		}
+		if _, ok := i["type"]; ok {
+			t.Errorf("issue contains removed type field: %v", i)
 		}
 		act := i["action"].(map[string]any)
 		if act["description"] == "" || len(act["manualCommands"].([]any)) == 0 {

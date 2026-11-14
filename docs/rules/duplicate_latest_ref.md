@@ -15,7 +15,16 @@ This rule runs when:
 - Both a tag named `latest` and a branch named `latest` exist
 - Applies regardless of `floating-versions-use` setting (rule will clean up the wrong ref type)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `latest_tag_and_branch_both_exist` | The latest version exists as both a tag and a branch |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `latest` concern.
 

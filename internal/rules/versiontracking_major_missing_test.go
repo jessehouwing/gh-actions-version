@@ -38,19 +38,19 @@ func TestMajorTagMissing(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, "major_tag_missing", []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: majorItem{1}, cfg: vtPreTags,
-				typ: "missing_major_version", version: "v1", expectedSha: "abc123", checkAction: wantCreateTag("v1", "abc123"),
+				typ: "major_tag_missing", version: "v1", expectedSha: "abc123", checkAction: wantCreateTag("v1", "abc123"),
 				message: "v1 does not exist. It should point to v1.0.0 at abc123"},
 			{name: "should configure CreateTagAction with highest patch SHA", refs: []vtRef{tg("v2.0.0", "old123"), tg("v2.1.0", "new456")}, missing: majorItem{2}, cfg: vtPreTags,
-				typ: "missing_major_version", checkAction: wantCreateTag("v2", "new456")},
+				typ: "major_tag_missing", checkAction: wantCreateTag("v2", "new456")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
 		refs := []vtRef{tg("v1.0.0", "stable123"), tg("v1.1.0", "prerel456")}
 		vtRunIssue(t, "major_tag_missing", []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.1.0"}, refs: refs, missing: majorItem{1}, cfg: vtPreTags,
-				typ: "missing_major_version", expectedSha: "stable123"},
+				typ: "major_tag_missing", expectedSha: "stable123"},
 			{name: "should use prerelease SHA in CreateIssue when ignore-preview-releases is false", prerelease: []string{"v1.1.0"}, refs: refs, missing: majorItem{1}, cfg: vtTags,
-				typ: "missing_major_version", expectedSha: "prerel456"},
+				typ: "major_tag_missing", expectedSha: "prerel456"},
 		})
 	})
 }
@@ -73,19 +73,19 @@ func TestMajorBranchMissing(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, "major_branch_missing", []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{tg("v1.0.0", "abc123")}, missing: majorItem{1}, cfg: vtPreBr,
-				typ: "missing_major_version", version: "v1", expectedSha: "abc123", checkAction: wantCreateBranch("v1", "abc123"),
+				typ: "major_branch_missing", version: "v1", expectedSha: "abc123", checkAction: wantCreateBranch("v1", "abc123"),
 				message: "Major version branch v1 does not exist. It should point to v1.0.0 at abc123"},
 			{name: "should configure CreateBranchAction with highest patch SHA", refs: []vtRef{tg("v2.0.0", "old123"), tg("v2.1.0", "new456")}, missing: majorItem{2}, cfg: vtPreBr,
-				typ: "missing_major_version", checkAction: wantCreateBranch("v2", "new456")},
+				typ: "major_branch_missing", checkAction: wantCreateBranch("v2", "new456")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
 		refs := []vtRef{tg("v1.0.0", "stable123"), tg("v1.1.0", "prerel456")}
 		vtRunIssue(t, "major_branch_missing", []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.1.0"}, refs: refs, missing: majorItem{1}, cfg: vtPreBr,
-				typ: "missing_major_version", expectedSha: "stable123"},
+				typ: "major_branch_missing", expectedSha: "stable123"},
 			{name: "should use prerelease SHA in CreateIssue when ignore-preview-releases is false", prerelease: []string{"v1.1.0"}, refs: refs, missing: majorItem{1}, cfg: vtBranches,
-				typ: "missing_major_version", expectedSha: "prerel456"},
+				typ: "major_branch_missing", expectedSha: "prerel456"},
 		})
 	})
 }

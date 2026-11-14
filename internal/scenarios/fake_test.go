@@ -342,7 +342,7 @@ func messages(st *state.State) string {
 func types(st *state.State) []string {
 	var out []string
 	for _, i := range st.Issues {
-		out = append(out, i.Type)
+		out = append(out, i.Finding)
 	}
 	return out
 }
@@ -350,7 +350,7 @@ func types(st *state.State) []string {
 func issuesOfType(st *state.State, typ string) []*state.Issue {
 	var out []*state.Issue
 	for _, i := range st.Issues {
-		if i.Type == typ {
+		if i.Finding == typ {
 			out = append(out, i)
 		}
 	}

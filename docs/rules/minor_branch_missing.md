@@ -19,7 +19,16 @@ This rule runs when:
 - `--check-minor-version=error` or `--check-minor-version=warning`
 - At least one patch version exists for a major.minor series
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `minor_branch_missing` | A minor version branch is missing |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `minor` concern.
 

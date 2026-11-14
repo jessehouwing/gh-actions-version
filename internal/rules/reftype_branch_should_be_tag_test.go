@@ -134,7 +134,7 @@ func TestBranchShouldBeTag(t *testing.T) {
 				st := state.New()
 				b := rtBranch(c.version, "abc123")
 				issue := rule(t).CreateIssue(b, st, cfg("tags"))
-				if issue == nil || issue.Type != "wrong_ref_type" || issue.Severity != "error" || issue.Version != c.version {
+				if issue == nil || issue.Finding != "floating_ref_should_be_tag" || issue.Severity != "error" || issue.Version != c.version {
 					t.Fatalf("unexpected issue %+v", issue)
 				}
 				a, ok := issue.Action.(*actions.ConvertBranchToTagAction)

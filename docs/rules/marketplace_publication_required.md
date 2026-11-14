@@ -18,7 +18,16 @@ This rule runs when:
 
 **Note:** This rule only checks the release marked as "latest" by GitHub. It does not check every release.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `marketplace_not_published` | The latest release is not published to GitHub Marketplace |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `marketplace` concern.
 

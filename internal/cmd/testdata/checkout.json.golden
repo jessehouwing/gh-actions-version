@@ -1,0 +1,290 @@
+exit code: 1
+--- stdout ---
+{"config":{"checkMarketplace":"none","checkMinorVersion":"error","checkReleaseImmutability":"error","checkReleases":"error","floatingVersionsUse":"tags","ignorePreviewReleases":true,"ignoreVersions":[]},"exitCode":1,"issues":[{"rule":"patch_release_required","finding":"release_missing","severity":"error","message":"Release required for patch version v1.0.3","version":"v1.0.3","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Create release","manualCommands":["gh release create v1.0.3 --repo o/r --title \"v1.0.3\" --notes \"Release v1.0.3\" --target zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"]}},{"rule":"patch_release_required","finding":"release_missing","severity":"error","message":"Release required for patch version v1.0.4","version":"v1.0.4","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Create release","manualCommands":["gh release create v1.0.4 --repo o/r --title \"v1.0.4\" --notes \"Release v1.0.4\" --target zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.0.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.0.0 --repo o/r --draft=true","gh release edit v1.0.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.0.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.0.1 --repo o/r --draft=true","gh release edit v1.0.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.0.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.0.2 --repo o/r --draft=true","gh release edit v1.0.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.1.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.1.0 --repo o/r --draft=true","gh release edit v1.1.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.1.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.1.1 --repo o/r --draft=true","gh release edit v1.1.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.1.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.1.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.1.2 --repo o/r --draft=true","gh release edit v1.1.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.2.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.2.0 --repo o/r --draft=true","gh release edit v1.2.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.2.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.2.1 --repo o/r --draft=true","gh release edit v1.2.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.2.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.2.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.2.2 --repo o/r --draft=true","gh release edit v1.2.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.3.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.3.0 --repo o/r --draft=true","gh release edit v1.3.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.3.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.3.1 --repo o/r --draft=true","gh release edit v1.3.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.3.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.3.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.3.2 --repo o/r --draft=true","gh release edit v1.3.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.4.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.4.0 --repo o/r --draft=true","gh release edit v1.4.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.4.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.4.1 --repo o/r --draft=true","gh release edit v1.4.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.4.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.4.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.4.2 --repo o/r --draft=true","gh release edit v1.4.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.5.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.5.0 --repo o/r --draft=true","gh release edit v1.5.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.5.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.5.1 --repo o/r --draft=true","gh release edit v1.5.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v1.5.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v1.5.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v1.5.2 --repo o/r --draft=true","gh release edit v1.5.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.0.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.0.0 --repo o/r --draft=true","gh release edit v2.0.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.0.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.0.1 --repo o/r --draft=true","gh release edit v2.0.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.0.2","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.0.2 --repo o/r --draft=true","gh release edit v2.0.2 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.1.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.1.0 --repo o/r --draft=true","gh release edit v2.1.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.1.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.1.1 --repo o/r --draft=true","gh release edit v2.1.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.2.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.2.0 --repo o/r --draft=true","gh release edit v2.2.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.2.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.2.1 --repo o/r --draft=true","gh release edit v2.2.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.3.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.3.0 --repo o/r --draft=true","gh release edit v2.3.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.3.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.3.1 --repo o/r --draft=true","gh release edit v2.3.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.4.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.4.0 --repo o/r --draft=true","gh release edit v2.4.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.4.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.4.1 --repo o/r --draft=true","gh release edit v2.4.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.5.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.5.0 --repo o/r --draft=true","gh release edit v2.5.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v2.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v2.5.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v2.5.1 --repo o/r --draft=true","gh release edit v2.5.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.0.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.0.0 --repo o/r --draft=true","gh release edit v3.0.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.0.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.0.1 --repo o/r --draft=true","gh release edit v3.0.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.1.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.1.0 --repo o/r --draft=true","gh release edit v3.1.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.1.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.1.1 --repo o/r --draft=true","gh release edit v3.1.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.2.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.2.0 --repo o/r --draft=true","gh release edit v3.2.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.2.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.2.1 --repo o/r --draft=true","gh release edit v3.2.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.3.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.3.0 --repo o/r --draft=true","gh release edit v3.3.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.3.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.3.1 --repo o/r --draft=true","gh release edit v3.3.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.4.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.4.0 --repo o/r --draft=true","gh release edit v3.4.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.4.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.4.1 --repo o/r --draft=true","gh release edit v3.4.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.5.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.5.0 --repo o/r --draft=true","gh release edit v3.5.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v3.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v3.5.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v3.5.1 --repo o/r --draft=true","gh release edit v3.5.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.0.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.0.0 --repo o/r --draft=true","gh release edit v4.0.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.0.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.0.1 --repo o/r --draft=true","gh release edit v4.0.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.1.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.1.0 --repo o/r --draft=true","gh release edit v4.1.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.1.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.1.1 --repo o/r --draft=true","gh release edit v4.1.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.2.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.2.0 --repo o/r --draft=true","gh release edit v4.2.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.2.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.2.1 --repo o/r --draft=true","gh release edit v4.2.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.3.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.3.0 --repo o/r --draft=true","gh release edit v4.3.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.3.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.3.1 --repo o/r --draft=true","gh release edit v4.3.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.4.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.4.0 --repo o/r --draft=true","gh release edit v4.4.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.4.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.4.1 --repo o/r --draft=true","gh release edit v4.4.1 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.5.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.5.0 --repo o/r --draft=true","gh release edit v4.5.0 --repo o/r --draft=false"]}},{"rule":"release_should_be_immutable","finding":"release_not_immutable","severity":"error","message":"Release v4.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)","version":"v4.5.1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Republish release for immutability","manualCommands":["# Enable 'Release immutability' for the repository (requires repository admin permissions):","gh api -X PUT repos/o/r/immutable-releases","gh release edit v4.5.1 --repo o/r --draft=true","gh release edit v4.5.1 --repo o/r --draft=false"]}}],"local":false,"mode":"report-only","repository":{"host":"github.com","name":"r","nameWithOwner":"o/r","owner":"o"},"summary":{"total":57,"errors":57,"warnings":0,"fixed":0,"failed":0,"manualFixRequired":57,"unfixable":0,"pending":0}}
+--- stderr ---
+ERROR: Manual fix required issue: Release required for patch version v1.0.3
+ERROR: Manual fix required issue: Release required for patch version v1.0.4
+ERROR: Manual fix required issue: Release v1.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.1.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.2.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.3.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.4.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v1.5.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v2.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v3.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+ERROR: Manual fix required issue: Release v4.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+== Manual Remediation Instructions ==
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+gh release create v1.0.3 --repo o/r --title "v1.0.3" --notes "Release v1.0.3" --target zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+gh release create v1.0.4 --repo o/r --title "v1.0.4" --notes "Release v1.0.4" --target zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.0.0 --repo o/r --draft=true
+gh release edit v1.0.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.0.1 --repo o/r --draft=true
+gh release edit v1.0.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.0.2 --repo o/r --draft=true
+gh release edit v1.0.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.1.0 --repo o/r --draft=true
+gh release edit v1.1.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.1.1 --repo o/r --draft=true
+gh release edit v1.1.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.1.2 --repo o/r --draft=true
+gh release edit v1.1.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.2.0 --repo o/r --draft=true
+gh release edit v1.2.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.2.1 --repo o/r --draft=true
+gh release edit v1.2.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.2.2 --repo o/r --draft=true
+gh release edit v1.2.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.3.0 --repo o/r --draft=true
+gh release edit v1.3.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.3.1 --repo o/r --draft=true
+gh release edit v1.3.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.3.2 --repo o/r --draft=true
+gh release edit v1.3.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.4.0 --repo o/r --draft=true
+gh release edit v1.4.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.4.1 --repo o/r --draft=true
+gh release edit v1.4.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.4.2 --repo o/r --draft=true
+gh release edit v1.4.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.5.0 --repo o/r --draft=true
+gh release edit v1.5.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.5.1 --repo o/r --draft=true
+gh release edit v1.5.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v1.5.2 --repo o/r --draft=true
+gh release edit v1.5.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.0.0 --repo o/r --draft=true
+gh release edit v2.0.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.0.1 --repo o/r --draft=true
+gh release edit v2.0.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.0.2 --repo o/r --draft=true
+gh release edit v2.0.2 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.1.0 --repo o/r --draft=true
+gh release edit v2.1.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.1.1 --repo o/r --draft=true
+gh release edit v2.1.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.2.0 --repo o/r --draft=true
+gh release edit v2.2.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.2.1 --repo o/r --draft=true
+gh release edit v2.2.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.3.0 --repo o/r --draft=true
+gh release edit v2.3.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.3.1 --repo o/r --draft=true
+gh release edit v2.3.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.4.0 --repo o/r --draft=true
+gh release edit v2.4.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.4.1 --repo o/r --draft=true
+gh release edit v2.4.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.5.0 --repo o/r --draft=true
+gh release edit v2.5.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v2.5.1 --repo o/r --draft=true
+gh release edit v2.5.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.0.0 --repo o/r --draft=true
+gh release edit v3.0.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.0.1 --repo o/r --draft=true
+gh release edit v3.0.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.1.0 --repo o/r --draft=true
+gh release edit v3.1.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.1.1 --repo o/r --draft=true
+gh release edit v3.1.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.2.0 --repo o/r --draft=true
+gh release edit v3.2.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.2.1 --repo o/r --draft=true
+gh release edit v3.2.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.3.0 --repo o/r --draft=true
+gh release edit v3.3.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.3.1 --repo o/r --draft=true
+gh release edit v3.3.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.4.0 --repo o/r --draft=true
+gh release edit v3.4.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.4.1 --repo o/r --draft=true
+gh release edit v3.4.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.5.0 --repo o/r --draft=true
+gh release edit v3.5.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v3.5.1 --repo o/r --draft=true
+gh release edit v3.5.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.0.0 --repo o/r --draft=true
+gh release edit v4.0.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.0.1 --repo o/r --draft=true
+gh release edit v4.0.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.1.0 --repo o/r --draft=true
+gh release edit v4.1.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.1.1 --repo o/r --draft=true
+gh release edit v4.1.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.2.0 --repo o/r --draft=true
+gh release edit v4.2.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.2.1 --repo o/r --draft=true
+gh release edit v4.2.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.3.0 --repo o/r --draft=true
+gh release edit v4.3.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.3.1 --repo o/r --draft=true
+gh release edit v4.3.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.4.0 --repo o/r --draft=true
+gh release edit v4.4.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.4.1 --repo o/r --draft=true
+gh release edit v4.4.1 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.5.0 --repo o/r --draft=true
+gh release edit v4.5.0 --repo o/r --draft=false
+# Enable 'Release immutability' for the repository (requires repository admin permissions):
+gh api -X PUT repos/o/r/immutable-releases
+gh release edit v4.5.1 --repo o/r --draft=true
+gh release edit v4.5.1 --repo o/r --draft=false

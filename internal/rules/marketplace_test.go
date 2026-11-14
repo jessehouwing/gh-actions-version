@@ -267,7 +267,7 @@ func TestMarketplacePublicationRequiredRule(t *testing.T) {
 		s := mk(mkValid(), true)
 		s.Owner, s.Repo = "o", "r"
 		i := r.CreateIssue(rel, s, cfg)
-		if i.Type != "marketplace_not_published" || i.Version != "v1.0.0" || i.Status != state.StatusManualFixRequired ||
+		if i.Finding != "marketplace_not_published" || i.Version != "v1.0.0" || i.Status != state.StatusManualFixRequired ||
 			!strings.Contains(i.ManualFixCommand, "https://github.com/o/r/releases/tag/v1.0.0") ||
 			!strings.Contains(i.ManualFixCommand, "/marketplace/actions/test-action?version=v1.0.0") {
 			t.Fatalf("%+v", i)

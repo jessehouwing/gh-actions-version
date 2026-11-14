@@ -14,7 +14,16 @@ Validates that the repository setting **Release immutability** is enabled, so th
 - `--check-release-immutability` is `error` or `warning`
 - The setting could be read (`GET /repos/{owner}/{repo}/immutable-releases`). When it can't be read (no API access, `--local`, older GHES), the rule is skipped.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `immutable_releases_disabled` | Release immutability is disabled |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `immutability` concern.
 

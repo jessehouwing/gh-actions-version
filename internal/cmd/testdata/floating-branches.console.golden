@@ -1,0 +1,16 @@
+exit code: 1
+--- stdout ---
+ERROR: Manual fix required issue: Branch 'v1' should be a tag (floating-versions-use: tags).
+ERROR: Manual fix required issue: Branch 'v1.0' should be a tag (floating-versions-use: tags).
+== Manual Remediation Instructions ==
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+git push origin 1111111111111111111111111111111111111111:refs/tags/v1
+git push origin :refs/heads/v1
+git push origin 1111111111111111111111111111111111111111:refs/tags/v1.0
+git push origin :refs/heads/v1.0
+--- stderr ---

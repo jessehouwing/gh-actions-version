@@ -6,6 +6,7 @@ func init() {
 	Register(&Rule{
 		Name:        "major_tag_tracks_highest_patch",
 		Description: "Major version tags must point to the highest patch version",
+		Findings:    []FindingDef{{ID: "major_tag_wrong_target", Summary: "A major version tag points to the wrong patch version"}},
 		Priority:    20,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {

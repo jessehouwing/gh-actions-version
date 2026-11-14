@@ -9,6 +9,7 @@ func init() {
 	Register(&Rule{
 		Name:        "immutable_releases_enabled",
 		Description: "The repository setting 'Release immutability' should be enabled so published releases become immutable",
+		Findings:    []FindingDef{{ID: "immutable_releases_disabled", Summary: "Release immutability is disabled"}},
 		Priority:    11,
 		Category:    "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {

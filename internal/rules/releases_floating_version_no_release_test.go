@@ -62,14 +62,14 @@ func TestFloatingVersionNoReleaseRule(t *testing.T) {
 	t.Run("CreateIssue - Mutable releases", func(t *testing.T) {
 		t.Run("should create error for mutable (draft) floating release when check-releases is error", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1", 123, true, false, false), state.New(), cfg("error", "none"))
-			if _, ok := issue.Action.(*actions.DeleteReleaseAction); issue.Type != "mutable_floating_release" || issue.Severity != "error" ||
+			if _, ok := issue.Action.(*actions.DeleteReleaseAction); issue.Finding != "mutable_floating_release" || issue.Severity != "error" ||
 				!strings.Contains(issue.Message, "v1") || !ok || issue.Status == state.StatusUnfixable {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})
 		t.Run("should create warning for mutable floating release when both checks are warning", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1", 123, true, false, false), state.New(), cfg("warning", "warning"))
-			if issue.Type != "mutable_floating_release" || issue.Severity != "warning" || !strings.Contains(issue.Message, "v1") {
+			if issue.Finding != "mutable_floating_release" || issue.Severity != "warning" || !strings.Contains(issue.Message, "v1") {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})
@@ -89,14 +89,14 @@ func TestFloatingVersionNoReleaseRule(t *testing.T) {
 	t.Run("CreateIssue - Immutable releases", func(t *testing.T) {
 		t.Run("should create unfixable error for immutable floating release", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1", 123, false, false, true), state.New(), cfg("error", "error"))
-			if issue.Type != "immutable_floating_release" || issue.Severity != "error" || !strings.Contains(issue.Message, "v1") ||
+			if issue.Finding != "immutable_floating_release" || issue.Severity != "error" || !strings.Contains(issue.Message, "v1") ||
 				issue.Status != state.StatusUnfixable || issue.Action != nil {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})
 		t.Run("should create unfixable error for immutable latest release", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("latest", 789, false, false, true), state.New(), cfg("error", "error"))
-			if issue.Type != "immutable_floating_release" || issue.Severity != "error" || issue.Status != state.StatusUnfixable {
+			if issue.Finding != "immutable_floating_release" || issue.Severity != "error" || issue.Status != state.StatusUnfixable {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})

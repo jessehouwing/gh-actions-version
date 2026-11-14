@@ -16,7 +16,16 @@ This rule runs when:
 - A patch version (vX.Y.Z) exists as both a tag and a branch
 - Applies regardless of `floating-versions-use` setting (patches must always be tags)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `patch_ref_duplicate` | A patch version exists as both a tag and a branch |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `refs` concern.
 

@@ -11,6 +11,7 @@ func init() {
 	Register(&Rule{
 		Name:        "minor_branch_missing",
 		Description: "Minor version branches should exist for all major.minor versions that have patches",
+		Findings:    []FindingDef{{ID: "minor_branch_missing", Summary: "A minor version branch is missing"}},
 		Priority:    23,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -28,7 +29,7 @@ func init() {
 			it := item.(minorItem)
 			version := fmt.Sprintf("v%d.%d", it.Major, it.Minor)
 			hp := HighestPatchForMinor(st, it.Major, it.Minor, cfg.IgnorePreviewReleases)
-			issue := state.NewIssue("missing_minor_version", minorSeverity(cfg),
+			issue := state.NewIssue("minor_branch_missing", minorSeverity(cfg),
 				fmt.Sprintf("Minor version branch %s does not exist. It should point to %s at %s", version, versionOf(hp), shaOf(hp)))
 			issue.Version = version
 			issue.ExpectedSha = shaOf(hp)

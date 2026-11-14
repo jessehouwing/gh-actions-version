@@ -11,8 +11,12 @@ func init() {
 	Register(&Rule{
 		Name:        "floating_version_no_release",
 		Description: "Floating versions (vX, vX.Y, latest) should not have GitHub Releases",
-		Priority:    15,
-		Category:    "releases",
+		Findings: []FindingDef{
+			{ID: "immutable_floating_release", Summary: "An immutable release exists for a floating version"},
+			{ID: "mutable_floating_release", Summary: "A release exists for a floating version"},
+		},
+		Priority: 15,
+		Category: "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {
 			if cfg.CheckReleases == "none" && cfg.CheckImmutability == "none" {
 				return nil

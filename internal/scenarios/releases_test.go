@@ -27,7 +27,7 @@ func TestReleaseScenarios(t *testing.T) {
 		})
 		t.Run("Should suggest creating a release when tag exists but release doesn't", func(t *testing.T) {
 			st := validate(t, newRepo().tag(c1, "v1.0.0", "v1"), relCfg())
-			equal(t, len(issuesOfType(st, "missing_release")), 1)
+			equal(t, len(issuesOfType(st, "release_missing")), 1)
 		})
 	})
 	t.Run("Release immutability checking", func(t *testing.T) {
@@ -42,7 +42,7 @@ func TestReleaseScenarios(t *testing.T) {
 			r := newRepo().tag(c1, "v1.0.0", "v1")
 			r.release("v1.0.0")
 			st := validate(t, r, relCfg(immutability("none")))
-			equal(t, len(issuesOfType(st, "non_immutable_release")), 0)
+			equal(t, len(issuesOfType(st, "release_not_immutable")), 0)
 		})
 	})
 	t.Run("Draft release detection with check-releases enabled", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestReleaseScenarios(t *testing.T) {
 			r.release("v1.0.0", draft)
 			r.release("v1.0.1", draft)
 			st := validate(t, r, relCfg(immutability("none")))
-			equal(t, len(issuesOfType(st, "missing_release")), 0)
+			equal(t, len(issuesOfType(st, "release_missing")), 0)
 			hasNot(t, commands(st), "gh release create")
 			has(t, messages(st), "draft status")
 			matchRe(t, commands(st), `gh release edit v1\.0\.0.*--draft=false`)
@@ -61,7 +61,7 @@ func TestReleaseScenarios(t *testing.T) {
 			r := newRepo().tag(c1, "v2.0.0", "v2")
 			r.release("v2.0.0")
 			st := validate(t, r, relCfg(immutability("none")))
-			equal(t, len(issuesOfType(st, "missing_release")), 0)
+			equal(t, len(issuesOfType(st, "release_missing")), 0)
 			hasNot(t, commands(st), "gh release create v2.0.0")
 		})
 	})
@@ -93,19 +93,18 @@ func TestReleaseScenarios(t *testing.T) {
 			has(t, messages(st), "draft status")
 			matchRe(t, commands(st), `gh release edit v1\.0\.0.*--draft=false`)
 		})
-		t.Run("Should handle 422 error when tag_name used by immutable release", func(t *testing.T) {
+		t.Run("Should reclassify 422 error when tag_name was used by immutable release", func(t *testing.T) {
 			r := newRepo().tag(c1, "v1.0.0", "v1.0", "v1")
 			r.deletedTags["v1.0.0"] = true
 			cfg := relCfg()
 			st := validate(t, r, cfg)
 			fixAll(t, r, st)
-			if st.UnfixableCount()+st.ManualFixCount()+st.FailedCount() == 0 {
-				t.Fatalf("expected the 422 to be reported as not fixable: fixed=%d", st.FixedCount())
+			issues := issuesOfType(st, "patch_tag_locked_by_deleted_release")
+			if len(issues) != 1 || issues[0].Status != state.StatusManualFixRequired {
+				t.Fatalf("burned-tag issue = %+v, want manual fix", issues)
 			}
-			for _, i := range issuesOfType(st, "missing_release") {
-				if i.Status == state.StatusFixed {
-					t.Error("missing release must not be reported fixed")
-				}
+			if r.tags["v1.0.0"] != c1 {
+				t.Error("tag should not be deleted without the destructive-deletion option")
 			}
 		})
 		t.Run("Should delete mutable releases on floating versions", func(t *testing.T) {
@@ -127,7 +126,7 @@ func TestReleaseScenarios(t *testing.T) {
 			r := newRepo().tag(c1, "v1.0.0", "v1.0", "v1")
 			r.release("v1.0.0", latest)
 			st := validate(t, r, relCfg())
-			equal(t, len(issuesOfType(st, "non_immutable_release")), 1)
+			equal(t, len(issuesOfType(st, "release_not_immutable")), 1)
 			r.findRelease("v1.0.0").IsImmutable = true
 			equal(t, len(validate(t, r, relCfg()).Issues), 0)
 		})

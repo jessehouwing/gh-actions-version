@@ -16,7 +16,17 @@ This rule runs when:
 - `--check-release-immutability` is set to `error` or `warning`
 - A release exists for a floating version (vX, vX.Y, or latest)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `immutable_floating_release` | An immutable release exists for a floating version |
+| `mutable_floating_release` | A release exists for a floating version |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `releases` concern.
 

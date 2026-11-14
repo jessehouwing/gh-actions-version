@@ -19,7 +19,16 @@ This rule runs when:
 - At least one patch version exists for a major version (e.g., `v1.0.0`)
 - No major version tag exists (e.g., `v1`)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `major_tag_missing` | A major version tag is missing |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `major` concern.
 

@@ -47,6 +47,7 @@ func TestParseRejectsInvalid(t *testing.T) {
 		"unknown key":     "bogus: 1",
 		"unknown concern": "concerns:\n  nope:\n    level: error",
 		"unknown rule":    "rules:\n  nope:\n    level: error",
+		"unknown finding": "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
 		"bad level":       "concerns:\n  minor:\n    level: loud",
 		"bad floating":    "floating-versions-use: both",
 	} {
@@ -76,6 +77,40 @@ func TestOverridesAndPrecedence(t *testing.T) {
 	if cfg.CheckReleases != "error" {
 		t.Errorf("flag should beat the file, got %s", cfg.CheckReleases)
 	}
+}
+
+func TestFindingPolicyOverridesRuleAndConcern(t *testing.T) {
+	over, err := Parse([]byte(`concerns:
+  major:
+    level: warning
+    autofix: false
+rules:
+  major_tag_missing:
+    level: error
+    autofix: true
+    findings:
+      major_tag_missing:
+        level: warning
+        autofix: false
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := options.DefaultConfig()
+	Merge(Default(), over).Apply(&cfg, Pinned{})
+	st := state.New()
+	st.Tags = []*state.VersionRef{state.NewVersionRef("v1.0.0", "refs/tags/v1.0.0", "abc", state.TypeTag)}
+	rules.Run(st, &cfg, rules.All())
+	for _, issue := range st.Issues {
+		if issue.Finding == "major_tag_missing" {
+			if issue.Severity != state.SeverityWarning || !issue.ManualOnly {
+				t.Fatalf("finding policy was not applied: %+v", issue)
+			}
+			return
+		}
+	}
+	t.Fatal("expected major_tag_missing finding")
 }
 
 func TestLoadLookupOrder(t *testing.T) {
@@ -114,7 +149,7 @@ func TestRulePolicyAppliedByEngine(t *testing.T) {
 	st.Config = cfg
 	rules.Run(st, &cfg, nil)
 	for _, i := range st.Issues {
-		if i.Type == "immutable_releases_disabled" {
+		if i.Finding == "immutable_releases_disabled" {
 			t.Error("level none should drop the issue")
 		}
 	}

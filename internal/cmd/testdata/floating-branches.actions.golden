@@ -1,0 +1,35 @@
+exit code: 1
+--- stdout ---
+::add-mask::tok
+::debug::File action-version.yml not found in repository
+::debug::File action-version.yaml not found in repository
+::debug::File .github/action-version.yml not found in repository
+::debug::File .github/action-version.yaml not found in repository
+::error title=Manual fix required issue::Branch 'v1' should be a tag (floating-versions-use: tags).
+::error title=Manual fix required issue::Branch 'v1.0' should be a tag (floating-versions-use: tags).
+##[group]Manual Remediation Instructions
+::stop-commands::<MARKER>
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+git push origin 1111111111111111111111111111111111111111:refs/tags/v1
+git push origin :refs/heads/v1
+git push origin 1111111111111111111111111111111111111111:refs/tags/v1.0
+git push origin :refs/heads/v1.0
+::<MARKER>::
+##[endgroup]
+--- stderr ---
+--- step summary ---
+## Version validation: o/r
+
+Mode: **report-only** · errors: 2 · warnings: 0 · fixed: 0 · failed: 0 · manual: 2 · unfixable: 0
+
+| Version | Severity | Status | Message |
+|---|---|---|---|
+| v1 | error | manual_fix_required | Branch 'v1' should be a tag (floating-versions-use: tags). |
+| v1.0 | error | manual_fix_required | Branch 'v1.0' should be a tag (floating-versions-use: tags). |
+
+❌ Validation errors remain.

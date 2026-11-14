@@ -1,0 +1,30 @@
+exit code: 1
+--- stdout ---
+::add-mask::tok
+::debug::File action-version.yml not found in repository
+::debug::File action-version.yaml not found in repository
+::debug::File .github/action-version.yml not found in repository
+::debug::File .github/action-version.yaml not found in repository
+::error title=Manual fix required issue::Release v1.0.0 is still in draft status and should be published
+##[group]Manual Remediation Instructions
+::stop-commands::<MARKER>
+# Setup - Clone the repository and fetch all tags and branches:
+git clone https://github.com/o/r.git
+cd r
+git fetch --all --tags
+
+# Remediation Steps:
+gh release edit v1.0.0 --repo o/r --draft=false
+::<MARKER>::
+##[endgroup]
+--- stderr ---
+--- step summary ---
+## Version validation: o/r
+
+Mode: **report-only** · errors: 1 · warnings: 0 · fixed: 0 · failed: 0 · manual: 1 · unfixable: 0
+
+| Version | Severity | Status | Message |
+|---|---|---|---|
+| v1.0.0 | error | manual_fix_required | Release v1.0.0 is still in draft status and should be published |
+
+❌ Validation errors remain.

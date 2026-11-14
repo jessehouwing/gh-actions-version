@@ -69,7 +69,7 @@ func TestReleaseShouldBePublishedRule(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		t.Run("should create issue with error severity", func(t *testing.T) {
 			issue := rule.CreateIssue(draft("v1.0.0", 123), state.New(), cfg("", "error"))
-			if _, ok := issue.Action.(*actions.PublishReleaseAction); issue.Type != "draft_release" || issue.Severity != "error" ||
+			if _, ok := issue.Action.(*actions.PublishReleaseAction); issue.Finding != "release_is_draft" || issue.Severity != "error" ||
 				!strings.Contains(issue.Message, "v1.0.0") || !ok || issue.Message != "Release v1.0.0 is still in draft status and should be published" {
 				t.Errorf("unexpected issue %+v", issue)
 			}

@@ -19,7 +19,16 @@ This rule runs when:
 - `floating-versions-use` is set to `branches`
 - Tags exist for major (vX) or minor (vX.Y) versions that should be branches
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `floating_ref_should_be_branch` | A floating version should be a branch |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `refs` concern.
 

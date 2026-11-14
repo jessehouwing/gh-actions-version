@@ -238,7 +238,7 @@ func TestImmutableReleaseError(t *testing.T) {
 	t.Run("Should mark create release result unfixable", func(t *testing.T) {
 		hn := newHarness(t, func(w http.ResponseWriter, r *http.Request) { jsonResp(w, 422, immut) })
 		res, err := hn.c.CreateReleaseWithLatest(ctx(), "v1.0.0", false, nil)
-		if err == nil || res.Success || !res.Unfixable {
+		if err == nil || !errors.Is(err, state.ErrUnfixable) || res.Success || !res.Unfixable {
 			t.Fatalf("%+v %v", res, err)
 		}
 	})

@@ -30,7 +30,16 @@ This rule runs when:
 
 **Note:** This rule checks metadata availability, not content quality. It verifies that required fields exist but does not validate their values beyond basic format checks.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `marketplace_metadata_missing` | Required GitHub Marketplace metadata is missing |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `marketplace` concern.
 

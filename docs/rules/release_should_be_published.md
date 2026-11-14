@@ -18,7 +18,16 @@ This rule runs when:
 
 **Note:** This rule only checks patch versions. Floating versions (vX, vX.Y) should not have releases at all - they are checked by the `floating_version_no_release` rule instead.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_is_draft` | A patch release is still a draft |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `immutability` concern.
 

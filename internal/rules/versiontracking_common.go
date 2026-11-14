@@ -125,13 +125,21 @@ func minorTracksCheck(item any, st *state.State, cfg *state.Config) bool {
 func majorTracksIssue(item any, st *state.State, cfg *state.Config, branch bool) *state.Issue {
 	v := item.(*state.VersionRef)
 	hp := HighestPatchForMajor(st, v.Major, cfg.IgnorePreviewReleases)
-	return trackIssue("incorrect_version", state.SeverityError, v, hp, branch)
+	finding := "major_tag_wrong_target"
+	if branch {
+		finding = "major_branch_wrong_target"
+	}
+	return trackIssue(finding, state.SeverityError, v, hp, branch)
 }
 
 func minorTracksIssue(item any, st *state.State, cfg *state.Config, branch bool) *state.Issue {
 	v := item.(*state.VersionRef)
 	hp := HighestPatchForMinor(st, v.Major, v.Minor, cfg.IgnorePreviewReleases)
-	return trackIssue("incorrect_minor_version", minorSeverity(cfg), v, hp, branch)
+	finding := "minor_tag_wrong_target"
+	if branch {
+		finding = "minor_branch_wrong_target"
+	}
+	return trackIssue(finding, minorSeverity(cfg), v, hp, branch)
 }
 
 func trackIssue(typ, severity string, v, hp *state.VersionRef, branch bool) *state.Issue {
@@ -156,7 +164,11 @@ func majorMissingIssue(item any, st *state.State, cfg *state.Config, branch bool
 	if branch {
 		prefix = "Major version branch "
 	}
-	issue := state.NewIssue("missing_major_version", state.SeverityError,
+	finding := "major_tag_missing"
+	if branch {
+		finding = "major_branch_missing"
+	}
+	issue := state.NewIssue(finding, state.SeverityError,
 		fmt.Sprintf("%s%s does not exist. It should point to %s at %s", prefix, version, versionOf(hp), shaOf(hp)))
 	issue.Version = version
 	issue.ExpectedSha = shaOf(hp)

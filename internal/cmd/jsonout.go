@@ -47,7 +47,8 @@ type jsonAction struct {
 }
 
 type jsonIssue struct {
-	Type        string      `json:"type"`
+	Rule        string      `json:"rule"`
+	Finding     string      `json:"finding"`
 	Severity    string      `json:"severity"`
 	Message     string      `json:"message"`
 	Version     string      `json:"version"`
@@ -73,7 +74,7 @@ func buildReport(st *state.State, r *run, code int) map[string]any {
 	issues := make([]jsonIssue, 0, len(st.Issues))
 	for _, i := range st.Issues {
 		ji := jsonIssue{
-			Type: i.Type, Severity: i.Severity, Message: i.Message, Version: i.Version,
+			Rule: i.Rule, Finding: i.Finding, Severity: i.Severity, Message: i.Message, Version: i.Version,
 			CurrentSha: i.CurrentSha, ExpectedSha: i.ExpectedSha, Status: i.Status, AutoFixable: i.IsAutoFixable(),
 		}
 		if i.Action != nil {

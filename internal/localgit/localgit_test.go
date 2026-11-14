@@ -347,7 +347,7 @@ func TestActions(t *testing.T) {
 	t.Run("release actions are reported as unfixable and change nothing", func(t *testing.T) {
 		dir, _, _, _, st := setup(t)
 		a := actions.NewCreateReleaseAction("v1.0.0", false, false, "")
-		i := state.NewIssue("missing_release", "error", "Release required")
+		i := state.NewIssue("release_missing", "error", "Release required")
 		i.Version, i.Action = "v1.0.0", a
 		st.AddIssue(i)
 		if a.Execute(ctx, st, New(dir)) || i.Status == state.StatusFixed {

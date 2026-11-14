@@ -18,7 +18,16 @@ This rule runs when:
 - `floating-versions-use: tags` (default)
 - A "latest" tag exists
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `latest_tag_wrong_target` | The latest tag points to the wrong patch version |
+
 ## Configuration
+
+Finding-specific settings can be configured with `rules.<rule>.findings.<finding>.level` and `.autofix`; precedence is finding, then rule, then concern.
+
 
 This rule belongs to the `latest` concern.
 

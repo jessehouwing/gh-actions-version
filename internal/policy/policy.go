@@ -32,8 +32,9 @@ var SearchDirs = []string{"", ".github"}
 
 // Settings is the level and autofix choice of a concern or rule; unset fields are inherited.
 type Settings struct {
-	Level   string `yaml:"level"`
-	AutoFix *bool  `yaml:"autofix"`
+	Level    string              `yaml:"level"`
+	AutoFix  *bool               `yaml:"autofix"`
+	Findings map[string]Settings `yaml:"findings"`
 }
 
 // File is the content of an action-version.yml.
@@ -121,17 +122,35 @@ func (f *File) validate() error {
 		if _, ok := concernRules[name]; !ok {
 			errs = append(errs, fmt.Sprintf("concerns: unknown concern %q (known: %s)", name, strings.Join(Concerns(), ", ")))
 		}
-		check("concern", name, f.Concerns[name])
+		s := f.Concerns[name]
+		check("concern", name, s)
+		if len(s.Findings) > 0 {
+			errs = append(errs, fmt.Sprintf("concern %q: findings can only be configured under a rule", name))
+		}
 	}
-	known := map[string]bool{}
+	known := map[string]*rules.Rule{}
 	for _, r := range rules.All() {
-		known[r.Name] = true
+		known[r.Name] = r
 	}
 	for _, name := range sortedKeys(f.Rules) {
-		if !known[name] {
+		r, ok := known[name]
+		if !ok {
 			errs = append(errs, fmt.Sprintf("rules: unknown rule %q", name))
 		}
-		check("rule", name, f.Rules[name])
+		s := f.Rules[name]
+		check("rule", name, s)
+		knownFindings := map[string]bool{}
+		if r != nil {
+			for _, finding := range r.Findings {
+				knownFindings[finding.ID] = true
+			}
+		}
+		for _, finding := range sortedKeys(s.Findings) {
+			if !knownFindings[finding] {
+				errs = append(errs, fmt.Sprintf("rule %q: unknown finding %q", name, finding))
+			}
+			check("finding", finding, s.Findings[finding])
+		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid action-version.yml:\n  %s", strings.Join(errs, "\n  "))
@@ -191,6 +210,9 @@ func mergeSettings(base, over map[string]Settings) map[string]Settings {
 		}
 		if v.AutoFix != nil {
 			cur.AutoFix = v.AutoFix
+		}
+		if len(v.Findings) > 0 {
+			cur.Findings = mergeSettings(cur.Findings, v.Findings)
 		}
 		out[k] = cur
 	}
@@ -271,6 +293,12 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 		}
 		if s.AutoFix != nil {
 			p.AutoFix = s.AutoFix
+		}
+		if len(s.Findings) > 0 {
+			p.Findings = map[string]state.FindingPolicy{}
+			for finding, settings := range s.Findings {
+				p.Findings[finding] = state.FindingPolicy{Level: settings.Level, AutoFix: settings.AutoFix}
+			}
 		}
 		cfg.Rules[name] = p
 	}

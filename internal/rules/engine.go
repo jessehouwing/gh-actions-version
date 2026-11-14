@@ -12,11 +12,18 @@ import (
 type Rule struct {
 	Name        string
 	Description string
+	Findings    []FindingDef
 	Priority    int
 	Category    string
 	Condition   func(st *state.State, cfg *state.Config) []any
 	Check       func(item any, st *state.State, cfg *state.Config) bool
 	CreateIssue func(item any, st *state.State, cfg *state.Config) *state.Issue
+}
+
+// FindingDef declares a finding emitted by a rule.
+type FindingDef struct {
+	ID      string
+	Summary string
 }
 
 var registry []*Rule
@@ -59,14 +66,34 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 			if issue == nil {
 				continue
 			}
+			var declared bool
+			for i := range r.Findings {
+				if r.Findings[i].ID == issue.Finding {
+					declared = true
+					break
+				}
+			}
+			if !declared {
+				panic("rule " + r.Name + " created undeclared finding " + issue.Finding)
+			}
+			issue.Rule = r.Name
 			if p, ok := cfg.Rules[r.Name]; ok {
-				if p.Level == "none" {
+				level, autoFix := p.Level, p.AutoFix
+				if findingPolicy, ok := p.Findings[issue.Finding]; ok {
+					if findingPolicy.Level != "" {
+						level = findingPolicy.Level
+					}
+					if findingPolicy.AutoFix != nil {
+						autoFix = findingPolicy.AutoFix
+					}
+				}
+				if level == "none" {
 					continue
 				}
-				if p.Level != "" {
-					issue.Severity = p.Level
+				if level != "" {
+					issue.Severity = level
 				}
-				if p.AutoFix != nil && !*p.AutoFix {
+				if autoFix != nil && !*autoFix {
 					issue.ManualOnly = true
 				}
 			}
