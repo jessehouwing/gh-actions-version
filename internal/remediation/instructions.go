@@ -194,15 +194,22 @@ func WriteUnresolvedIssues(st *state.State, log *output.Logger) {
 	}
 }
 
-// ExitCode is 1 when an error-severity issue is failed, manual_fix_required, unfixable or still pending
-// (skipped in interactive mode); otherwise 0.
+// ExitCode is 1 when an error-severity issue is unresolved; otherwise 0.
 func ExitCode(st *state.State) int {
+	return ExitCodeFor(st, "error")
+}
+
+// ExitCodeFor applies the fail-on threshold to unresolved issues.
+func ExitCodeFor(st *state.State, failOn string) int {
+	if failOn == "never" {
+		return 0
+	}
 	for _, i := range st.Issues {
-		if i.Severity != state.SeverityError {
+		if i.Status != state.StatusFailed && i.Status != state.StatusManualFixRequired &&
+			i.Status != state.StatusUnfixable && i.Status != state.StatusPending {
 			continue
 		}
-		switch i.Status {
-		case state.StatusFailed, state.StatusManualFixRequired, state.StatusUnfixable, state.StatusPending:
+		if i.Severity == state.SeverityError || (failOn == "warning" && i.Severity == state.SeverityWarning) {
 			return 1
 		}
 	}
@@ -222,8 +229,16 @@ func errorCount(st *state.State, status string) int {
 // Finish logs unresolved issues, prints the summary and manual instructions, writes the step summary and
 // returns the process exit code (the tail of main.ps1).
 func Finish(st *state.State, log *output.Logger, mode Mode) int {
+	return FinishWithFailOn(st, log, mode, "error")
+}
+
+// FinishWithFailOn logs unresolved issues and returns a code based on failOn.
+func FinishWithFailOn(st *state.State, log *output.Logger, mode Mode, failOn string) int {
 	WriteUnresolvedIssues(st, log)
-	code := ExitCode(st)
+	code := ExitCodeFor(st, failOn)
+	if (mode == AutoFix || mode == Interactive) && code == 1 && st.FixedCount() > 0 {
+		code = 3
+	}
 	if mode == DryRun {
 		log.Info("")
 		log.Info("### Dry Run (no changes made)")
@@ -240,20 +255,27 @@ func Finish(st *state.State, log *output.Logger, mode Mode) int {
 		manual := errorCount(st, state.StatusManualFixRequired)
 		unfixable := errorCount(st, state.StatusUnfixable)
 		switch {
-		case code == 1:
+		case code == 1 || code == 3:
 			log.Info("")
+			if code == 3 {
+				log.Error("Fixes were applied, but qualifying findings remain.")
+			}
 			if manual > 0 {
 				log.Error("Some issues require manual intervention (e.g., workflow permission issues). Please fix manually.")
 			}
 			if unfixable > 0 {
 				log.Error("Some issues cannot be fixed (e.g., immutable release conflicts). Consider adding affected versions to the ignore-versions list.")
 			}
+		case hasUnresolvedIssues(st):
+			log.Info("")
+			if failOn == "never" {
+				log.Notice("Findings remain, but --fail-on=never is set.")
+			} else {
+				log.Notice("Some warning-level issues require manual attention. See remediation steps below.")
+			}
 		case st.FixedCount() > 0:
 			log.Info("")
 			log.Notice("All issues were successfully fixed!")
-		case st.ManualFixCount() > 0 || st.UnfixableCount() > 0:
-			log.Info("")
-			log.Notice("Some warning-level issues require manual attention. See remediation steps below.")
 		default:
 			log.Info("")
 			log.Notice("No issues found!")
@@ -262,4 +284,8 @@ func Finish(st *state.State, log *output.Logger, mode Mode) int {
 	WriteManualInstructions(st, log, false)
 	WriteManualInstructionsToStepSummary(st)
 	return code
+}
+
+func hasUnresolvedIssues(st *state.State) bool {
+	return st.FailedCount()+st.ManualFixCount()+st.UnfixableCount()+st.CountStatus(state.StatusPending) > 0
 }

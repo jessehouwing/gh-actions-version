@@ -50,6 +50,8 @@ type flags struct {
 	config                                           string
 	mode                                             string
 	levels, ruleLevels, findingLevels                []string
+	ruleFilter, skipRule, findingFilter              []string
+	failOn                                           string
 	json                                             []string
 	jq, template                                     string
 	jsonSet                                          bool
@@ -140,9 +142,13 @@ func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 }
 
 func addCommandFlags(fl *pflag.FlagSet, f *flags) {
+	fl.StringVar(&f.failOn, "fail-on", "error", "Fail on error, warning or never")
 	fl.StringArrayVar(&f.levels, "level", nil, "Set a concern level (repeatable KEY=LEVEL)")
 	fl.StringArrayVar(&f.ruleLevels, "rule-level", nil, "Set a rule level (repeatable KEY=LEVEL)")
 	fl.StringArrayVar(&f.findingLevels, "finding-level", nil, "Set a finding level (repeatable KEY=LEVEL)")
+	fl.StringArrayVar(&f.ruleFilter, "rule", nil, "Report or fix only these rules (repeatable)")
+	fl.StringArrayVar(&f.skipRule, "skip-rule", nil, "Skip these rules (repeatable)")
+	fl.StringArrayVar(&f.findingFilter, "finding", nil, "Report or fix only these findings (repeatable)")
 	fl.BoolVar(&f.includePreview, "include-preview-releases", false, "Include prereleases (from the Releases API) when picking the latest patch")
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
@@ -234,6 +240,65 @@ func parseLevelOverrides(levels, ruleLevels, findingLevels []string) (*policy.Fi
 	return over, nil
 }
 
+func validateFilters(f *flags) error {
+	if f.failOn != "error" && f.failOn != "warning" && f.failOn != "never" {
+		return fmt.Errorf("--fail-on must be error, warning or never")
+	}
+	knownRules := map[string]bool{}
+	knownFindings := map[string]bool{}
+	for _, rule := range rules.All() {
+		knownRules[rule.Name] = true
+		for _, finding := range rule.Findings {
+			knownFindings[finding.ID] = true
+		}
+	}
+	for _, name := range f.ruleFilter {
+		if !knownRules[name] {
+			return fmt.Errorf("--rule has unknown rule %q", name)
+		}
+	}
+	for _, name := range f.skipRule {
+		if !knownRules[name] {
+			return fmt.Errorf("--skip-rule has unknown rule %q", name)
+		}
+	}
+	for _, name := range f.findingFilter {
+		if !knownFindings[name] {
+			return fmt.Errorf("--finding has unknown finding %q", name)
+		}
+	}
+	return nil
+}
+
+func filterIssues(st *state.State, f *flags) {
+	includeRules := make(map[string]bool, len(f.ruleFilter))
+	skipRules := make(map[string]bool, len(f.skipRule))
+	includeFindings := make(map[string]bool, len(f.findingFilter))
+	for _, rule := range f.ruleFilter {
+		includeRules[rule] = true
+	}
+	for _, rule := range f.skipRule {
+		skipRules[rule] = true
+	}
+	for _, finding := range f.findingFilter {
+		includeFindings[finding] = true
+	}
+	issues := st.Issues[:0]
+	for _, issue := range st.Issues {
+		if len(includeRules) > 0 && !includeRules[issue.Rule] {
+			continue
+		}
+		if skipRules[issue.Rule] {
+			continue
+		}
+		if len(includeFindings) > 0 && !includeFindings[issue.Finding] {
+			continue
+		}
+		issues = append(issues, issue)
+	}
+	st.Issues = issues
+}
+
 func usageError(log *output.Logger, msgs ...string) int {
 	for _, m := range msgs {
 		log.Infof("Error: %s", m)
@@ -295,6 +360,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if f.changed["config"] && strings.TrimSpace(f.config) == "" {
 		return usageError(log, "--config requires a path")
 	}
+	if err := validateFilters(f); err != nil {
+		return usageError(log, err.Error())
+	}
 	if err := r.buildConfig(policy.Default()); err != nil {
 		return usageError(log, err.Error())
 	}
@@ -334,6 +402,7 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if len(versions) > 0 {
 		scopeIssues(st, versions)
 	}
+	filterIssues(st, f)
 	if len(st.Issues) == 0 && mode == remediation.ReportOnly {
 		log.Notice("No issues found!")
 	}
@@ -354,7 +423,7 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 			return r.fail(err)
 		}
 	}
-	code := remediation.Finish(st, log, mode)
+	code := remediation.FinishWithFailOn(st, log, mode, f.failOn)
 	if f.local {
 		printPushCommands(st, log)
 	}
@@ -416,6 +485,7 @@ func (r *run) reverify(previous *state.State, apiC *api.Client, versions []strin
 	if len(versions) > 0 {
 		scopeIssues(verified, versions)
 	}
+	filterIssues(verified, r.f)
 	reconcileVerifiedIssues(previous, verified)
 	return verified, nil
 }

@@ -188,6 +188,7 @@ func TestParameterValidation(t *testing.T) {
 		for _, f := range []string{"--repo", "--interactive", "--yes", "--local", "--local-only",
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
+			"--fail-on", "--rule", "--skip-rule", "--finding",
 			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
@@ -242,6 +243,68 @@ rules:
 	if finding := rule.Findings["major_tag_missing"].Level; finding != "warning" {
 		t.Errorf("finding level = %q, want warning", finding)
 	}
+}
+
+func TestFiltersAndFailOn(t *testing.T) {
+	t.Run("--rule selects only the named rule", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--json=issues")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		for _, raw := range r.json(t)["issues"].([]any) {
+			if raw.(map[string]any)["rule"] != "major_tag_missing" {
+				t.Errorf("unexpected issue: %v", raw)
+			}
+		}
+	})
+	t.Run("--skip-rule excludes the named rule", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--json=issues")
+		for _, raw := range r.json(t)["issues"].([]any) {
+			if raw.(map[string]any)["rule"] == "major_tag_missing" {
+				t.Errorf("skipped rule reported: %v", raw)
+			}
+		}
+	})
+	t.Run("--finding selects only the named finding", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--json=issues")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		for _, raw := range r.json(t)["issues"].([]any) {
+			if raw.(map[string]any)["finding"] != "major_tag_missing" {
+				t.Errorf("unexpected finding: %v", raw)
+			}
+		}
+	})
+	t.Run("unknown filters and invalid fail-on are rejected", func(t *testing.T) {
+		for _, flag := range []string{"--rule=unknown", "--skip-rule=unknown", "--finding=unknown", "--fail-on=invalid"} {
+			r := newEnv(t, testutil.NewGitHub(t)).runRaw("verify", "-R", "o/r", flag)
+			if r.code != ExitUsage {
+				t.Errorf("%s: exit %d\n%s", flag, r.code, r.all())
+			}
+		}
+	})
+	t.Run("fail-on controls warning exit status", func(t *testing.T) {
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
+		base := []string{"verify", "-R", "o/r", "--level=minor=warning", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none"}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=error")...); r.code != ExitOK {
+			t.Errorf("error threshold: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=warning")...); r.code != ExitValidation {
+			t.Errorf("warning threshold: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=never")...); r.code != ExitOK {
+			t.Errorf("never threshold: exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("fix returns 3 when some changes succeed and errors remain", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		gh.Fail("POST", "/git/refs", 500, `{"message":"temporary failure"}`, 1)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != 3 || !strings.Contains(r.all(), "Fixed issues: 1") || !strings.Contains(r.all(), "Failed fixes: 1") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
 }
 
 func TestSubcommands(t *testing.T) {
@@ -521,8 +584,8 @@ func TestModes(t *testing.T) {
 		if len(gh.Writes()) != 1 {
 			t.Errorf("writes = %v", gh.Writes())
 		}
-		if r.code != 1 {
-			t.Errorf("skipped issues must keep exit code 1, got %d\n%s", r.code, r.all())
+		if r.code != 3 {
+			t.Errorf("applied fixes with qualifying issues remaining must exit 3, got %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("interactive apply all remaining fixes everything", func(t *testing.T) {
