@@ -189,7 +189,7 @@ func TestParameterValidation(t *testing.T) {
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
 			"--fail-on", "--rule", "--skip-rule", "--finding",
-			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--json-fields", "--jq", "--template"} {
+			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--json-fields", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
 			}
@@ -198,6 +198,9 @@ func TestParameterValidation(t *testing.T) {
 	t.Run("Should reject unknown flags and invalid version arguments with exit code 2", func(t *testing.T) {
 		if r := newEnv(t, nil).run("--bogus"); r.code != 2 {
 			t.Errorf("unknown flag: exit %d", r.code)
+		}
+		if r := newEnv(t, nil).run("--include-preview-releases"); r.code != ExitUsage {
+			t.Errorf("removed preview flag: exit %d", r.code)
 		}
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("not-a-version")...)
 		if r.code != 2 || !strings.Contains(r.all(), "invalid version argument") {
@@ -705,16 +708,29 @@ func TestReleaseChecks(t *testing.T) {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
-	t.Run("Should filter preview releases when ignore-preview-releases is true", func(t *testing.T) {
+	t.Run("Should select whether preview releases are candidates", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1").Tag(c2, "v1.1.0")
 		gh.Release("v1.0.0", testutil.Immutable, testutil.Latest)
 		gh.Release("v1.1.0", testutil.Prerelease, testutil.Immutable)
 		base := []string{"-R", "o/r", "--check", "--level=marketplace=none", "--level=minor=none"}
 		if r := newEnv(t, gh).run(base...); r.code != 0 {
-			t.Errorf("ignore (default): exit %d\n%s", r.code, r.all())
+			t.Errorf("default excludes previews: exit %d\n%s", r.code, r.all())
 		}
-		if r := newEnv(t, gh).run(append(base, "--include-preview-releases")...); r.code != 1 {
-			t.Errorf("not ignored: exit %d\n%s", r.code, r.all())
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=included")...); r.code != 1 {
+			t.Errorf("included preview should be selected: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=excluded")...); r.code != 0 {
+			t.Errorf("excluded preview should not be selected: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=unknown")...); r.code != ExitUsage || !strings.Contains(r.all(), "must be either 'included' or 'excluded'") {
+			t.Errorf("invalid preview setting: exit %d\n%s", r.code, r.all())
+		}
+		gh.File("action-version.yml", "preview: include\n")
+		if r := newEnv(t, gh).run(base...); r.code != 1 {
+			t.Errorf("config includes previews: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=excluded")...); r.code != 0 {
+			t.Errorf("flag overrides config: exit %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("Should validate marketplace metadata", func(t *testing.T) {

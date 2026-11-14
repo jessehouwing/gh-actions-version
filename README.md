@@ -46,7 +46,7 @@ Every rule is documented in [docs/rules](docs/rules/README.md).
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
-Other options include `--include-preview-releases`, `--floating-versions-use` (`tags`, `branches`, `both`),
+Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),
 `--ignore-versions` (supports `v1.*`), and `--max-wait`. See `gh actions-version --help`.
 
 `--dangerously-allow-destructive-tag-deletion` is needed only when a tag was used by an immutable release that has since been deleted: such a tag can't be republished, and deleting it is irreversible. Without the flag the issue is reported as a manual fix with the `git push origin :refs/tags/<tag>` command. Other tag deletions are not affected.

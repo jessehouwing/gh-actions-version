@@ -47,7 +47,7 @@ These override `action-version.yml`. Value flags take one value; boolean flags a
 | Flag | Values | Config key |
 |---|---|---|
 | `--floating-versions-use` | `tags`, `branches` | `floating-versions-use` |
-| `--include-preview-releases` | bool | `preview: include` |
+| `--preview-releases` | `included`, `excluded` | `preview: include`, `exclude` |
 | `--ignore-version` | repeatable pattern; quote wildcards (`'v1.*'`) | `ignore` / `ignore-versions` |
 | `--level CONCERN=LEVEL` | repeatable; `LEVEL` is `error`, `warning`, `none` | `concerns.<concern>.level` |
 | `--rule-level RULE=LEVEL` | repeatable | `rules.<rule>.level` |

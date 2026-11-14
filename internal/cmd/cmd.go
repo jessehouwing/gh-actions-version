@@ -43,7 +43,7 @@ type flags struct {
 	fix, interactive, autoMode, manualMode, yes      bool
 	dryRun, noVerifyAfter                            bool
 	local, fetchReleases, noConfig, verbose, noColor bool
-	includePreview                                   bool
+	previewReleases                                  string
 	allowTagDeletion                                 bool
 	floatingUse                                      string
 	ignoreVersions                                   string
@@ -150,7 +150,7 @@ func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringArrayVar(&f.ruleFilter, "rule", nil, "Report or fix only these rules (repeatable)")
 	fl.StringArrayVar(&f.skipRule, "skip-rule", nil, "Skip these rules (repeatable)")
 	fl.StringArrayVar(&f.findingFilter, "finding", nil, "Report or fix only these findings (repeatable)")
-	fl.BoolVar(&f.includePreview, "include-preview-releases", false, "Include prereleases (from the Releases API) when picking the latest patch")
+	fl.StringVar(&f.previewReleases, "preview-releases", "", "Include or exclude prereleases when picking the latest patch: included or excluded")
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
 	fl.StringVar(&f.ignoreVersions, "ignore-versions", "", "Comma separated versions to skip; wildcards like v1.* are supported")
@@ -677,8 +677,15 @@ func (r *run) buildConfig(p *policy.File) error {
 	}
 	p = policy.Merge(p, overrides)
 	pin := policy.Pinned{}
-	if pin.IgnorePreviewReleases = f.changed["include-preview-releases"]; pin.IgnorePreviewReleases {
-		cfg.IgnorePreviewReleases = !f.includePreview
+	if pin.IgnorePreviewReleases = f.changed["preview-releases"]; pin.IgnorePreviewReleases {
+		switch strings.ToLower(strings.TrimSpace(f.previewReleases)) {
+		case "included":
+			cfg.IgnorePreviewReleases = false
+		case "excluded":
+			cfg.IgnorePreviewReleases = true
+		default:
+			return fmt.Errorf("--preview-releases must be either 'included' or 'excluded'")
+		}
 	}
 	if pin.FloatingVersionsUse = f.changed["floating-versions-use"]; pin.FloatingVersionsUse {
 		cfg.FloatingVersionsUse = strings.ToLower(strings.TrimSpace(f.floatingUse))
