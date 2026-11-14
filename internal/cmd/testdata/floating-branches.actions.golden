@@ -1,10 +1,31 @@
 exit code: 1
 --- stdout ---
+::group::Resolve repository, token and policy
 ::add-mask::tok
 ::debug::File action-version.yml not found in repository
 ::debug::File action-version.yaml not found in repository
 ::debug::File .github/action-version.yml not found in repository
 ::debug::File .github/action-version.yaml not found in repository
+Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)
+::endgroup::
+::group::Loading tags
+page 1, 1 tags loaded
+Loading tags: 1 tags (<DURATION>)
+::endgroup::
+::group::Loading branches
+page 1, 2 branches loaded
+Loading branches: 2 branches (<DURATION>)
+::endgroup::
+::group::Loading releases
+page 1, 1 releases loaded
+Loading releases: 1 releases (<DURATION>)
+::endgroup::
+::group::Reading repository settings
+Reading repository settings: settings read (<DURATION>)
+::endgroup::
+::group::Running 25 rules
+Running 25 rules: 25/25 rules (<DURATION>)
+::endgroup::
 ::error title=Manual fix required issue::Branch 'v1' should be a tag (floating-versions-use: tags).
 ::error title=Manual fix required issue::Branch 'v1.0' should be a tag (floating-versions-use: tags).
 ##[group]Manual Remediation Instructions

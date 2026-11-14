@@ -1101,8 +1101,18 @@ func TestAPIErrors(t *testing.T) {
 		gh.Fail("GET", "/git/refs/tags", 403, `{"message":"API rate limit exceeded"}`, 0,
 			"X-RateLimit-Remaining", "0", "X-RateLimit-Reset", itoa(reset.Unix()))
 		r := newEnv(t, gh).run(args("--check", "--max-wait=1s")...)
-		if r.code != 2 || !strings.Contains(strings.ToLower(r.all()), "rate limit") {
+		if r.code != 2 || !strings.Contains(r.all(), "exceeds --max-wait 1s") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("Should report an accepted rate limit wait to stderr", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		reset := time.Now().Add(5 * time.Second)
+		gh.Fail("GET", "/git/refs/tags", 403, `{"message":"API rate limit exceeded"}`, 0,
+			"X-RateLimit-Remaining", "0", "X-RateLimit-Reset", itoa(reset.Unix()))
+		r := newEnv(t, gh).run(args("--check", "--max-wait=10s")...)
+		if !strings.Contains(r.err, "Rate limited, resuming in") || !strings.Contains(r.err, "--max-wait 10s") {
+			t.Errorf("stderr does not report the wait:\n%s", r.err)
 		}
 	})
 	t.Run("Should handle 422 errors when creating references", func(t *testing.T) {
@@ -1190,9 +1200,23 @@ func TestPersistentGlobalFlags(t *testing.T) {
 		t.Setenv("NO_COLOR", "")
 		e := newEnv(t, ghWithPatch(t))
 		e.tty = true
-		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--no-progress", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if strings.Contains(r.all(), "\x1b[") {
 			t.Errorf("ANSI color codes were emitted:\n%s", r.all())
+		}
+	})
+	t.Run("quiet suppresses progress but keeps findings", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).run(args("--quiet")...)
+		if r.code != 1 || strings.Contains(r.all(), "Loading tags") || !strings.Contains(r.all(), "v1") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("no-progress uses plain lines on a terminal", func(t *testing.T) {
+		e := newEnv(t, ghWithPatch(t))
+		e.tty = true
+		r := e.run(append([]string{"verify"}, args("--no-progress", "--no-color")...)...)
+		if !strings.Contains(r.err, "Loading tags...") || strings.Contains(r.all(), "\r") || strings.Contains(r.all(), "\x1b[") {
+			t.Errorf("unexpected terminal progress output:\n%s", r.all())
 		}
 	})
 }

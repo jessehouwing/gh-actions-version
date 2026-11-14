@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
@@ -318,6 +319,7 @@ func TestGetReleases(t *testing.T) {
 	})
 	t.Run("Should map GraphQL nodes, paginate and honour ignore-versions", func(t *testing.T) {
 		var pages int
+		var progressOutput strings.Builder
 		h := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
 			pages++
 			if pages == 1 {
@@ -329,7 +331,10 @@ func TestGetReleases(t *testing.T) {
 			jsonResp(w, 200, releasesPage([]map[string]any{
 				{"databaseId": 2, "tagName": "v2.0.0", "isPrerelease": true, "isDraft": true, "immutable": false, "isLatest": false},
 			}, false, ""))
-		}, func(o *Options) { o.IgnoreVersions = []string{"v2.*"} })
+		}, func(o *Options) {
+			o.IgnoreVersions = []string{"v2.*"}
+			o.Progress = progress.New(progress.Options{Writer: &progressOutput})
+		})
 		rels, err := h.c.GetReleases(ctx())
 		if err != nil || len(rels) != 2 || pages != 2 {
 			t.Fatalf("%v %d %v", rels, pages, err)
@@ -340,6 +345,11 @@ func TestGetReleases(t *testing.T) {
 		}
 		if rl, ok := h.c.LastGraphQLRateLimit(); !ok || rl.Remaining != 4999 {
 			t.Fatalf("%+v", rl)
+		}
+		for _, want := range []string{"page 1, 1 releases loaded", "page 2, 2 releases loaded"} {
+			if !strings.Contains(progressOutput.String(), want) {
+				t.Errorf("progress output %q does not contain %q", progressOutput.String(), want)
+			}
 		}
 	})
 }

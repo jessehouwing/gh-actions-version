@@ -1,10 +1,31 @@
 exit code: 1
 --- stdout ---
+::group::Resolve repository, token and policy
 ::add-mask::tok
 ::debug::File action-version.yml not found in repository
 ::debug::File action-version.yaml not found in repository
 ::debug::File .github/action-version.yml not found in repository
 ::debug::File .github/action-version.yaml not found in repository
+Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)
+::endgroup::
+::group::Loading tags
+page 1, 85 tags loaded
+Loading tags: 85 tags (<DURATION>)
+::endgroup::
+::group::Loading branches
+page 1, 0 branches loaded
+Loading branches: 0 branches (<DURATION>)
+::endgroup::
+::group::Loading releases
+page 1, 55 releases loaded
+Loading releases: 55 releases (<DURATION>)
+::endgroup::
+::group::Reading repository settings
+Reading repository settings: settings read (<DURATION>)
+::endgroup::
+::group::Running 25 rules
+Running 25 rules: 25/25 rules (<DURATION>)
+::endgroup::
 ::error title=Manual fix required issue::Release required for patch version v1.0.3
 ::error title=Manual fix required issue::Release required for patch version v1.0.4
 ::error title=Manual fix required issue::Release v1.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)

@@ -17,6 +17,7 @@ import (
 	ghapi "github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
@@ -57,7 +58,8 @@ type Options struct {
 	IgnoreVersions []string
 	Transport      TransportOptions
 	// Debug receives diagnostics (::debug:: lines); optional. It must treat messages as untrusted.
-	Debug func(msg string)
+	Debug    func(msg string)
+	Progress progress.Tracker
 	// ImmutablePollAttempts/ImmutablePollDelay tune Enable-GitHubImmutableRelease polling
 	// (defaults 6 and 1s).
 	ImmutablePollAttempts int
@@ -73,6 +75,7 @@ type Client struct {
 	gql       *ghapi.GraphQLClient
 	serverURL string
 	debug     func(string)
+	progress  progress.Tracker
 	sleep     func(context.Context, time.Duration) error
 	pollN     int
 	pollD     time.Duration
@@ -110,7 +113,7 @@ func New(o Options) (*Client, error) {
 	}
 	c := &Client{
 		Repo: o.Repo, Transport: t, rest: rest, gql: gql, debug: o.Debug,
-		sleep: t.opts.Sleep, ignore: o.IgnoreVersions, known: map[string]bool{},
+		progress: o.Progress, sleep: t.opts.Sleep, ignore: o.IgnoreVersions, known: map[string]bool{},
 		pollN: o.ImmutablePollAttempts, pollD: o.ImmutablePollDelay, serverURL: o.ServerURL,
 	}
 	if c.pollN == 0 {
@@ -123,6 +126,13 @@ func New(o Options) (*Client, error) {
 		c.serverURL = serverURLFor(o.Repo.Host)
 	}
 	return c, nil
+}
+
+func (c *Client) startProgress(name string) progress.Stage {
+	if c.progress == nil {
+		return progress.NoopStage{}
+	}
+	return c.progress.Start(name)
 }
 
 type stripAuth struct{ next http.RoundTripper }

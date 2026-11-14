@@ -65,23 +65,30 @@ func Load(ctx context.Context, c *Client, cfg state.Config) (*state.State, error
 	if st.Releases, err = c.GetReleases(ctx); err != nil {
 		return nil, err
 	}
-	if cfg.CheckImmutability != "" && cfg.CheckImmutability != "none" {
-		enabled, settingErr := c.immutableEnabled(ctx)
-		if settingErr != nil {
-			reason := "unavailable"
-			if StatusCode(settingErr) == 403 {
-				reason = "permission denied"
+	if cfg.CheckImmutability != "" && cfg.CheckImmutability != "none" ||
+		cfg.CheckMarketplace != "" && cfg.CheckMarketplace != "none" {
+		stage := c.startProgress("Reading repository settings")
+		result := "settings read"
+		defer func() { stage.Done(result) }()
+		if cfg.CheckImmutability != "" && cfg.CheckImmutability != "none" {
+			enabled, settingErr := c.immutableEnabled(ctx)
+			if settingErr != nil {
+				reason := "unavailable"
+				if StatusCode(settingErr) == 403 {
+					reason = "permission denied"
+				}
+				st.SkippedChecks = append(st.SkippedChecks, state.SkippedCheck{
+					Check: "immutable_releases_enabled", Reason: reason,
+				})
+			} else {
+				st.ImmutableReleasesEnabled = &enabled
 			}
-			st.SkippedChecks = append(st.SkippedChecks, state.SkippedCheck{
-				Check: "immutable_releases_enabled", Reason: reason,
-			})
-		} else {
-			st.ImmutableReleasesEnabled = &enabled
 		}
-	}
-	if cfg.CheckMarketplace != "" && cfg.CheckMarketplace != "none" {
-		if st.Marketplace, err = c.GetMarketplaceMetadata(ctx, ""); err != nil {
-			return nil, err
+		if cfg.CheckMarketplace != "" && cfg.CheckMarketplace != "none" {
+			if st.Marketplace, err = c.GetMarketplaceMetadata(ctx, ""); err != nil {
+				result = "failed"
+				return nil, err
+			}
 		}
 	}
 	return st, nil

@@ -21,6 +21,7 @@ import (
 	"github.com/jessehouwing/gh-actions-version/internal/options"
 	"github.com/jessehouwing/gh-actions-version/internal/output"
 	"github.com/jessehouwing/gh-actions-version/internal/policy"
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
 	"github.com/jessehouwing/gh-actions-version/internal/remediation"
 	"github.com/jessehouwing/gh-actions-version/internal/rules" // importing registers the validation rules
 	"github.com/jessehouwing/gh-actions-version/internal/state"
@@ -43,6 +44,7 @@ type flags struct {
 	fix, interactive, autoMode, manualMode, yes      bool
 	dryRun, noVerifyAfter                            bool
 	local, fetchReleases, noConfig, verbose, noColor bool
+	noProgress, quiet                                bool
 	previewReleases                                  string
 	allowTagDeletion                                 bool
 	floatingUse                                      string
@@ -138,6 +140,8 @@ func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 	fl.DurationVar(&f.maxWait, "max-wait", 60*time.Second, "Longest rate limit wait tolerated before failing with exit code 2")
 	fl.BoolVarP(&f.verbose, "verbose", "v", false, "Write debug details to stderr")
 	fl.BoolVar(&f.noColor, "no-color", false, "Disable colored output")
+	fl.BoolVar(&f.noProgress, "no-progress", false, "Use plain progress lines instead of a terminal spinner")
+	fl.BoolVar(&f.quiet, "quiet", false, "Suppress progress and informational output")
 	fl.StringVar(&f.config, "config", "", "Read policy from this repository file instead of searching default locations")
 	fl.BoolVar(&f.noConfig, "no-config", false, "Skip repository policy files and use built-in defaults")
 }
@@ -316,6 +320,7 @@ type run struct {
 	jsonMode bool
 	mode     remediation.Mode
 	cfg      state.Config
+	progress *progress.Reporter
 	token    string
 	// tokenSource is where go-gh found the token: an environment variable name, "oauth_token" or "gh".
 	tokenSource string
@@ -341,10 +346,21 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		Out:      human,
 		DebugOut: env.Stderr,
 		Verbose:  f.verbose,
+		Quiet:    f.quiet,
 		Actions:  f.output == "actions",
 		Color:    !f.noColor && (env.IsTTY || term.IsColorForced()) && !term.IsColorDisabled(),
 	}
-	r := &run{ctx: ctx, f: f, env: env, log: log, jsonMode: jsonMode}
+	progressWriter := env.Stderr
+	if f.output == "actions" {
+		progressWriter = env.Stdout
+	}
+	r := &run{
+		ctx: ctx, f: f, env: env, log: log, jsonMode: jsonMode,
+		progress: progress.New(progress.Options{
+			Writer: progressWriter, TTY: env.IsTTY, NoProgress: f.noProgress,
+			Quiet: f.quiet, Actions: f.output == "actions",
+		}),
+	}
 
 	// Flag validation.
 	if f.output != "console" && f.output != "json" && f.output != "actions" {
@@ -415,7 +431,10 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		options.WriteRepositoryDebugInfo(st, r.token != "", log)
 	}
 
-	rules.Run(st, &st.Config, nil)
+	registeredRules := rules.All()
+	ruleStage := r.progress.Start(fmt.Sprintf("Running %d rules", len(registeredRules)))
+	rules.Run(st, &st.Config, registeredRules)
+	ruleStage.Done(fmt.Sprintf("%d/%d rules", len(registeredRules), len(registeredRules)))
 	if len(versions) > 0 {
 		scopeIssues(st, versions)
 	}
@@ -424,7 +443,11 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		log.Notice("No issues found!")
 	}
 
-	opt := remediation.Options{Mode: mode, Client: client, Log: log}
+	var fixStage progress.Stage = progress.NoopStage{}
+	if mode != remediation.ReportOnly {
+		fixStage = r.progress.Start("Applying fixes")
+	}
+	opt := remediation.Options{Mode: mode, Client: client, Log: log, Progress: fixStage}
 	if mode == remediation.Interactive {
 		opt.Prompter = env.Prompter
 		if opt.Prompter == nil {
@@ -432,7 +455,11 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}
 	}
 	if err := remediation.Fix(ctx, st, opt); err != nil {
+		fixStage.Done("failed")
 		return r.fail(err)
+	}
+	if mode != remediation.ReportOnly {
+		fixStage.Done(fmt.Sprintf("%d fixed, %d failed", st.FixedCount(), st.FailedCount()))
 	}
 	if !f.noVerifyAfter && (mode == remediation.AutoFix || mode == remediation.Interactive) {
 		st, err = r.reverify(st, apiC, versions)
@@ -547,6 +574,7 @@ func reconcileVerifiedIssues(previous, verified *state.State) {
 // fail reports an operational error (authentication, rate limit, API failure) with exit code 2.
 func (r *run) fail(err error) int {
 	var ae *api.AuthError
+	var rateLimit *api.RateLimitError
 	switch {
 	case errors.Is(err, errAlreadyReported):
 	case errors.As(err, &ae):
@@ -555,7 +583,12 @@ func (r *run) fail(err error) int {
 			r.log.Infof("Run: %s", ae.Refresh)
 		}
 	case api.IsRateLimit(err):
-		r.log.Error("GitHub API rate limit: " + err.Error())
+		if errors.As(err, &rateLimit) && rateLimit.MaxWait > 0 && rateLimit.Wait > rateLimit.MaxWait {
+			r.log.Error(fmt.Sprintf("Rate limited; required wait %s exceeds --max-wait %s",
+				rateLimit.Wait.Round(time.Second), rateLimit.MaxWait.Round(time.Second)))
+		} else {
+			r.log.Error("GitHub API rate limit: " + err.Error())
+		}
 		r.log.Info("Wait for the limit to reset, use a token with a higher limit, or raise --max-wait.")
 	default:
 		r.log.Error(err.Error())
@@ -585,8 +618,16 @@ func (r *run) newClient(repo api.Repo) (*api.Client, error) {
 	r.log.Mask(token)
 	o := api.Options{
 		Repo: repo, Token: token, IgnoreVersions: r.cfg.IgnoreVersions,
-		Transport: api.TransportOptions{MaxWait: r.f.maxWait, Warn: r.log.Warning},
-		Debug:     r.log.Debug,
+		Transport: api.TransportOptions{
+			MaxWait: r.f.maxWait, Warn: r.log.Warning,
+			OnWait: func(_ api.RateLimitKind, delay time.Duration) {
+				message := fmt.Sprintf("Rate limited, resuming in %s (limit: --max-wait %s)",
+					delay.Round(time.Second), r.f.maxWait.Round(time.Second))
+				r.progress.Message(message)
+			},
+		},
+		Debug:    r.log.Debug,
+		Progress: r.progress,
 	}
 	if s := r.env.Getenv("GITHUB_SERVER_URL"); s != "" {
 		o.ServerURL = strings.TrimRight(s, "/")
@@ -736,6 +777,13 @@ func (r *run) loadPolicy(read policy.Reader) error {
 }
 
 func (r *run) loadRemote() (*state.State, state.Client, *api.Client, error) {
+	resolveStage := r.progress.Start("Resolve repository, token and policy")
+	resolveDone := false
+	defer func() {
+		if !resolveDone {
+			resolveStage.Done("failed")
+		}
+	}()
 	repo, err := r.resolveRepo()
 	if err != nil {
 		return nil, nil, nil, err
@@ -752,6 +800,8 @@ func (r *run) loadRemote() (*state.State, state.Client, *api.Client, error) {
 	}); err != nil {
 		return nil, nil, nil, err
 	}
+	resolveStage.Done("repository resolved and policy loaded")
+	resolveDone = true
 	st, err := api.Load(r.ctx, c, r.cfg)
 	if err != nil {
 		return nil, nil, nil, err
@@ -764,6 +814,13 @@ func (r *run) loadLocal() (*state.State, state.Client, *api.Client, error) {
 	if dir == "" {
 		dir = "."
 	}
+	policyStage := r.progress.Start("Load repository policy")
+	policyDone := false
+	defer func() {
+		if !policyDone {
+			policyStage.Done("failed")
+		}
+	}()
 	if err := r.loadPolicy(func(_ context.Context, path string) (string, bool, error) {
 		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
 		if errors.Is(err, fs.ErrNotExist) {
@@ -773,13 +830,18 @@ func (r *run) loadLocal() (*state.State, state.Client, *api.Client, error) {
 	}); err != nil {
 		return nil, nil, nil, err
 	}
+	policyStage.Done("policy loaded")
+	policyDone = true
+	localStage := r.progress.Start("Loading local refs")
 	st, warnings, err := localgit.Load(r.ctx, dir, r.cfg)
 	if err != nil {
+		localStage.Done("failed")
 		return nil, nil, nil, err
 	}
 	for _, w := range warnings {
 		r.log.Warning(w)
 	}
+	localStage.Done(fmt.Sprintf("%d tags, %d branches", len(st.Tags), len(st.Branches)))
 	var apiC *api.Client
 	if r.f.fetchReleases {
 		repo := api.Repo{Host: st.Host, Owner: st.Owner, Name: st.Repo}

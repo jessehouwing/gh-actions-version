@@ -2,6 +2,21 @@ exit code: 1
 --- stdout ---
 {"config":{"checkMarketplace":"none","checkMinorVersion":"error","checkReleaseImmutability":"error","checkReleases":"error","floatingVersionsUse":"tags","ignorePreviewReleases":true,"ignoreVersions":[]},"exitCode":1,"issues":[{"rule":"branch_should_be_tag","finding":"floating_ref_should_be_tag","severity":"error","message":"Branch 'v1' should be a tag (floating-versions-use: tags).","version":"v1","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Convert branch to tag","manualCommands":["git push origin 1111111111111111111111111111111111111111:refs/tags/v1","git push origin :refs/heads/v1"]}},{"rule":"branch_should_be_tag","finding":"floating_ref_should_be_tag","severity":"error","message":"Branch 'v1.0' should be a tag (floating-versions-use: tags).","version":"v1.0","currentSha":"","expectedSha":"","status":"manual_fix_required","autoFixable":true,"action":{"description":"Convert branch to tag","manualCommands":["git push origin 1111111111111111111111111111111111111111:refs/tags/v1.0","git push origin :refs/heads/v1.0"]}}],"local":false,"mode":"report-only","repository":{"host":"github.com","name":"r","nameWithOwner":"o/r","owner":"o"},"summary":{"total":2,"errors":2,"warnings":0,"fixed":0,"failed":0,"manualFixRequired":2,"unfixable":0,"pending":0}}
 --- stderr ---
+Resolve repository, token and policy...
+Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)
+Loading tags...
+page 1, 1 tags loaded
+Loading tags: 1 tags (<DURATION>)
+Loading branches...
+page 1, 2 branches loaded
+Loading branches: 2 branches (<DURATION>)
+Loading releases...
+page 1, 1 releases loaded
+Loading releases: 1 releases (<DURATION>)
+Reading repository settings...
+Reading repository settings: settings read (<DURATION>)
+Running 25 rules...
+Running 25 rules: 25/25 rules (<DURATION>)
 ERROR: Manual fix required issue: Branch 'v1' should be a tag (floating-versions-use: tags).
 ERROR: Manual fix required issue: Branch 'v1.0' should be a tag (floating-versions-use: tags).
 == Manual Remediation Instructions ==

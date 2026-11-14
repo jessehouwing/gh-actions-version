@@ -22,6 +22,8 @@ type Logger struct {
 	Actions bool
 	// Verbose enables debug messages without relying on GH_DEBUG.
 	Verbose bool
+	// Quiet suppresses informational and progress messages.
+	Quiet bool
 	// Color enables ANSI colors in plain mode.
 	Color bool
 	// ErrorCount counts errors written without a State (port of $global:returnCode = 1).
@@ -69,13 +71,24 @@ func escapeProperty(s string) string {
 }
 
 // Info writes a plain line.
-func (l *Logger) Info(msg string) { l.println(msg) }
+func (l *Logger) Info(msg string) {
+	if !l.Quiet {
+		l.println(msg)
+	}
+}
 
 // Infof writes a formatted plain line.
-func (l *Logger) Infof(format string, args ...any) { l.println(fmt.Sprintf(format, args...)) }
+func (l *Logger) Infof(format string, args ...any) {
+	if !l.Quiet {
+		l.println(fmt.Sprintf(format, args...))
+	}
+}
 
 // Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." when verbose or GH_DEBUG is set.
 func (l *Logger) Debug(msg string) {
+	if l.Quiet {
+		return
+	}
 	if l.Actions {
 		out := l.Out
 		if l.Verbose && l.DebugOut != nil {
@@ -100,7 +113,11 @@ func (l *Logger) Debug(msg string) {
 }
 
 // Notice writes a notice annotation.
-func (l *Logger) Notice(msg string) { l.annotate("notice", "", msg, "NOTICE: ", "32") }
+func (l *Logger) Notice(msg string) {
+	if !l.Quiet {
+		l.annotate("notice", "", msg, "NOTICE: ", "32")
+	}
+}
 
 // Warning writes a warning annotation.
 func (l *Logger) Warning(msg string) { l.annotate("warning", "", msg, "WARNING: ", "33") }
@@ -116,7 +133,9 @@ func (l *Logger) Annotate(level, title, msg string) {
 	case "warning":
 		l.annotate(level, title, msg, "WARNING: ", "33")
 	default:
-		l.annotate("notice", title, msg, "NOTICE: ", "32")
+		if !l.Quiet {
+			l.annotate("notice", title, msg, "NOTICE: ", "32")
+		}
 	}
 }
 
@@ -175,6 +194,9 @@ func (l *Logger) Mask(secret string) {
 
 // Group starts a collapsible log section.
 func (l *Logger) Group(title string) {
+	if l.Quiet {
+		return
+	}
 	if l.Actions {
 		l.println("##[group]" + title)
 		return
@@ -184,6 +206,9 @@ func (l *Logger) Group(title string) {
 
 // EndGroup ends the section started by Group.
 func (l *Logger) EndGroup() {
+	if l.Quiet {
+		return
+	}
 	if l.Actions {
 		l.println("##[endgroup]")
 	}

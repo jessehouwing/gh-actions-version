@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
@@ -63,6 +64,7 @@ type Options struct {
 	Client   state.Client
 	Log      *output.Logger
 	Prompter Prompter // required for Interactive
+	Progress progress.Stage
 }
 
 func (o Options) log() *output.Logger {
@@ -87,7 +89,11 @@ func Fix(ctx context.Context, st *state.State, opt Options) error {
 	case Interactive:
 		return interactive(ctx, st, opt)
 	case DryRun:
-		for _, i := range pendingFixable(st) {
+		issues := pendingFixable(st)
+		for n, i := range issues {
+			if opt.Progress != nil {
+				opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+			}
 			opt.log().Infof("Would apply: %s (%s)", i.Action.Description(), i.Action.Version())
 		}
 	}
@@ -124,7 +130,11 @@ func autoFix(ctx context.Context, st *state.State, opt Options) {
 		log.Group("Verifying potential solutions")
 		defer log.EndGroup()
 	}
-	for _, i := range pendingFixable(st) {
+	issues := pendingFixable(st)
+	for n, i := range issues {
+		if opt.Progress != nil {
+			opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+		}
 		execute(ctx, st, i, opt)
 	}
 	markUnfixable(st, false)
@@ -160,6 +170,9 @@ func interactive(ctx context.Context, st *state.State, opt Options) error {
 	issues := pendingFixable(st)
 	applyAll := false
 	for n, i := range issues {
+		if opt.Progress != nil {
+			opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+		}
 		if !applyAll {
 			log.Info("")
 			log.Infof("[%d/%d] %s", n+1, len(issues), i.String())

@@ -41,6 +41,8 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
 | `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
 | `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
+| `--no-progress` | Use plain progress lines instead of a terminal spinner. |
+| `--quiet` | Suppress progress and informational output; findings, warnings, and errors remain visible. `-q` is reserved for `--jq`. |
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.

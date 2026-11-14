@@ -226,3 +226,28 @@ func TestAppendStepSummary(t *testing.T) {
 		}
 	})
 }
+
+func TestQuietSuppressesInformationalOutputOnly(t *testing.T) {
+	var out bytes.Buffer
+	log := &Logger{Out: &out, Quiet: true, Verbose: true}
+
+	log.Info("information")
+	log.Infof("formatted %s", "information")
+	log.Debug("debug")
+	log.Notice("notice")
+	log.Annotate("notice", "notice title", "notice annotation")
+	log.Warning("warning")
+	log.Error("error")
+
+	got := out.String()
+	for _, suppressed := range []string{"information", "debug", "notice", "notice annotation"} {
+		if strings.Contains(got, suppressed) {
+			t.Errorf("quiet output contains suppressed message %q: %s", suppressed, got)
+		}
+	}
+	for _, visible := range []string{"WARNING: warning", "ERROR: error"} {
+		if !strings.Contains(got, visible) {
+			t.Errorf("quiet output is missing %q: %s", visible, got)
+		}
+	}
+}

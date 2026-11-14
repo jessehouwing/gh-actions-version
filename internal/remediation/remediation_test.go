@@ -94,6 +94,13 @@ type fakePrompter struct {
 	asked   int
 }
 
+type progressRecorder struct {
+	updates []string
+}
+
+func (p *progressRecorder) Update(message string) { p.updates = append(p.updates, message) }
+func (*progressRecorder) Done(string)             {}
+
 func (p *fakePrompter) Select(_ string, options []string) (int, error) {
 	if p.err != nil {
 		return 0, p.err
@@ -166,6 +173,16 @@ func TestFixAutoFix(t *testing.T) {
 		_ = Fix(ctx, st, Options{Mode: AutoFix})
 		if strings.Join(order, ",") != "v1,v2,v3" || st.FixedCount() != 3 {
 			t.Fatalf("order %v fixed %d", order, st.FixedCount())
+		}
+	})
+	t.Run("reports progress for each applied fix", func(t *testing.T) {
+		i := issue("v1", "error", &testAction{ver: "v1"})
+		i.Finding = "test_finding"
+		st := newState(i)
+		reporter := &progressRecorder{}
+		_ = Fix(ctx, st, Options{Mode: AutoFix, Progress: reporter})
+		if len(reporter.updates) != 1 || reporter.updates[0] != "[1/1] test_finding v1" {
+			t.Fatalf("progress updates %v", reporter.updates)
 		}
 	})
 	t.Run("marks failed when the action returns false", func(t *testing.T) {

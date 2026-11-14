@@ -53,7 +53,7 @@ Rules:
 - `json`: progress goes to stderr only; stdout stays a single valid document.
 - Rate limiting is shown explicitly: `Rate limited, resuming in 42s (limit: --max-wait 60s)`; exceeding
   `--max-wait` exits with code 2 and says so.
-- `-q, --quiet` suppresses progress and informational lines (findings and errors still print);
+- `--quiet` suppresses progress and informational lines (findings and errors still print; warnings remain visible);
   `-v, --verbose` adds per-request detail.
 
 ## Console report
@@ -128,7 +128,7 @@ The docs URL is pinned to the CLI version, with `main` used for dev builds. Rena
 |---|---|
 | `-o, --output console\|json\|actions` | Output format (default: `actions` in Actions, otherwise `console`). |
 | `--no-progress` | Plain stage lines or none; implied when stderr is not a terminal. |
-| `-q, --quiet` | Only findings and errors. |
+| `--quiet` | Only findings and errors; `-q` remains the shorthand for `--jq`. |
 | `-v, --verbose` | Per-request detail and debug lines. |
 | `--no-color` | Disable colors (`NO_COLOR` honored). |
 | `--group-by version\|rule\|concern` | Console grouping (default `version`). |
@@ -138,5 +138,6 @@ The docs URL is pinned to the CLI version, with `main` used for dev builds. Rena
 - Group findings by version by default; `--group-by` also supports `rule` and `concern`.
 - Never truncate version lists; the sample above abbreviates the list for readability only.
 - Progress is human-readable on stderr; no machine-readable progress stream is emitted.
+- `--quiet` has no short form because `-q` is already reserved for `--jq`.
 - Documentation links use `https://github.com/jessehouwing/gh-actions-version/blob/<version>/docs/rules/<rule>.md`,
   where `<version>` is the CLI version tag or `main` for dev builds.
