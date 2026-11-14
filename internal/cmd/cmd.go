@@ -38,20 +38,20 @@ const (
 )
 
 type flags struct {
-	repo                                               string
-	check, autoFix, interactive, yes                   bool
-	local, fetchReleases, noConfig, verbose, noColor   bool
-	checkMinor, checkReleases, checkImmut, checkMarket string
-	includePreview                                     bool
-	allowTagDeletion                                   bool
-	floatingUse                                        string
-	ignoreVersions                                     string
-	maxWait                                            time.Duration
-	config                                             string
-	json                                               []string
-	jq, template                                       string
-	jsonSet                                            bool
-	changed                                            map[string]bool // flags given on the command line
+	repo                                             string
+	check, autoFix, interactive, yes                 bool
+	local, fetchReleases, noConfig, verbose, noColor bool
+	includePreview                                   bool
+	allowTagDeletion                                 bool
+	floatingUse                                      string
+	ignoreVersions                                   string
+	maxWait                                          time.Duration
+	config                                           string
+	levels, ruleLevels, findingLevels                []string
+	json                                             []string
+	jq, template                                     string
+	jsonSet                                          bool
+	changed                                          map[string]bool // flags given on the command line
 }
 
 // Run executes the command line (args exclude the program name) and returns the exit code.
@@ -140,10 +140,9 @@ func addGlobalFlags(fl *pflag.FlagSet, f *flags) {
 func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.BoolVarP(&f.interactive, "interactive", "i", false, "Review and apply fixes one by one (requires a terminal)")
 	fl.BoolVar(&f.yes, "yes", false, "Answer yes to every prompt (interactive becomes auto-fix)")
-	fl.StringVar(&f.checkMinor, "check-minor-version", "error", "Minor version (v1.0) validation: error, warning or none")
-	fl.StringVar(&f.checkReleases, "check-releases", "error", "Require a release for every patch version: error, warning or none")
-	fl.StringVar(&f.checkImmut, "check-release-immutability", "error", "Require releases to be published and immutable: error, warning or none")
-	fl.StringVar(&f.checkMarket, "check-marketplace", "error", "Validate Marketplace metadata: error, warning or none")
+	fl.StringArrayVar(&f.levels, "level", nil, "Set a concern level (repeatable KEY=LEVEL)")
+	fl.StringArrayVar(&f.ruleLevels, "rule-level", nil, "Set a rule level (repeatable KEY=LEVEL)")
+	fl.StringArrayVar(&f.findingLevels, "finding-level", nil, "Set a finding level (repeatable KEY=LEVEL)")
 	fl.BoolVar(&f.includePreview, "include-preview-releases", false, "Include prereleases (from the Releases API) when picking the latest patch")
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
@@ -152,6 +151,77 @@ func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.Lookup("json").NoOptDefVal = "all"
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
 	fl.StringVarP(&f.template, "template", "t", "", "Format the JSON output with a Go template")
+}
+
+func parseLevelOverrides(levels, ruleLevels, findingLevels []string) (*policy.File, error) {
+	over := &policy.File{}
+	set := func(flag, kind, value string, known map[string]string) (string, string, error) {
+		key, level, ok := strings.Cut(value, "=")
+		key, level = strings.TrimSpace(key), strings.TrimSpace(level)
+		if !ok || key == "" || level == "" {
+			return "", "", fmt.Errorf("%s must be KEY=LEVEL", flag)
+		}
+		if level != "error" && level != "warning" && level != "none" {
+			return "", "", fmt.Errorf("%s level must be 'error', 'warning' or 'none', got %q", flag, level)
+		}
+		if _, ok := known[key]; !ok {
+			return "", "", fmt.Errorf("%s has unknown %s %q", flag, kind, key)
+		}
+		return key, level, nil
+	}
+
+	concerns := make(map[string]string)
+	for _, concern := range policy.Concerns() {
+		concerns[concern] = "concern"
+	}
+	for _, value := range levels {
+		key, level, err := set("--level", "concern", value, concerns)
+		if err != nil {
+			return nil, err
+		}
+		if over.Concerns == nil {
+			over.Concerns = map[string]policy.Settings{}
+		}
+		over.Concerns[key] = policy.Settings{Level: level}
+	}
+
+	knownRules := map[string]string{}
+	knownFindings := map[string]string{}
+	for _, rule := range rules.All() {
+		knownRules[rule.Name] = "rule"
+		for _, finding := range rule.Findings {
+			knownFindings[finding.ID] = rule.Name
+		}
+	}
+	for _, value := range ruleLevels {
+		key, level, err := set("--rule-level", "rule", value, knownRules)
+		if err != nil {
+			return nil, err
+		}
+		if over.Rules == nil {
+			over.Rules = map[string]policy.Settings{}
+		}
+		setting := over.Rules[key]
+		setting.Level = level
+		over.Rules[key] = setting
+	}
+	for _, value := range findingLevels {
+		key, level, err := set("--finding-level", "finding", value, knownFindings)
+		if err != nil {
+			return nil, err
+		}
+		rule := knownFindings[key]
+		if over.Rules == nil {
+			over.Rules = map[string]policy.Settings{}
+		}
+		setting := over.Rules[rule]
+		if setting.Findings == nil {
+			setting.Findings = map[string]policy.Settings{}
+		}
+		setting.Findings[key] = policy.Settings{Level: level}
+		over.Rules[rule] = setting
+	}
+	return over, nil
 }
 
 func usageError(log *output.Logger, msgs ...string) int {
@@ -415,22 +485,12 @@ func (r *run) buildConfig(p *policy.File) error {
 	cfg := options.DefaultConfig()
 	cfg.AutoFix = r.cfg.AutoFix
 	cfg.AllowDestructiveTagDeletion = f.allowTagDeletion
-	pin := policy.Pinned{Levels: map[string]bool{}}
-	for flag, set := range map[string]struct {
-		concern string
-		value   string
-		field   *string
-	}{
-		"check-minor-version":        {"minor", f.checkMinor, &cfg.CheckMinorVersion},
-		"check-releases":             {"releases", f.checkReleases, &cfg.CheckReleases},
-		"check-release-immutability": {"immutability", f.checkImmut, &cfg.CheckImmutability},
-		"check-marketplace":          {"marketplace", f.checkMarket, &cfg.CheckMarketplace},
-	} {
-		if f.changed[flag] {
-			*set.field = options.ConvertToCheckLevel(set.value)
-			pin.Levels[set.concern] = true
-		}
+	overrides, err := parseLevelOverrides(f.levels, f.ruleLevels, f.findingLevels)
+	if err != nil {
+		return err
 	}
+	p = policy.Merge(p, overrides)
+	pin := policy.Pinned{}
 	if pin.IgnorePreviewReleases = f.changed["include-preview-releases"]; pin.IgnorePreviewReleases {
 		cfg.IgnorePreviewReleases = !f.includePreview
 	}

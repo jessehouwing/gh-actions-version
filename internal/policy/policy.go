@@ -272,7 +272,7 @@ func LoadFrom(ctx context.Context, read Reader, path string) (*File, string, err
 // Pinned names the settings already fixed by command line flags; the policy must not change them.
 type Pinned struct {
 	FloatingVersionsUse, IgnorePreviewReleases, IgnoreVersions bool
-	// Levels holds the concerns whose check-* flag was given.
+	// Levels holds concern levels explicitly set by the command line.
 	Levels map[string]bool
 }
 
@@ -293,8 +293,8 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 		s := f.Concerns[concern]
 		level := s.Level
 		if field := checkLevel(cfg, concern); field != nil {
-			// The check-* levels also gate the rules, so they are set on the config; the issue level
-			// is then taken from there and only per-rule overrides apply below.
+			// These concern levels also gate the rules, so they are set on the config; the issue
+			// level is then taken from there and per-rule overrides apply below.
 			if !pin.Levels[concern] && s.Level != "" {
 				*field = s.Level
 			}

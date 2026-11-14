@@ -12,33 +12,6 @@ import (
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
-func TestConvertToCheckLevel(t *testing.T) {
-	cases := []struct{ name, in, want string }{
-		{"Should convert 'true' to 'error'", "true", "error"},
-		{"Should convert 'TRUE' to 'error' (case insensitive)", "TRUE", "error"},
-		{"Should convert 'false' to 'none'", "false", "none"},
-		{"Should convert 'FALSE' to 'none' (case insensitive)", "FALSE", "none"},
-		{"Should pass through 'error' unchanged", "error", "error"},
-		{"Should pass through 'warning' unchanged", "warning", "warning"},
-		{"Should pass through 'none' unchanged", "none", "none"},
-		{"Should normalize 'ERROR' to 'error' (case insensitive)", "ERROR", "error"},
-		{"Should normalize 'Warning' to 'warning' (case insensitive)", "Warning", "warning"},
-		{"Should normalize 'NONE' to 'none' (case insensitive)", "NONE", "none"},
-		{"Should return empty string for empty string input", "", ""},
-		{"Should trim leading and trailing spaces from 'error'", "  error  ", "error"},
-		{"Should trim whitespace from 'warning'", "\twarning\n", "warning"},
-		{"Should trim whitespace from 'true' and convert to 'error'", "  true  ", "error"},
-		{"Should trim whitespace from 'false' and convert to 'none'", "  false  ", "none"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := ConvertToCheckLevel(c.in); got != c.want {
-				t.Fatalf("got %q want %q", got, c.want)
-			}
-		})
-	}
-}
-
 func TestConvertToIgnoreVersionsList(t *testing.T) {
 	cases := []struct {
 		name string

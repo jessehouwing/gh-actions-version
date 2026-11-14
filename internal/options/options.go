@@ -27,19 +27,6 @@ func DefaultConfig() state.Config {
 	}
 }
 
-// ConvertToCheckLevel normalizes a check input: trimmed, lower-cased, "true" -> "error", "false" -> "none".
-// Empty input stays empty (callers apply defaults).
-func ConvertToCheckLevel(value string) string {
-	n := strings.ToLower(strings.TrimSpace(value))
-	switch n {
-	case "true":
-		return "error"
-	case "false":
-		return "none"
-	}
-	return n
-}
-
 // ParseIgnoreVersions parses ignore-versions from a comma/newline separated string. Invalid patterns
 // are skipped with a warning.
 func ParseIgnoreVersions(raw string, log *output.Logger) []string {

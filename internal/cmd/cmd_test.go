@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/policy"
 	"github.com/jessehouwing/gh-actions-version/internal/testutil"
 )
 
@@ -139,7 +140,7 @@ func (e *testEnv) runRaw(args ...string) result {
 }
 
 // Common flags: validate tags only unless a test asks for releases or marketplace metadata.
-var tagsOnly = []string{"-R", "o/r", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none"}
+var tagsOnly = []string{"-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none"}
 
 func args(extra ...string) []string { return append(append([]string(nil), tagsOnly...), extra...) }
 
@@ -155,21 +156,20 @@ func ghWithPatch(t *testing.T) *testutil.GitHub {
 }
 
 func TestParameterValidation(t *testing.T) {
-	t.Run("Should accept the documented check levels", func(t *testing.T) {
-		for _, flag := range []string{"--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace"} {
-			for _, v := range []string{"error", "warning", "none", "true", "false"} {
-				gh := testutil.NewGitHub(t).MarketplaceFiles()
-				r := newEnv(t, gh).run("-R", "o/r", "--check", flag+"="+v)
+	t.Run("Should accept documented concern, rule and finding levels", func(t *testing.T) {
+		for _, flag := range []string{"--level=minor", "--rule-level=patch_tag_missing", "--finding-level=patch_tag_missing"} {
+			for _, level := range []string{"error", "warning", "none"} {
+				r := newEnv(t, testutil.NewGitHub(t).MarketplaceFiles()).run("-R", "o/r", flag+"="+level)
 				if r.code != 0 && r.code != 1 {
-					t.Errorf("%s=%s: exit %d\n%s", flag, v, r.code, r.all())
+					t.Errorf("%s=%s: exit %d\n%s", flag, level, r.code, r.all())
 				}
 			}
 		}
 	})
-	t.Run("Should reject invalid check levels with exit code 2", func(t *testing.T) {
-		for _, flag := range []string{"--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace"} {
-			r := newEnv(t, testutil.NewGitHub(t)).run("-R", "o/r", flag+"=sometimes")
-			if r.code != 2 || !strings.Contains(r.all(), flag[2:]+" must be") {
+	t.Run("Should reject invalid levels and unknown policy keys with exit code 2", func(t *testing.T) {
+		for _, flag := range []string{"--level=minor=sometimes", "--level=unknown=error", "--rule-level=unknown=error", "--finding-level=unknown=error", "--level=minor"} {
+			r := newEnv(t, testutil.NewGitHub(t)).run("-R", "o/r", flag)
+			if r.code != ExitUsage {
 				t.Errorf("%s: exit %d\n%s", flag, r.code, r.all())
 			}
 		}
@@ -186,7 +186,7 @@ func TestParameterValidation(t *testing.T) {
 			t.Fatalf("exit %d", r.code)
 		}
 		for _, f := range []string{"--repo", "--interactive", "--yes", "--local", "--local-only",
-			"--fetch-releases", "--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace",
+			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
@@ -209,6 +209,40 @@ func TestParameterValidation(t *testing.T) {
 	})
 }
 
+func TestLevelFlagPrecedence(t *testing.T) {
+	file, err := policy.Parse([]byte(`concerns:
+  minor:
+    level: error
+rules:
+  major_tag_missing:
+    level: error
+    findings:
+      major_tag_missing:
+        level: error
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &run{f: &flags{
+		levels:        []string{"minor=warning"},
+		ruleLevels:    []string{"major_tag_missing=warning"},
+		findingLevels: []string{"major_tag_missing=warning"},
+	}}
+	if err := r.buildConfig(file); err != nil {
+		t.Fatal(err)
+	}
+	if r.cfg.CheckMinorVersion != "warning" {
+		t.Errorf("concern level = %q, want warning", r.cfg.CheckMinorVersion)
+	}
+	rule := r.cfg.Rules["major_tag_missing"]
+	if rule.Level != "warning" {
+		t.Errorf("rule level = %q, want warning", rule.Level)
+	}
+	if finding := rule.Findings["major_tag_missing"].Level; finding != "warning" {
+		t.Errorf("finding level = %q, want warning", finding)
+	}
+}
+
 func TestSubcommands(t *testing.T) {
 	t.Run("bare invocation prints help and exits 2", func(t *testing.T) {
 		r := newEnv(t, nil).runRaw()
@@ -225,7 +259,7 @@ func TestSubcommands(t *testing.T) {
 	})
 	t.Run("fix applies remediations by default", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).run("fix", "-R", "o/r", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		r := newEnv(t, gh).run("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if r.code != ExitOK || gh.TagSha("v1") != c1 || gh.TagSha("v1.0") != c1 {
 			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
 		}
@@ -237,11 +271,16 @@ func TestSubcommands(t *testing.T) {
 			}
 		}
 	})
+	t.Run("legacy check flags are not accepted", func(t *testing.T) {
+		if r := newEnv(t, nil).runRaw("verify", "--check-releases=none"); r.code != ExitUsage {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
 }
 
 func TestRepositoryParameterHandling(t *testing.T) {
 	t.Run("Should return error when Repository is not provided and GITHUB_REPOSITORY is not set", func(t *testing.T) {
-		r := newEnv(t, testutil.NewGitHub(t)).run("--check", "--check-marketplace=none")
+		r := newEnv(t, testutil.NewGitHub(t)).run("--check", "--level=marketplace=none")
 		if r.code != 2 || !strings.Contains(r.all(), "could not determine the repository") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -249,7 +288,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 	t.Run("Should use GITHUB_REPOSITORY environment variable when Repository not provided", func(t *testing.T) {
 		e := newEnv(t, testutil.NewGitHub(t))
 		e.vars["GITHUB_REPOSITORY"] = "test-owner/test-repo"
-		r := e.run("--check", "--check-marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--json=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -274,7 +313,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 		e.vars["GITHUB_REPOSITORY"] = "o/r"
 		e.vars["GITHUB_SERVER_URL"] = "https://ghe.example.com"
 		e.vars["GITHUB_API_URL"] = "https://ghe.example.com/api/v3"
-		r := e.run("--check", "--check-marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--json=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -381,11 +420,8 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should not check minor version tags when check-minor-version is none", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		if r := newEnv(t, gh).run(args("--check", "--check-minor-version=none")...); r.code != 0 {
+		if r := newEnv(t, gh).run(args("--check", "--level=minor=none")...); r.code != 0 {
 			t.Errorf("none: exit %d\n%s", r.code, r.all())
-		}
-		if r := newEnv(t, gh).run(args("--check", "--check-minor-version=false")...); r.code != 0 {
-			t.Errorf("false: exit %d", r.code)
 		}
 		if r := newEnv(t, gh).run(args("--check")...); r.code != 1 {
 			t.Errorf("error: exit %d", r.code)
@@ -393,7 +429,7 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should report warnings without failing", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		r := newEnv(t, gh).run(args("--check", "--check-minor-version=warning", "--json=issues,summary")...)
+		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--json=issues,summary")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -476,9 +512,9 @@ func TestReleaseChecks(t *testing.T) {
 	seed := func(t *testing.T) *testutil.GitHub {
 		return testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1")
 	}
-	rel := []string{"-R", "o/r", "--check-marketplace=none"}
+	rel := []string{"-R", "o/r", "--level=marketplace=none"}
 	t.Run("Should not check releases when check-releases is none", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-releases=none", "--check-release-immutability=none")
+		r := newEnv(t, seed(t)).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=releases=none", "--level=immutability=none")
 		if r.code != 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -500,15 +536,15 @@ func TestReleaseChecks(t *testing.T) {
 	t.Run("Should allow checking releases but not immutability separately", func(t *testing.T) {
 		gh := seed(t)
 		gh.Release("v1.0.0", testutil.Latest)
-		r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-release-immutability=none")
+		r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=immutability=none")
 		if r.code != 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
-		r = newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-release-immutability=warning")
+		r = newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=immutability=warning")
 		if r.code != 0 {
 			t.Errorf("warning: exit %d\n%s", r.code, r.all())
 		}
-		r = newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none")
+		r = newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none")
 		if r.code != 1 {
 			t.Errorf("error: exit %d\n%s", r.code, r.all())
 		}
@@ -517,11 +553,11 @@ func TestReleaseChecks(t *testing.T) {
 		gh := seed(t)
 		gh.Release("v1.0.0", testutil.Latest)
 		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: none\n")
-		args := []string{"-R", "o/r", "--check", "--check-marketplace=none"}
+		args := []string{"-R", "o/r", "--check", "--level=marketplace=none"}
 		if r := newEnv(t, gh).run(args...); r.code != 0 {
 			t.Errorf("file: exit %d\n%s", r.code, r.all())
 		}
-		if r := newEnv(t, gh).run(append(args, "--check-release-immutability=error")...); r.code != 1 {
+		if r := newEnv(t, gh).run(append(args, "--level=immutability=error")...); r.code != 1 {
 			t.Errorf("flag: exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -530,7 +566,7 @@ func TestReleaseChecks(t *testing.T) {
 		gh.Release("v1.0.0", testutil.Latest)
 		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: error\n")
 		gh.File(".github/custom.yml", "concerns:\n  immutability:\n    level: none\n")
-		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--config", ".github/custom.yml", "--check-marketplace=none")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--config", ".github/custom.yml", "--level=marketplace=none")
 		if r.code != 0 || !strings.Contains(r.all(), ".github/custom.yml") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -539,7 +575,7 @@ func TestReleaseChecks(t *testing.T) {
 		gh := seed(t)
 		gh.Release("v1.0.0", testutil.Latest)
 		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: none\n")
-		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--no-config", "--check-marketplace=none")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--no-config", "--level=marketplace=none")
 		if r.code != 1 || !strings.Contains(r.all(), "Ignoring repository policy files") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -553,7 +589,7 @@ func TestReleaseChecks(t *testing.T) {
 	t.Run("Should reject an invalid action-version.yml", func(t *testing.T) {
 		gh := seed(t)
 		gh.File("action-version.yml", "bogus: 1\n")
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none"); r.code == 0 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none"); r.code == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -561,7 +597,7 @@ func TestReleaseChecks(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1").Tag(c2, "v1.1.0")
 		gh.Release("v1.0.0", testutil.Immutable, testutil.Latest)
 		gh.Release("v1.1.0", testutil.Prerelease, testutil.Immutable)
-		base := []string{"-R", "o/r", "--check", "--check-marketplace=none", "--check-minor-version=none"}
+		base := []string{"-R", "o/r", "--check", "--level=marketplace=none", "--level=minor=none"}
 		if r := newEnv(t, gh).run(base...); r.code != 0 {
 			t.Errorf("ignore (default): exit %d\n%s", r.code, r.all())
 		}
@@ -571,11 +607,11 @@ func TestReleaseChecks(t *testing.T) {
 	})
 	t.Run("Should validate marketplace metadata", func(t *testing.T) {
 		gh := testutil.NewGitHub(t)
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-releases=none", "--check-release-immutability=none"); r.code != 1 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=releases=none", "--level=immutability=none"); r.code != 1 {
 			t.Errorf("missing metadata: exit %d\n%s", r.code, r.all())
 		}
 		gh.MarketplaceFiles()
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-releases=none", "--check-release-immutability=none"); r.code != 0 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=releases=none", "--level=immutability=none"); r.code != 0 {
 			t.Errorf("valid metadata: exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -945,7 +981,7 @@ func TestGitHubActions(t *testing.T) {
 
 func TestPersistentGlobalFlags(t *testing.T) {
 	t.Run("flags before the subcommand are accepted", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("-R", "o/r", "--no-config", "verify", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		r := newEnv(t, ghWithPatch(t)).runRaw("-R", "o/r", "--no-config", "verify", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if r.code != 1 || !strings.Contains(r.all(), "v1") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -957,7 +993,7 @@ func TestPersistentGlobalFlags(t *testing.T) {
 		}
 	})
 	t.Run("verbose diagnostics are written to stderr", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--verbose", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--verbose", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if r.code != 1 || !strings.Contains(r.err, "[DEBUG]") || strings.Contains(r.out, "[DEBUG]") {
 			t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", r.code, r.out, r.err)
 		}
@@ -967,7 +1003,7 @@ func TestPersistentGlobalFlags(t *testing.T) {
 		t.Setenv("NO_COLOR", "")
 		e := newEnv(t, ghWithPatch(t))
 		e.tty = true
-		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none")
+		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
 		if strings.Contains(r.all(), "\x1b[") {
 			t.Errorf("ANSI color codes were emitted:\n%s", r.all())
 		}
