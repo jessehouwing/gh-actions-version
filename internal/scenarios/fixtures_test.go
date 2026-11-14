@@ -57,6 +57,10 @@ func TestCheckoutFixture(t *testing.T) {
 	if st.ImmutableReleasesEnabled != nil {
 		t.Fatalf("immutable release setting = %v, want unknown", *st.ImmutableReleasesEnabled)
 	}
+	if len(st.SkippedChecks) != 1 || st.SkippedChecks[0].Check != "immutable_releases_enabled" ||
+		st.SkippedChecks[0].Reason != "permission denied" {
+		t.Fatalf("skipped checks = %+v, want immutability setting skipped for permission denied", st.SkippedChecks)
+	}
 	if got := issueCounts(st); got["release_not_immutable"] != 55 ||
 		got["release_missing"] != 2 || got["marketplace_metadata_missing"] != 1 || len(got) != 3 {
 		t.Fatalf("fixture findings = %v, want 55 non-immutable releases, 2 missing releases, 1 missing marketplace metadata", got)

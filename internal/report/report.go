@@ -126,9 +126,12 @@ func Build(st *state.State, options BuildOptions) Report {
 		Mode:     options.Mode,
 		Config:   buildConfig(st.Config),
 		Findings: make([]Finding, 0, len(st.Issues)),
-		Skipped:  []SkippedCheck{},
+		Skipped:  make([]SkippedCheck, 0, len(st.SkippedChecks)),
 		Fixes:    []Fix{},
 		Timings:  cloneTimings(options.Timings),
+	}
+	for _, skipped := range st.SkippedChecks {
+		out.Skipped = append(out.Skipped, SkippedCheck{Check: skipped.Check, Reason: skipped.Reason})
 	}
 
 	versionGroups := map[string]*Group{}
@@ -148,7 +151,7 @@ func Build(st *state.State, options BuildOptions) Report {
 		finding := Finding{
 			Rule: issue.Rule, Finding: issue.Finding, Concern: concern, Severity: issue.Severity,
 			Version: issue.Version, Message: issue.Message, Docs: fmt.Sprintf("%s%s/docs/rules/%s.md", docsURL, version, issue.Rule),
-			AutoFixable: issue.IsAutoFixable(), Manual: manual, Status: issue.Status,
+			Cause: causeFor(st, issue), AutoFixable: issue.IsAutoFixable(), Manual: manual, Status: issue.Status,
 		}
 		out.Findings = append(out.Findings, finding)
 		addToGroup(versionGroups, "version", issue.Version, "", "", finding)
@@ -189,6 +192,24 @@ func Build(st *state.State, options BuildOptions) Report {
 	out.Groups = append(out.Groups, groupsFromMap(ruleGroups)...)
 	out.Groups = append(out.Groups, groupsFromMap(concernGroups)...)
 	return out
+}
+
+func causeFor(st *state.State, issue *state.Issue) string {
+	if issue.Finding != "release_not_immutable" {
+		return ""
+	}
+	if st.ImmutableReleasesEnabled != nil {
+		if !*st.ImmutableReleasesEnabled {
+			return "The repository setting 'Release immutability' is disabled."
+		}
+		return ""
+	}
+	for _, skipped := range st.SkippedChecks {
+		if skipped.Check == "immutable_releases_enabled" {
+			return "The repository setting 'Release immutability' is unknown because it could not be read (" + skipped.Reason + ")."
+		}
+	}
+	return "The repository setting 'Release immutability' is unknown."
 }
 
 func buildConfig(cfg state.Config) Config {

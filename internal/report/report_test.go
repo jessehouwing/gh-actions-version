@@ -79,6 +79,8 @@ func TestBuildCreatesSharedReportAndGroups(t *testing.T) {
 
 func TestBuildPinsDocsToReleaseTag(t *testing.T) {
 	st := state.New()
+	disabled := false
+	st.ImmutableReleasesEnabled = &disabled
 	st.Issues = []*state.Issue{{
 		Rule: "release_should_be_immutable", Finding: "release_not_immutable",
 		Severity: state.SeverityError, Version: "v1.0.0", Status: state.StatusPending,
@@ -88,8 +90,28 @@ func TestBuildPinsDocsToReleaseTag(t *testing.T) {
 		"https://github.com/jessehouwing/gh-actions-version/blob/v2.3.4/docs/rules/release_should_be_immutable.md"; got != want {
 		t.Fatalf("docs URL = %q, want %q", got, want)
 	}
+	if out.Findings[0].Cause != "The repository setting 'Release immutability' is disabled." {
+		t.Fatalf("cause/skipped checks not reported: cause=%q skipped=%+v", out.Findings[0].Cause, out.Skipped)
+	}
 	if len(out.Fixes) != 0 {
 		t.Fatalf("report-only should not include fixes: %+v", out.Fixes)
+	}
+}
+
+func TestBuildExplainsUnknownImmutabilitySetting(t *testing.T) {
+	st := state.New()
+	st.SkippedChecks = []state.SkippedCheck{{Check: "immutable_releases_enabled", Reason: "permission denied"}}
+	st.Issues = []*state.Issue{{
+		Rule: "release_should_be_immutable", Finding: "release_not_immutable",
+		Severity: state.SeverityError, Version: "v1.0.0", Status: state.StatusPending,
+	}}
+	out := Build(st, BuildOptions{DocsVersion: "dev"})
+	if got, want := out.Findings[0].Cause,
+		"The repository setting 'Release immutability' is unknown because it could not be read (permission denied)."; got != want {
+		t.Fatalf("cause = %q, want %q", got, want)
+	}
+	if len(out.Skipped) != 1 || out.Skipped[0].Check != "immutable_releases_enabled" {
+		t.Fatalf("skipped checks = %+v, want the immutability setting", out.Skipped)
 	}
 }
 

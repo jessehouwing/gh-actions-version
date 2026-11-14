@@ -259,6 +259,9 @@ func Load(ctx context.Context, dir string, cfg state.Config) (*state.State, []st
 
 	if cfg.CheckReleases != "none" || cfg.CheckImmutability != "none" || cfg.CheckMarketplace != "none" {
 		warnings = append(warnings, "release and marketplace checks need the GitHub API and are skipped in local mode")
+		st.SkippedChecks = append(st.SkippedChecks, state.SkippedCheck{
+			Check: "release and marketplace checks", Reason: "local mode",
+		})
 	}
 	cfg.CheckReleases, cfg.CheckImmutability, cfg.CheckMarketplace = "none", "none", "none"
 	st.Config = cfg

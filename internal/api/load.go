@@ -66,7 +66,18 @@ func Load(ctx context.Context, c *Client, cfg state.Config) (*state.State, error
 		return nil, err
 	}
 	if cfg.CheckImmutability != "" && cfg.CheckImmutability != "none" {
-		st.ImmutableReleasesEnabled = c.ImmutableReleasesEnabled(ctx)
+		enabled, settingErr := c.immutableEnabled(ctx)
+		if settingErr != nil {
+			reason := "unavailable"
+			if StatusCode(settingErr) == 403 {
+				reason = "permission denied"
+			}
+			st.SkippedChecks = append(st.SkippedChecks, state.SkippedCheck{
+				Check: "immutable_releases_enabled", Reason: reason,
+			})
+		} else {
+			st.ImmutableReleasesEnabled = &enabled
+		}
 	}
 	if cfg.CheckMarketplace != "" && cfg.CheckMarketplace != "none" {
 		if st.Marketplace, err = c.GetMarketplaceMetadata(ctx, ""); err != nil {

@@ -93,6 +93,10 @@ func TestLoad(t *testing.T) {
 		if err != nil || st.Config.CheckReleases != "none" || st.Config.CheckImmutability != "none" || st.Config.CheckMarketplace != "none" || len(warnings) != 1 {
 			t.Fatalf("%v %+v %v", err, st, warnings)
 		}
+		if len(st.SkippedChecks) != 1 || st.SkippedChecks[0].Check != "release and marketplace checks" ||
+			st.SkippedChecks[0].Reason != "local mode" {
+			t.Fatalf("skipped checks = %+v, want release checks skipped in local mode", st.SkippedChecks)
+		}
 	})
 	t.Run("fails outside a git repository", func(t *testing.T) {
 		if _, err := exec.LookPath("git"); err != nil {

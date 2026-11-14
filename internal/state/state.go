@@ -220,10 +220,11 @@ type FindingPolicy struct {
 
 // State is the single source of truth (port of RepositoryState).
 type State struct {
-	Tags        []*VersionRef
-	Branches    []*VersionRef
-	Releases    []*ReleaseInfo
-	Marketplace *MarketplaceMetadata
+	Tags          []*VersionRef
+	Branches      []*VersionRef
+	Releases      []*ReleaseInfo
+	Marketplace   *MarketplaceMetadata
+	SkippedChecks []SkippedCheck
 	// ImmutableReleasesEnabled is the repository's 'Release immutability' setting; nil when unknown.
 	ImmutableReleasesEnabled *bool
 	Owner                    string
@@ -231,6 +232,11 @@ type State struct {
 	Host                     string
 	Config                   Config
 	Issues                   []*Issue
+}
+
+type SkippedCheck struct {
+	Check  string
+	Reason string
 }
 
 func New() *State { return &State{Marketplace: &MarketplaceMetadata{}} }
