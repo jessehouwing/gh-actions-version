@@ -14,12 +14,14 @@ import (
 
 type setupOptions struct {
 	yes, print, noIgnore, allowTagDeletion bool
+	deletionAnswered                       bool
 	floating, preview                      string
 	levels                                 []string
 	ruleLevels                             []string
 	findingLevels                          []string
 	fixes                                  []string
 	ignores                                []string
+	interactiveIgnores                     []state.IgnoreEntry
 }
 
 type setupSettings struct {
@@ -44,12 +46,23 @@ func newSetupCommand(global *flags, env Env) *cobra.Command {
 		Use:   "setup",
 		Short: "Create a version policy",
 		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(c *cobra.Command, _ []string) error {
 			if global.noConfig || global.config != "" {
 				return fmt.Errorf("--config and --no-config cannot be used with setup --print")
 			}
 			if !opts.print {
 				return fmt.Errorf("setup currently requires --print")
+			}
+			opts.deletionAnswered = c.Flags().Changed("dangerously-allow-destructive-tag-deletion")
+			if env.IsTTY && !opts.yes {
+				check := opts
+				check.yes = true
+				if _, err := buildSetupPolicy(check); err != nil {
+					return err
+				}
+				if err := promptSetup(&opts, env); err != nil {
+					return err
+				}
 			}
 			data, err := buildSetupPolicy(opts)
 			if err != nil {
@@ -142,6 +155,7 @@ func buildSetupPolicy(opts setupOptions) ([]byte, error) {
 		}
 		result.Ignore = append(result.Ignore, state.IgnoreEntry{Versions: []string{pattern}, Scope: "all"})
 	}
+	result.Ignore = append(result.Ignore, opts.interactiveIgnores...)
 	if !opts.yes {
 		var missing []string
 		if opts.floating == "" {
