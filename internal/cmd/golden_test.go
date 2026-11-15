@@ -24,6 +24,9 @@ func TestGolden(t *testing.T) {
 		{"floating-branches", testutil.FloatingOnBranchesFixture},
 		{"duplicate-refs", testutil.DuplicateRefsFixture},
 		{"drafts", testutil.DraftsFixture},
+		{"ignored", func(t testing.TB) *testutil.GitHub {
+			return testutil.CleanFixture(t).File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n    scope: selection\n    reason: yanked\n    rules: [major_tag_tracks_highest_patch]\n")
+		}},
 	}
 	formats := []string{"console", "json", "actions"}
 	for _, fixture := range fixtures {

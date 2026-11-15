@@ -141,6 +141,27 @@ Precedence: command-line flag > `action-version.yml` > built-in default. The bui
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
 The GitHub Action runs this CLI, so it reads the file too; inputs that are explicitly set are passed as flags and win over it.
 
+### Ignored versions
+
+```sh
+gh actions-version ignore 'v1.2.3' --scope selection --reason "broken release"
+gh actions-version ignore --list
+gh actions-version ignore --remove 'v1.2.3'
+gh actions-version verify --no-ignore --ignore-version 'v0.*'
+```
+
+`ignore` edits the local root or `.github/` policy offline; `--config PATH` selects a file.
+Scopes are `all` (hide entirely), `selection` (exclude as a highest-version candidate),
+`validation` (suppress findings), and `fix` (manual-only). `--rule` can be repeated to restrict
+an entry to rule or finding IDs; `--until YYYY-MM-DD` sets an inclusive UTC expiry. Reasons are
+optional. Expired and unused entries generate warnings. One-off `--ignore-version` flags are
+additive, after `--no-ignore` removes configured ignores. With `fix --from`, absent saved findings
+cannot be restored; recorded manual fix policies remain in force.
+
+The JSON `ignored` array reports matching versions and active scopes, reasons, expiry and configured
+rule/finding restrictions (`matchedRules`; empty means unrestricted). Console and Actions output also
+show ignored versions; verbose console output lists generated findings suppressed by ignores.
+
 ## Rate limiting
 
 Requests are retried with backoff on transient and rate-limit errors. Authenticated calls have much higher limits;
@@ -154,7 +175,7 @@ or can be set to `none`.
 
 ## Limitations
 
-- A tag used by a deleted immutable release cannot be reused; use `--ignore-version` or a new patch version.
+- A tag used by a deleted immutable release cannot be reused; use a `selection` ignore or a new patch version.
 - Tag rulesets can block tag deletion; the tool names the ruleset and prints manual commands.
 - Auto-fix never rewrites published immutable releases.
 

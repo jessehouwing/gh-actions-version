@@ -39,6 +39,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
 | `fix --mode manual` | Print remediation instructions without changing anything. |
 | `verify --save FILE` / `fix --from FILE` | Save findings for review and apply them later. |
+| `ignore PATTERN` / `ignore --list` / `ignore --remove PATTERN` | Manage local ignore entries without network access. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
 | `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
 | `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
@@ -101,6 +102,21 @@ rules:
 Precedence: command-line flag > `action-version.yml` > built-in default. The built-in file is
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
 
+### Ignored versions
+
+```sh
+gh actions-version ignore 'v1.2.3' --scope selection --reason "broken release"
+gh actions-version ignore --list
+gh actions-version ignore --remove 'v1.2.3'
+gh actions-version verify --no-ignore
+```
+
+`all` hides a version entirely; `selection` excludes it from highest-version selection while retaining
+validation; `validation` suppresses findings; `fix` makes findings manual-only. Add `--until YYYY-MM-DD`
+and repeat `--rule RULE_OR_FINDING` to restrict an entry. Expired and unused entries produce warnings.
+`--ignore-version` adds one-off `all` entries; `--no-ignore` clears configured entries first.
+Use `--config PATH` to edit a specific file. See [ignored versions](specs/ignored_versions.md).
+
 ## Rate limiting
 
 Requests are retried with backoff on transient and rate-limit errors. Authenticated calls have much higher limits;
@@ -114,7 +130,7 @@ or can be set to `none`.
 
 ## Limitations
 
-- A tag used by a deleted immutable release cannot be reused; use `--ignore-version` or a new patch version.
+- A tag used by a deleted immutable release cannot be reused; use a `selection` ignore or a new patch version.
 - Tag rulesets can block tag deletion; the tool names the ruleset and prints manual commands.
 - Auto-fix never rewrites published immutable releases.
 

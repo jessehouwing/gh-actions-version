@@ -86,7 +86,7 @@ interactive confirmation was given.
 
 ## `ignore`
 
-Edits `action-version.yml` offline; see `ignored_versions.md` for flags, scopes and behavior.
+Edits `action-version.yml` offline; see `../ignored_versions.md` for flags, scopes and behavior.
 
 ## `verify`
 

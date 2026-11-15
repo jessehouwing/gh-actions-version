@@ -25,6 +25,15 @@ func Render(w io.Writer, summaryPath, outputsPath string, result report.Report, 
 	if err := writeAnnotations(w, result.Findings); err != nil {
 		return err
 	}
+	for _, ignored := range result.Ignored {
+		message := fmt.Sprintf("%s (%s)", ignored.Version, ignored.Scope)
+		if ignored.Reason != "" {
+			message += " - " + ignored.Reason
+		}
+		if err := writeLine(w, "::notice title=Ignored version::"+escapeData(message)); err != nil {
+			return err
+		}
+	}
 	if summaryPath != "" {
 		if err := writeStepSummary(summaryPath, result, exitCode); err != nil {
 			return err
@@ -194,6 +203,14 @@ func writeStepSummary(path string, result report.Report, exitCode int) error {
 		b.WriteString("\n")
 	}
 
+	if len(result.Ignored) > 0 {
+		b.WriteString("## Ignored versions\n\n| Version | Scope | Reason | Until | Rules |\n|---|---|---|---|---|\n")
+		for _, ignored := range result.Ignored {
+			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", mdCell(ignored.Version), mdCell(ignored.Scope),
+				mdCell(ignored.Reason), mdCell(ignored.Until), mdCell(strings.Join(ignored.MatchedRules, ", ")))
+		}
+		b.WriteString("\n")
+	}
 	if len(result.Skipped) > 0 {
 		b.WriteString("## Skipped checks\n\n")
 		for _, skipped := range result.Skipped {

@@ -17,6 +17,7 @@ func sampleReport() report.Report {
 		Docs:    "https://example.test/docs/rules/release_should_be_immutable.md",
 		Manual:  []string{"do-not-print-this"}, Status: "manual_fix_required",
 	}
+
 	return report.Report{
 		Mode:     "report-only",
 		Findings: []report.Finding{finding},
@@ -27,6 +28,18 @@ func sampleReport() report.Report {
 		},
 		Skipped: []report.SkippedCheck{{Check: "immutable_releases_enabled", Reason: "permission denied"}},
 		Summary: report.Summary{Total: 1, Errors: 1, AutoFixable: 1},
+	}
+}
+
+func TestWriteIgnoredVersions(t *testing.T) {
+	result := sampleReport()
+	result.Ignored = []report.IgnoredVersion{{Version: "v1.0.0", Scope: "selection", Reason: "broken"}}
+	var out bytes.Buffer
+	if err := Write(&out, result, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "v1.0.0 (selection) - broken") {
+		t.Fatal(out.String())
 	}
 }
 

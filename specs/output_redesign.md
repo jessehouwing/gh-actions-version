@@ -1,7 +1,7 @@
 # Output redesign
 
 Status: implemented through Phase 3.10; ignored-version details are deferred to Phase 5. Companion to
-`proposed/cli_redesign.md`, `rule_refactoring.md`, and `proposed/ignored_versions.md`.
+`proposed/cli_redesign.md`, `rule_refactoring.md`, and `ignored_versions.md`.
 
 ## Problem
 
@@ -88,7 +88,7 @@ Rules:
 - Wording reflects the mode: `verify` says "finding", `fix` says "failed fix", "manual step"; never "manual fix
   required" for something no one tried to fix.
 - Severity colors on a terminal; `NO_COLOR` and `--no-color` honored.
-- Ignored versions are summarized with their reasons (see `proposed/ignored_versions.md`).
+- Ignored versions are summarized with their reasons (see `ignored_versions.md`).
 
 ## Findings in every format
 

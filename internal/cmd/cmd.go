@@ -300,20 +300,19 @@ func filterIssues(st *state.State, f *flags) {
 	for _, finding := range f.findingFilter {
 		includeFindings[finding] = true
 	}
-	issues := st.Issues[:0]
-	for _, issue := range st.Issues {
-		if len(includeRules) > 0 && !includeRules[issue.Rule] {
-			continue
+	filter := func(issues []*state.Issue) []*state.Issue {
+		out := issues[:0]
+		for _, issue := range issues {
+			if len(includeRules) > 0 && !includeRules[issue.Rule] || skipRules[issue.Rule] ||
+				len(includeFindings) > 0 && !includeFindings[issue.Finding] {
+				continue
+			}
+			out = append(out, issue)
 		}
-		if skipRules[issue.Rule] {
-			continue
-		}
-		if len(includeFindings) > 0 && !includeFindings[issue.Finding] {
-			continue
-		}
-		issues = append(issues, issue)
+		return out
 	}
-	st.Issues = issues
+	st.Issues = filter(st.Issues)
+	st.SuppressedIssues = filter(st.SuppressedIssues)
 }
 
 func usageError(log *output.Logger, msgs ...string) int {
@@ -941,16 +940,20 @@ func (r *run) loadLocal() (*state.State, state.Client, *api.Client, error) {
 // scopeIssues keeps the issues of the requested versions. A plain version also covers its
 // children (v1 covers v1.0 and v1.0.0); wildcard patterns match as documented for ignore-versions.
 func scopeIssues(st *state.State, versions []string) {
-	var kept []*state.Issue
-	for _, i := range st.Issues {
-		for _, p := range versions {
-			if version.Matches(i.Version, p) || (!strings.Contains(p, "*") && strings.HasPrefix(i.Version, p+".")) {
-				kept = append(kept, i)
-				break
+	filter := func(issues []*state.Issue) []*state.Issue {
+		var kept []*state.Issue
+		for _, i := range issues {
+			for _, p := range versions {
+				if version.Matches(i.Version, p) || (!strings.Contains(p, "*") && strings.HasPrefix(i.Version, p+".")) {
+					kept = append(kept, i)
+					break
+				}
 			}
 		}
+		return kept
 	}
-	st.Issues = kept
+	st.Issues = filter(st.Issues)
+	st.SuppressedIssues = filter(st.SuppressedIssues)
 }
 
 // printPushCommands lists the git push commands needed to publish locally applied fixes.

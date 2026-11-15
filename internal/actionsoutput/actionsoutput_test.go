@@ -85,6 +85,7 @@ func TestManualCommandsAreOnlyIncludedInManualSummary(t *testing.T) {
 			Manual: []string{"gh release create v1.2.3"},
 		}},
 	}
+
 	path := filepath.Join(t.TempDir(), "summary.md")
 	if err := Render(&bytes.Buffer{}, path, "", result, 1); err != nil {
 		t.Fatal(err)
@@ -96,6 +97,20 @@ func TestManualCommandsAreOnlyIncludedInManualSummary(t *testing.T) {
 	if !strings.Contains(string(content), "## Manual remediation") ||
 		!strings.Contains(string(content), "```text\ngh release create v1.2.3\n```") {
 		t.Fatalf("manual command missing from summary:\n%s", content)
+	}
+}
+
+func TestRenderIgnoredVersions(t *testing.T) {
+	result := report.Report{Ignored: []report.IgnoredVersion{{Version: "v1.0.0", Scope: "selection", Reason: "broken | unsafe\nvalue"}}}
+	path := filepath.Join(t.TempDir(), "summary.md")
+	var annotations bytes.Buffer
+	if err := Render(&annotations, path, "", result, 0); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(b), "## Ignored versions") || !strings.Contains(string(b), `broken \| unsafe value`) ||
+		!strings.Contains(annotations.String(), "::notice") || !strings.Contains(annotations.String(), "%0A") {
+		t.Fatalf("annotations %s summary %s err %v", annotations.String(), b, err)
 	}
 }
 

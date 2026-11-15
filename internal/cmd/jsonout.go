@@ -18,7 +18,7 @@ import (
 )
 
 // jsonFields are the top-level fields of the JSON report.
-var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
+var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "ignored", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
 
 func parseJSONFields(in []string) ([]string, error) {
 	var out []string

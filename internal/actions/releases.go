@@ -36,7 +36,7 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 		return true
 	}
 	if errors.Is(err, state.ErrUnfixable) {
-		message := fmt.Sprintf("Release %s cannot be created because this tag was previously used by an immutable release that was deleted. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\").", a.TagName, a.TagName, a.suggestedIgnoreVersions(st))
+		message := fmt.Sprintf("Release %s cannot be created because this tag was previously used by an immutable release that was deleted. Use a selection-scoped ignore for %s so floating versions and 'latest' fall back to the previous released version.", a.TagName, a.TagName)
 		if issue := a.findIssue(st, "release_missing"); issue != nil {
 			issue.Finding = "patch_tag_locked_by_deleted_release"
 			issue.Message = message
@@ -48,7 +48,7 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 			if NewDeleteTagAction(a.TagName).Execute(ctx, st, c) {
 				return true
 			}
-			message += " Tag deletion failed; delete it manually or add the version to ignore-versions."
+			message += " Tag deletion failed; delete it manually or use a selection-scoped ignore."
 		} else if ignored {
 			message += " Tag deletion is disabled by the ignore policy."
 		} else {
@@ -63,10 +63,10 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 
 func (a *CreateReleaseAction) ManualCommands(st *state.State) []string {
 	if a.findIssue(st, "patch_tag_locked_by_deleted_release") != nil {
-		return a.ignoreVersionsYamlSnippet(st)
+		return a.ignoreSelectionYamlSnippet()
 	}
 	if a.isIssueUnfixable(st, "release_missing") {
-		return a.ignoreVersionsYamlSnippet(st)
+		return a.ignoreSelectionYamlSnippet()
 	}
 	target := ""
 	if a.TargetSha != "" {
@@ -130,7 +130,7 @@ func (a *PublishReleaseAction) Execute(ctx context.Context, st *state.State, c s
 		return true
 	}
 	if res.Unfixable || errors.Is(err, state.ErrUnfixable) {
-		a.markAsUnfixable(st, "release_is_draft", fmt.Sprintf("Release %s cannot be published because this tag was previously used by an immutable release that was deleted. Add %s to the ignore-versions list so floating versions and 'latest' fall back to the previous released version (new ignore-versions value: \"%s\"), and/or publish a new patch (or minor) release so floating versions and 'latest' can advance to a version with a valid release.", a.TagName, a.TagName, a.suggestedIgnoreVersions(st)))
+		a.markAsUnfixable(st, "release_is_draft", fmt.Sprintf("Release %s cannot be published because this tag was previously used by an immutable release that was deleted. Use a selection-scoped ignore for %s, and/or publish a new patch or minor release so floating versions and 'latest' can advance.", a.TagName, a.TagName))
 	} else {
 		outf("✗ Failed: Publish release for %s", a.TagName)
 	}
@@ -139,7 +139,7 @@ func (a *PublishReleaseAction) Execute(ctx context.Context, st *state.State, c s
 
 func (a *PublishReleaseAction) ManualCommands(st *state.State) []string {
 	if a.isIssueUnfixable(st, "release_is_draft") {
-		return a.ignoreVersionsYamlSnippet(st)
+		return a.ignoreSelectionYamlSnippet()
 	}
 	return []string{fmt.Sprintf("gh release edit %s%s --draft=false%s", a.TagName, repoArg(st), latestArg(a.MakeLatest))}
 }

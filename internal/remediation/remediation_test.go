@@ -133,7 +133,7 @@ func TestUnfixableReleaseRemediation(t *testing.T) {
 			t.Fatalf("finding %s status %s msg %s", i.Finding, i.Status, i.Message)
 		}
 		cmds := a.ManualCommands(st)
-		if a.ManualCommandsLanguage() != "yaml" || !regexp.MustCompile(`ignore-versions:\s*"v1\.\*,v6\.3\.0"`).MatchString(strings.Join(cmds, "\n")) {
+		if a.ManualCommandsLanguage() != "yaml" || !regexp.MustCompile(`versions:\s*\["v6\.3\.0"\]`).MatchString(strings.Join(cmds, "\n")) || !strings.Contains(strings.Join(cmds, "\n"), "scope: selection") {
 			t.Fatalf("lang %s cmds %v", a.ManualCommandsLanguage(), cmds)
 		}
 	})

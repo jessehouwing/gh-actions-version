@@ -101,27 +101,9 @@ func (b *ReleaseBase) findIssue(st *state.State, finding string) *state.Issue {
 	return nil
 }
 
-// suggestedIgnoreVersions is the configured ignore-versions list plus this tag, deduplicated.
-func (b *ReleaseBase) suggestedIgnoreVersions(st *state.State) string {
-	seen := map[string]bool{}
-	var out []string
-	for _, v := range append(append([]string{}, st.Config.IgnoreVersions...), b.TagName) {
-		if v != "" && !seen[v] {
-			seen[v] = true
-			out = append(out, v)
-		}
-	}
-	return strings.Join(out, ",")
-}
-
-// ignoreVersionsYamlSnippet switches the manual command language to yaml.
-func (b *ReleaseBase) ignoreVersionsYamlSnippet(st *state.State) []string {
+func (b *ReleaseBase) ignoreSelectionYamlSnippet() []string {
 	b.Language = "yaml"
-	return []string{
-		"# Update your workflow step to skip this locked version:",
-		"with:",
-		fmt.Sprintf("  ignore-versions: %q", b.suggestedIgnoreVersions(st)),
-	}
+	return []string{fmt.Sprintf("# Add this entry to ignore in action-version.yml:\nignore:\n  - versions: [%q]\n    scope: selection\n    reason: Tag was used by a deleted immutable release; no release can be created for it.", b.TagName)}
 }
 
 func (b *ReleaseBase) markAsUnfixable(st *state.State, finding, msg string) {

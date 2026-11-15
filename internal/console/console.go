@@ -43,7 +43,23 @@ func Write(w io.Writer, result report.Report, options Options) error {
 	if result.Mode == "manual" {
 		writeManualInstructions(&b, result.Findings, options.Verbose)
 	}
+	if options.Verbose {
+		for _, issue := range result.Suppressed {
+			fmt.Fprintf(&b, "Skipped finding: %s %s / %s (ignore policy).\n", issue.Version, issue.Rule, issue.Finding)
+		}
+	}
 	if !options.Quiet {
+		if len(result.Ignored) > 0 {
+			var items []string
+			for _, ignored := range result.Ignored {
+				item := ignored.Version + " (" + ignored.Scope + ")"
+				if ignored.Reason != "" {
+					item += " - " + ignored.Reason
+				}
+				items = append(items, item)
+			}
+			fmt.Fprintf(&b, "Ignored versions: %s\n", strings.Join(items, "; "))
+		}
 		writeSummary(&b, result)
 	}
 	for _, skipped := range result.Skipped {

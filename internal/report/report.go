@@ -9,6 +9,7 @@ import (
 	"github.com/jessehouwing/gh-actions-version/internal/actions"
 	"github.com/jessehouwing/gh-actions-version/internal/policy"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 const docsURL = "https://github.com/jessehouwing/gh-actions-version/blob/"
@@ -21,21 +22,37 @@ type BuildOptions struct {
 }
 
 type Report struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	Repository    Repository        `json:"repository"`
-	Mode          string            `json:"mode"`
-	Local         bool              `json:"local"`
-	Config        Config            `json:"config"`
-	Filters       Filters           `json:"filters"`
-	GeneratedAt   time.Time         `json:"generatedAt"`
-	Refs          Refs              `json:"refs"`
-	Findings      []Finding         `json:"findings"`
-	Groups        []Group           `json:"groups"`
-	Skipped       []SkippedCheck    `json:"skipped"`
-	Fixes         []Fix             `json:"fixes"`
-	Summary       Summary           `json:"summary"`
-	Timings       map[string]string `json:"timings"`
-	ExitCode      int               `json:"exitCode"`
+	SchemaVersion int                 `json:"schemaVersion"`
+	Repository    Repository          `json:"repository"`
+	Mode          string              `json:"mode"`
+	Local         bool                `json:"local"`
+	Config        Config              `json:"config"`
+	Filters       Filters             `json:"filters"`
+	GeneratedAt   time.Time           `json:"generatedAt"`
+	Refs          Refs                `json:"refs"`
+	Findings      []Finding           `json:"findings"`
+	Ignored       []IgnoredVersion    `json:"ignored"`
+	Suppressed    []SuppressedFinding `json:"-"`
+	Groups        []Group             `json:"groups"`
+	Skipped       []SkippedCheck      `json:"skipped"`
+	Fixes         []Fix               `json:"fixes"`
+	Summary       Summary             `json:"summary"`
+	Timings       map[string]string   `json:"timings"`
+	ExitCode      int                 `json:"exitCode"`
+}
+
+type IgnoredVersion struct {
+	Version      string   `json:"version"`
+	Scope        string   `json:"scope"`
+	Reason       string   `json:"reason,omitempty"`
+	Until        string   `json:"until,omitempty"`
+	MatchedRules []string `json:"matchedRules"`
+}
+
+type SuppressedFinding struct {
+	Version string
+	Rule    string
+	Finding string
 }
 
 type Filters struct {
@@ -172,10 +189,14 @@ func Build(st *state.State, options BuildOptions) Report {
 		Mode:     options.Mode,
 		Config:   buildConfig(st.Config),
 		Findings: make([]Finding, 0, len(st.Issues)),
+		Ignored:  ignoredVersions(st),
 		Groups:   []Group{},
 		Skipped:  make([]SkippedCheck, 0, len(st.SkippedChecks)),
 		Fixes:    []Fix{},
 		Timings:  formatTimings(options.Timings),
+	}
+	for _, issue := range st.SuppressedIssues {
+		out.Suppressed = append(out.Suppressed, SuppressedFinding{Version: issue.Version, Rule: issue.Rule, Finding: issue.Finding})
 	}
 	for _, skipped := range st.SkippedChecks {
 		out.Skipped = append(out.Skipped, SkippedCheck{Check: skipped.Check, Reason: skipped.Reason})
@@ -238,15 +259,57 @@ func Build(st *state.State, options BuildOptions) Report {
 			out.Fixes = append(out.Fixes, fix)
 		}
 	}
-	out.Summary.Ignored = ignoredVersionCount(st)
+	out.Summary.Ignored = ignoredVersionCount(st, out.Ignored)
 	out.Groups = append(out.Groups, groupsFromMap(versionGroups)...)
 	out.Groups = append(out.Groups, groupsFromMap(ruleGroups)...)
 	out.Groups = append(out.Groups, groupsFromMap(concernGroups)...)
 	return out
 }
 
-func ignoredVersionCount(st *state.State) int {
+func ignoredVersions(st *state.State) []IgnoredVersion {
+	names := map[string]bool{}
+	for _, ref := range st.AllRefs() {
+		names[ref.Version] = true
+	}
+	for _, release := range st.Releases {
+		names[release.TagName] = true
+	}
+	sorted := make([]string, 0, len(names))
+	for name := range names {
+		if name != "" {
+			sorted = append(sorted, name)
+		}
+	}
+	sort.Strings(sorted)
+	now := st.CheckedAt
+	if now.IsZero() {
+		now = time.Now()
+	}
+	date := now.UTC().Format("2006-01-02")
+	out := []IgnoredVersion{}
+	for _, entry := range st.Config.IgnoreEntries {
+		if entry.Until != "" && date > entry.Until {
+			continue
+		}
+		scope := entry.Scope
+		if scope == "" {
+			scope = "all"
+		}
+		for _, name := range sorted {
+			if version.ShouldBeIgnored(name, entry.Versions) {
+				out = append(out, IgnoredVersion{Version: name, Scope: scope, Reason: entry.Reason,
+					Until: entry.Until, MatchedRules: append([]string{}, entry.Rules...)})
+			}
+		}
+	}
+	return out
+}
+
+func ignoredVersionCount(st *state.State, entries []IgnoredVersion) int {
 	ignored := map[string]bool{}
+	for _, entry := range entries {
+		ignored[entry.Version] = true
+	}
 	for _, ref := range st.Tags {
 		if ref.IsIgnored {
 			ignored[ref.Version] = true

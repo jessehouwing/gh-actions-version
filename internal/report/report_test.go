@@ -140,4 +140,20 @@ func TestBuildCountsDistinctIgnoredVersions(t *testing.T) {
 	}
 }
 
+func TestBuildReportsActiveIgnoredVersions(t *testing.T) {
+	st := state.New()
+	st.CheckedAt = time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	st.Tags = []*state.VersionRef{state.NewVersionRef("v1.0.0", "refs/tags/v1.0.0", "sha", state.TypeTag)}
+	st.Releases = []*state.ReleaseInfo{{TagName: "v1.0.0"}}
+	st.Config.IgnoreEntries = []state.IgnoreEntry{
+		{Versions: []string{"v1.*"}, Scope: "selection", Reason: "broken", Rules: []string{"major_tag_missing"}, Until: "2026-01-02"},
+		{Versions: []string{"v1.*"}, Scope: "fix", Until: "2026-01-01"},
+	}
+	out := Build(st, BuildOptions{})
+	if len(out.Ignored) != 1 || out.Ignored[0].Version != "v1.0.0" || out.Ignored[0].Scope != "selection" ||
+		out.Ignored[0].Reason != "broken" || len(out.Ignored[0].MatchedRules) != 1 || out.Summary.Ignored != 1 {
+		t.Fatalf("ignored: %+v summary: %+v", out.Ignored, out.Summary)
+	}
+}
+
 func boolPointer(value bool) *bool { return &value }

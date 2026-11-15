@@ -86,6 +86,7 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 			issue.Rule = r.Name
 			if view.MatchesIgnore(issue.Version, "all", r.Name, issue.Finding) ||
 				view.MatchesIgnore(issue.Version, "validation", r.Name, issue.Finding) {
+				st.SuppressedIssues = append(st.SuppressedIssues, issue)
 				continue
 			}
 			if view.MatchesIgnore(issue.Version, "fix", r.Name, issue.Finding) {

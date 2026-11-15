@@ -195,7 +195,8 @@ func TestReleaseRemediationActionBase(t *testing.T) {
 		if len(cmds) == 0 {
 			t.Fatal("no commands")
 		}
-		match(t, strings.Join(cmds, "\n"), `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, strings.Join(cmds, "\n"), `versions:\s*\["v1\.0\.0"\]`)
+		match(t, strings.Join(cmds, "\n"), `scope: selection`)
 	})
 	t.Run("Should return manual commands when issue is not unfixable", func(t *testing.T) {
 		st := newState()
@@ -590,7 +591,8 @@ func TestCreateReleaseAction(t *testing.T) {
 		a := NewCreateReleaseAction("v1.0.0", false, true, "")
 		addIssue(st, "release_missing", "v1.0.0", state.StatusUnfixable, nil)
 		joined := strings.Join(a.ManualCommands(st), "\n")
-		match(t, joined, `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, joined, `versions:\s*\["v1\.0\.0"\]`)
+		match(t, joined, `scope: selection`)
 		notMatch(t, joined, "gh release")
 		eq(t, a.ManualCommandsLanguage(), "yaml")
 	})
@@ -629,7 +631,7 @@ func TestCreateReleaseAction(t *testing.T) {
 		eq(t, i.Finding, "patch_tag_locked_by_deleted_release")
 		eq(t, f.deleteRefCalls[0], "refs/tags/v1.0.0")
 	})
-	t.Run("Should include the suggested new ignore-versions value, preserving existing wildcard patterns, on 422 error", func(t *testing.T) {
+	t.Run("Should suggest selection-scoped ignore on 422 error", func(t *testing.T) {
 		f := newFake()
 		f.createRelease = state.ReleaseResult{Unfixable: true}
 		f.createErr = state.ErrUnfixable
@@ -637,7 +639,7 @@ func TestCreateReleaseAction(t *testing.T) {
 		st.Config.IgnoreVersions = []string{"v1.*", "v2.0.0"}
 		i := addIssue(st, "release_missing", "v3.0.0", state.StatusPending, nil)
 		NewCreateReleaseAction("v3.0.0", false, true, "").Execute(ctx, st, f)
-		if !strings.Contains(i.Message, `"v1.*,v2.0.0,v3.0.0"`) {
+		if !strings.Contains(i.Message, "selection") {
 			t.Errorf("message %q", i.Message)
 		}
 	})
@@ -736,7 +738,8 @@ func TestPublishReleaseAction(t *testing.T) {
 		a := NewPublishReleaseAction("v1.0.0", 12345)
 		addIssue(st, "release_is_draft", "v1.0.0", state.StatusUnfixable, nil)
 		joined := strings.Join(a.ManualCommands(st), "\n")
-		match(t, joined, `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, joined, `versions:\s*\["v1\.0\.0"\]`)
+		match(t, joined, `scope: selection`)
 		notMatch(t, joined, "gh release")
 		eq(t, a.ManualCommandsLanguage(), "yaml")
 	})

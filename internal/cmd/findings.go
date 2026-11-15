@@ -99,18 +99,18 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	st.Host, st.Owner, st.Repo, st.Config = repo.Host, repo.Owner, repo.Name, cfg
 	for _, entry := range saved.Refs.Tags {
 		ref := state.NewVersionRef(entry.Name, entry.Ref, entry.SHA, state.TypeTag)
-		ref.IsIgnored = entry.Ignored
+		ref.IsIgnored = version.IsIgnored(entry.Name, cfg.IgnoreVersions)
 		st.Tags = append(st.Tags, ref)
 	}
 	for _, entry := range saved.Refs.Branches {
 		ref := state.NewVersionRef(entry.Name, entry.Ref, entry.SHA, state.TypeBranch)
-		ref.IsIgnored = entry.Ignored
+		ref.IsIgnored = version.IsIgnored(entry.Name, cfg.IgnoreVersions)
 		st.Branches = append(st.Branches, ref)
 	}
 	for _, release := range saved.Refs.Releases {
 		st.Releases = append(st.Releases, &state.ReleaseInfo{TagName: release.TagName, Sha: release.SHA, ID: release.ID,
 			IsDraft: release.Draft, IsPrerelease: release.Prerelease, IsImmutable: release.Immutable,
-			IsIgnored: release.Ignored, IsLatest: release.Latest, HtmlUrl: release.HTMLURL})
+			IsIgnored: version.IsIgnored(release.TagName, cfg.IgnoreVersions), IsLatest: release.Latest, HtmlUrl: release.HTMLURL})
 	}
 	overrides, err := parseLevelOverrides(r.f.levels, r.f.ruleLevels, r.f.findingLevels)
 	if err != nil {

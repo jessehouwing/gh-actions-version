@@ -242,6 +242,7 @@ type State struct {
 	Host                     string
 	Config                   Config
 	Issues                   []*Issue
+	SuppressedIssues         []*Issue
 	CheckedAt                time.Time
 	ActiveRule               string
 	ActiveFindings           []string

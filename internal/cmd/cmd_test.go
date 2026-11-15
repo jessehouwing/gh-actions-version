@@ -122,6 +122,10 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 				t.Fatal("validation ignore did not suppress finding")
 			}
 		}
+		verbose := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--verbose", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if !strings.Contains(verbose.out, "Skipped finding: v1 major_tag_tracks_highest_patch / major_tag_wrong_target") {
+			t.Fatalf("verbose ignore detail missing: %s", verbose.all())
+		}
 	})
 	t.Run("all scope suppresses and excludes a patch only for its rule", func(t *testing.T) {
 		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: all\n    rules: [major_tag_tracks_highest_patch]\n")
@@ -190,6 +194,21 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore")
 		if r.code != ExitValidation || len(replay.Writes()) != 0 {
 			t.Fatalf("manual policy lost: %s", r.all())
+		}
+	})
+	t.Run("saved no-ignore does not restore absent findings or stale ignore counts", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore-versions: [v1.0.0]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitOK {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore", "--output=json")
+		out := r.json(t)
+		if r.code != ExitOK || len(replay.Writes()) != 0 || len(out["findings"].([]any)) != 0 ||
+			out["summary"].(map[string]any)["ignored"].(float64) != 0 {
+			t.Fatalf("replay exit %d: %s", r.code, r.all())
 		}
 	})
 	t.Run("fix scope protects a finding discovered during execution", func(t *testing.T) {
@@ -1021,7 +1040,7 @@ func TestJSONOutput(t *testing.T) {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
 		m := r.json(t)
-		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
+		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "ignored", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
 			if _, ok := m[k]; !ok {
 				t.Errorf("missing field %s", k)
 			}

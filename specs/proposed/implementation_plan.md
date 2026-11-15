@@ -1,6 +1,6 @@
 # Implementation plan for the proposed specs
 
-Status: proposed. Covers `../rule_refactoring.md`, `cli_redesign.md`, `output_redesign.md` and `ignored_versions.md`.
+Status: proposed. Covers `../rule_refactoring.md`, `cli_redesign.md`, `../output_redesign.md` and `../ignored_versions.md`.
 
 ## Principles
 
@@ -156,7 +156,7 @@ Checkpoint: review stop.
 
 ## Phase 5: ignored versions
 
-Spec: `ignored_versions.md`.
+Spec: `../ignored_versions.md`.
 
 | PR | Branch | Content | Tests |
 |---|---|---|---|

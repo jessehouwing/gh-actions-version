@@ -1,13 +1,13 @@
-# Proposed: specifying ignored versions and releases
+# Specifying ignored versions and releases
 
-Status: proposed. Companion to `cli_redesign.md` and `../rule_refactoring.md`.
+Status: implemented. Companion to `proposed/cli_redesign.md` and `rule_refactoring.md`.
 
 ## Problem
 
 Today `ignore-versions` is a flat list of version patterns (`v1.2.3`, `v1.*`). It hides a version from every
 rule, with no reason, no scope and no expiry. That is too coarse for the cases it is used for:
 
-- A tag whose immutable release was deleted can never have a release again (see `../rule_refactoring.md`). The
+- A tag whose immutable release was deleted can never have a release again (see `rule_refactoring.md`). The
   tool suggests adding it to `ignore-versions`, which also hides it from unrelated checks.
 - A bad release (yanked, broken) must not be chosen as the latest patch, but should still be validated for
   immutability.
