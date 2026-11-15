@@ -170,7 +170,7 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 			t.Fatalf("verify exit %d: %s", r.code, r.all())
 		}
 		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
-		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--output=json")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--output=json")
 		if r.code != ExitValidation || len(replay.Requests()) != 0 {
 			t.Fatalf("replay exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
 		}
@@ -178,7 +178,7 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 			t.Fatal("recorded ignore entry lost on replay")
 		}
 		replay = testutil.NewGitHub(t).Tag(c1, "v1.0.0")
-		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore")
 		if r.code != ExitOK || replay.TagSha("v1") != c1 {
 			t.Fatalf("no-ignore replay exit %d: %s", r.code, r.all())
 		}
@@ -191,7 +191,7 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 			t.Fatalf("verify exit %d: %s", r.code, r.all())
 		}
 		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
-		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore")
 		if r.code != ExitValidation || len(replay.Writes()) != 0 {
 			t.Fatalf("manual policy lost: %s", r.all())
 		}
@@ -204,7 +204,7 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 			t.Fatalf("verify exit %d: %s", r.code, r.all())
 		}
 		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
-		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore", "--output=json")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore", "--output=json")
 		out := r.json(t)
 		if r.code != ExitOK || len(replay.Writes()) != 0 || len(out["findings"].([]any)) != 0 ||
 			out["summary"].(map[string]any)["ignored"].(float64) != 0 {
@@ -257,16 +257,18 @@ func (p *fakePrompter) Confirm(msg string, def bool) (bool, error) {
 
 // testEnv builds an Env wired to the fake server with a fixed process environment.
 type testEnv struct {
-	gh       *testutil.GitHub
-	vars     map[string]string
-	tty      bool
-	prompter Prompter
-	dir      string
-	cfgToken string // token known to gh's config (returned when no variable is set)
-	refresh  func(ctx context.Context, host string, scopes []string) error
-	stdin    string
-	stdout   strings.Builder
-	stderr   strings.Builder
+	gh          *testutil.GitHub
+	vars        map[string]string
+	tty         bool
+	prompter    Prompter
+	dir         string
+	currentRepo *api.Repo
+	cfgToken    string // token known to gh's config (returned when no variable is set)
+	tokenCalls  int
+	refresh     func(ctx context.Context, host string, scopes []string) error
+	stdin       string
+	stdout      strings.Builder
+	stderr      strings.Builder
 }
 
 func newEnv(t *testing.T, gh *testutil.GitHub) *testEnv {
@@ -314,6 +316,7 @@ func (e *testEnv) runRaw(args ...string) result {
 		Stdin:  strings.NewReader(e.stdin),
 		Getenv: func(k string) string { return e.vars[k] },
 		Token: func(string) (string, string) {
+			e.tokenCalls++
 			for _, k := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
 				if v := e.vars[k]; v != "" {
 					return v, k
@@ -322,6 +325,9 @@ func (e *testEnv) runRaw(args ...string) result {
 			return e.cfgToken, "oauth_token"
 		},
 		ResolveRepo: func(flag string) (api.Repo, error) {
+			if flag == "" && e.currentRepo != nil {
+				return *e.currentRepo, nil
+			}
 			owner, name, ok := strings.Cut(flag, "/")
 			if flag == "" || !ok || owner == "" || name == "" {
 				return api.Repo{}, errors.New("expected the [HOST/]OWNER/REPO format")
@@ -1220,13 +1226,109 @@ func TestFixFrom(t *testing.T) {
 		if r.code != ExitValidation || !strings.Contains(r.all(), "generated") || !strings.Contains(r.out, "refs/tags/v1") || strings.Contains(r.out, "refs/tags/v1.0") {
 			t.Fatalf("exit %d: %s", r.code, r.all())
 		}
-		if got := gh.Requests(); len(got) != 0 {
-			t.Fatalf("manual made requests: %v", got)
+		if got := gh.Requests(); len(got) != 0 || e.tokenCalls != 0 {
+			t.Fatalf("manual requested credentials or made requests: %d %v", e.tokenCalls, got)
+		}
+	})
+	t.Run("dry run remains offline without a target", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		r := e.runRaw("fix", "--from=-", "--mode=auto", "--dry-run")
+		if r.code == ExitUsage || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("remote replay validates an independently resolved target before credentials", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, host, target, mode, message string
+		}{
+			{"host mismatch", "attacker.invalid", "o/r", "auto", "does not match"},
+			{"repository mismatch", "github.com", "other/repo", "auto", "does not match"},
+			{"no trusted target", "github.com", "", "auto", "could not determine"},
+			{"interactive host mismatch", "attacker.invalid", "o/r", "interactive", "does not match"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var saved map[string]any
+				if err := json.Unmarshal(data, &saved); err != nil {
+					t.Fatal(err)
+				}
+				saved["repository"].(map[string]any)["host"] = tc.host
+				contents, err := json.Marshal(saved)
+				if err != nil {
+					t.Fatal(err)
+				}
+				gh := ghWithPatch(t)
+				e := newEnv(t, gh)
+				e.stdin = string(contents)
+				e.vars["GH_REPO"] = tc.target
+				e.tty = tc.mode == "interactive"
+				r := e.runRaw("fix", "--from=-", "--mode="+tc.mode)
+				if r.code != ExitUsage || !strings.Contains(r.all(), tc.message) || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+					t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+				}
+			})
+		}
+	})
+	t.Run("Actions server host must match before credentials", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		e.vars["GITHUB_REPOSITORY"] = "o/r"
+		e.vars["GITHUB_SERVER_URL"] = "https://enterprise.example"
+		r := e.runRaw("fix", "--from=-", "--mode=auto")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "does not match") || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("matching Actions enterprise host permits replay", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		saved["repository"].(map[string]any)["host"] = "enterprise.example"
+		contents, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(contents)
+		e.vars["GITHUB_REPOSITORY"] = "o/r"
+		e.vars["GITHUB_SERVER_URL"] = "https://enterprise.example"
+		r := e.runRaw("fix", "--from=-", "--mode=auto", "--rule=major_tag_missing")
+		if r.code != ExitOK || e.tokenCalls != 1 || gh.TagSha("v1") != c1 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("matching independent repository permits remote replay", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, ghRepo, actionsRepo string
+			currentRepo               *api.Repo
+			extra                     []string
+		}{
+			{name: "explicit repository takes precedence", ghRepo: "other/repo", extra: []string{"-R", "o/r"}},
+			{name: "GH_REPO", ghRepo: "o/r"},
+			{name: "Actions repository", actionsRepo: "o/r"},
+			{name: "Git remote", currentRepo: &api.Repo{Host: "GITHUB.COM", Owner: "O", Name: "R"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				gh := ghWithPatch(t)
+				e := newEnv(t, gh)
+				e.stdin = string(data)
+				e.vars["GH_REPO"], e.vars["GITHUB_REPOSITORY"] = tc.ghRepo, tc.actionsRepo
+				e.currentRepo = tc.currentRepo
+				args := append([]string{"fix", "--from=-", "--mode=auto", "--rule=major_tag_missing"}, tc.extra...)
+				r := e.runRaw(args...)
+				if r.code != ExitOK || e.tokenCalls != 1 || gh.TagSha("v1") != c1 {
+					t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+				}
+			})
 		}
 	})
 	t.Run("auto performs no reads before first action", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--rule=major_tag_missing")
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing")
 		requests := gh.Requests()
 		if r.code != ExitOK || len(requests) != 1 || !strings.HasPrefix(requests[0], "POST ") || gh.TagSha("v1") != c1 {
 			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
@@ -1240,14 +1342,14 @@ func TestFixFrom(t *testing.T) {
 			t.Fatalf("verify exit %d: %s", r.code, r.all())
 		}
 		replay := ghWithPatch(t)
-		r = newEnv(t, replay).runRaw("fix", "--from", policyPath, "--mode=auto", "--rule=major_tag_missing")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", policyPath, "--mode=auto", "--rule=major_tag_missing")
 		if r.code != ExitValidation || len(replay.Requests()) != 0 || replay.TagSha("v1") != "" {
 			t.Fatalf("exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
 		}
 	})
 	t.Run("level override narrows saved findings", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--level=major=none", "--level=minor=none")
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--level=major=none", "--level=minor=none")
 		if r.code != ExitOK || len(gh.Requests()) != 0 {
 			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
 		}
@@ -1266,7 +1368,7 @@ func TestFixFrom(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.stdin = string(bad)
-		r := e.runRaw("fix", "--from=-", "--mode=auto")
+		r := e.runRaw("fix", "-R", "o/r", "--from=-", "--mode=auto")
 		if r.code != ExitUsage || len(gh.Requests()) != 0 {
 			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
 		}
@@ -1285,7 +1387,7 @@ func TestFixFrom(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.stdin = string(bad)
-		r := e.runRaw("fix", "--from=-", "--mode=auto", "--rule=major_tag_missing", "--output=json")
+		r := e.runRaw("fix", "-R", "o/r", "--from=-", "--mode=auto", "--rule=major_tag_missing", "--output=json")
 		if r.code != ExitValidation || len(gh.Requests()) != 0 || !strings.Contains(r.err, "rerun verify") {
 			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
 		}
@@ -1295,7 +1397,7 @@ func TestFixFrom(t *testing.T) {
 	})
 	t.Run("explicit reverify reloads after the action", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--rule=major_tag_missing", "--no-verify-after=false")
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing", "--no-verify-after=false")
 		requests := gh.Requests()
 		if r.code != ExitOK || len(requests) < 2 || !strings.HasPrefix(requests[0], "POST ") || !strings.HasPrefix(requests[1], "GET ") {
 			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
@@ -1676,6 +1778,22 @@ func TestLocalMode(t *testing.T) {
 		}
 		if !strings.Contains(r.out, "git push origin "+head+":refs/tags/v1") {
 			t.Errorf("push commands missing:\n%s", r.out)
+		}
+	})
+	t.Run("local findings replay remains offline without a remote target", func(t *testing.T) {
+		dir := setup(t)
+		path := filepath.Join(t.TempDir(), "findings.json")
+		verify := newEnv(t, nil)
+		verify.dir = dir
+		r := verify.runRaw("verify", "--local", "--save", path, "--rule=major_tag_missing")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		fix := newEnv(t, nil)
+		fix.dir = dir
+		r = fix.runRaw("fix", "--local", "--from", path, "--mode=auto")
+		if r.code != ExitOK || fix.tokenCalls != 0 || git(t, dir, "rev-parse", "v1^{commit}") != git(t, dir, "rev-parse", "HEAD") {
+			t.Fatalf("fix exit %d token calls=%d: %s", r.code, fix.tokenCalls, r.all())
 		}
 	})
 	t.Run("--fetch-releases requires --local", func(t *testing.T) {

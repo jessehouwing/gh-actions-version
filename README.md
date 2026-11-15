@@ -54,11 +54,12 @@ See [CLI output formats](docs/cli.md#output-formats) for details on console, JSO
 ```sh
 gh actions-version verify -R owner/repo --save findings.json
 gh actions-version fix --from findings.json --mode manual
-gh actions-version fix --from findings.json --mode auto
+gh actions-version fix -R owner/repo --from findings.json --mode auto
 ```
 
-The saved file is trusted and is not checked for staleness before fixes are applied. Re-run `verify`
-when the repository may have changed; see [saved findings](docs/cli.md#verify-now-fix-later).
+Remote automatic or interactive replay requires the independently selected repository to match the saved
+repository. Use `-R` when it cannot be inferred. The saved file is trusted and is not checked for staleness;
+re-run `verify` when the repository may have changed. See [saved findings](docs/cli.md#verify-now-fix-later).
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.

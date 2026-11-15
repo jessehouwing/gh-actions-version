@@ -55,13 +55,13 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	if !saved.Local && (repo.Host == "" || repo.Owner == "" || repo.Name == "" || saved.Repository.NameWithOwner != repo.Owner+"/"+repo.Name) {
 		return nil, nil, nil, fmt.Errorf("invalid repository in findings file")
 	}
-	if r.f.repo != "" {
-		want, err := r.env.ResolveRepo(r.f.repo)
+	if r.f.repo != "" || (!saved.Local && r.mode != remediation.Manual && r.mode != remediation.DryRun) {
+		want, err := r.resolveRepo()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("cannot verify findings repository: %w", err)
 		}
 		if !strings.EqualFold(want.Host, repo.Host) || !strings.EqualFold(want.Owner, repo.Owner) || !strings.EqualFold(want.Name, repo.Name) {
-			return nil, nil, nil, fmt.Errorf("--repo does not match the findings file")
+			return nil, nil, nil, fmt.Errorf("resolved repository does not match the findings file; use --repo to select the intended repository")
 		}
 	}
 	cfg, err := configFromReport(saved.Config)

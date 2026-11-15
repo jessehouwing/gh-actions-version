@@ -79,12 +79,15 @@ capped at 1 MiB. Step outputs are `errors`, `warnings`, `fixed`, `remaining`, an
 ```sh
 gh actions-version verify -R owner/repo --save findings.json
 gh actions-version fix --from findings.json --mode manual
-gh actions-version fix --from findings.json --mode auto
+gh actions-version fix -R owner/repo --from findings.json --mode auto
 ```
 
 `--save` writes the complete findings file regardless of output format or JSON field selection.
 An unfiltered `verify -o json > findings.json` produces the same kind of file. `fix --from -` reads
-it from stdin. If `-R` is supplied to `fix`, it must match the recorded repository. A file created
+it from stdin. Remote automatic or interactive replay requires the independently selected repository,
+including its host, to match the recorded repository before credentials are accessed. The target is
+resolved from `-R`, `GH_REPO`, `GITHUB_REPOSITORY`, or the local Git remote; use `-R` when it cannot
+be resolved. If `-R` is supplied in any mode, it must match the recorded repository. A file created
 with `--local` must be replayed with `--local` in the intended local clone.
 
 The file records the effective policy, filters, refs, and action parameters. `--rule`, `--skip-rule`,

@@ -135,7 +135,10 @@ gh actions-version verify -o json > findings.json   # equivalent to --save
 - **No staleness guard.** `fix --from` trusts the file: it makes no API calls until it applies an action, then
   only the calls the action needs. It prints the file's `generatedAt`. Creates still fail naturally if the ref
   now exists; updates and deletes act on the file's data, so re-run `verify` when in doubt.
-- `--repo` must match the file's `repository` or exit `2`; unknown `schemaVersion` exits `2`.
+- For remote automatic or interactive replay, the independently resolved target repository and host
+  must match the file's `repository` before credentials are accessed; resolution uses `--repo`,
+  `GH_REPO`, `GITHUB_REPOSITORY`, or the local Git remote, and fails closed if no target is available.
+  An explicit `--repo` must match in every mode; unknown `schemaVersion` exits `2`.
 - `--no-verify-after` is implied unless given explicitly to re-verify.
 
 ## `fix`
