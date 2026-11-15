@@ -2,12 +2,8 @@ package output
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/jessehouwing/gh-version-action/internal/state"
 )
 
 func actionsLogger() (*Logger, *bytes.Buffer) {
@@ -72,21 +68,6 @@ func TestWriteActionsError(t *testing.T) {
 			t.Fatalf("got %q", b.String())
 		}
 	})
-	t.Run("Should track issue in State when provided", func(t *testing.T) {
-		l, _ := actionsLogger()
-		st := state.New()
-		l.IssueError("Test error", st)
-		if len(st.Issues) != 1 || st.Issues[0].Severity != "error" {
-			t.Fatalf("issues %+v", st.Issues)
-		}
-	})
-	t.Run("Should count the error when State not provided", func(t *testing.T) {
-		l, _ := actionsLogger()
-		l.IssueError("Test error", nil)
-		if l.ErrorCount != 1 {
-			t.Fatalf("ErrorCount %d", l.ErrorCount)
-		}
-	})
 	t.Run("Should escape newlines so a message cannot start a new command", func(t *testing.T) {
 		l, b := actionsLogger()
 		l.Error("a\n::set-env name=X::y")
@@ -109,38 +90,6 @@ func TestWriteActionsWarning(t *testing.T) {
 		l.Warning("Test warning")
 		if b.String() != "WARNING: Test warning\n" {
 			t.Fatalf("got %q", b.String())
-		}
-	})
-}
-
-func TestWriteActionsMessage(t *testing.T) {
-	t.Run("Should call Write-ActionsError for severity 'error'", func(t *testing.T) {
-		l, _ := plainLogger()
-		l.Message("Test", "error", nil)
-		if l.ErrorCount != 1 {
-			t.Fatal("expected error counted")
-		}
-	})
-	t.Run("Should call Write-ActionsWarning for severity 'warning'", func(t *testing.T) {
-		l, b := actionsLogger()
-		l.Message("Test", "warning", nil)
-		if b.String() != "::warning::Test\n" {
-			t.Fatalf("got %q", b.String())
-		}
-	})
-	t.Run("Should not output anything for severity 'none'", func(t *testing.T) {
-		l, b := actionsLogger()
-		l.Message("Should not appear", "none", nil)
-		if b.Len() != 0 {
-			t.Fatalf("got %q", b.String())
-		}
-	})
-	t.Run("Should accept State parameter and track issues", func(t *testing.T) {
-		l, _ := plainLogger()
-		st := state.New()
-		l.Message("Test", "error", st)
-		if len(st.Issues) != 1 {
-			t.Fatal("expected one issue")
 		}
 	})
 }
@@ -208,21 +157,27 @@ func TestAnnotationsAndGroups(t *testing.T) {
 	})
 }
 
-func TestAppendStepSummary(t *testing.T) {
-	t.Run("Should do nothing without GITHUB_STEP_SUMMARY", func(t *testing.T) {
-		t.Setenv("GITHUB_STEP_SUMMARY", "")
-		if AppendStepSummary("x") {
-			t.Fatal("expected false")
+func TestQuietSuppressesInformationalOutputOnly(t *testing.T) {
+	var out bytes.Buffer
+	log := &Logger{Out: &out, Quiet: true, Verbose: true}
+
+	log.Info("information")
+	log.Infof("formatted %s", "information")
+	log.Debug("debug")
+	log.Notice("notice")
+	log.Annotate("notice", "notice title", "notice annotation")
+	log.Warning("warning")
+	log.Error("error")
+
+	got := out.String()
+	for _, suppressed := range []string{"information", "debug", "notice", "notice annotation"} {
+		if strings.Contains(got, suppressed) {
+			t.Errorf("quiet output contains suppressed message %q: %s", suppressed, got)
 		}
-	})
-	t.Run("Should append to the summary file", func(t *testing.T) {
-		p := filepath.Join(t.TempDir(), "summary.md")
-		t.Setenv("GITHUB_STEP_SUMMARY", p)
-		AppendStepSummary("one")
-		AppendStepSummary("two\n")
-		got, _ := os.ReadFile(p)
-		if string(got) != "one\ntwo\n" {
-			t.Fatalf("got %q", got)
+	}
+	for _, visible := range []string{"WARNING: warning", "ERROR: error"} {
+		if !strings.Contains(got, visible) {
+			t.Errorf("quiet output is missing %q: %s", visible, got)
 		}
-	})
+	}
 }

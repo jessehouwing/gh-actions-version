@@ -1,0 +1,248 @@
+exit code: 1
+--- stdout ---
+v4.5.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.5.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.4.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.4.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.3.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.3.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.2.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.2.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.1.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.1.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.0.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v4.0.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v4.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.5.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.5.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.4.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.4.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.3.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.3.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.2.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.2.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.1.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.1.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.0.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v3.0.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v3.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.5.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.5.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.4.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.4.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.3.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.3.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.2.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.2.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.1.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.1.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.0.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.0.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v2.0.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v2.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.5.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.5.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.5.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.5.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.5.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.5.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.4.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.4.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.4.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.4.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.4.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.4.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.3.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.3.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.3.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.3.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.3.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.3.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.2.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.2.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.2.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.2.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.2.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.2.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.1.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.1.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.1.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.1.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.1.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.1.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.0.4 — 1 error
+  [ERROR] finding releases / release_missing: Release required for patch version v1.0.4
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/patch_release_required.md
+v1.0.3 — 1 error
+  [ERROR] finding releases / release_missing: Release required for patch version v1.0.3
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/patch_release_required.md
+v1.0.2 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.0.2 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.0.1 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.0.1 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+v1.0.0 — 1 error
+  [ERROR] finding immutability / release_not_immutable: Release v1.0.0 is published but not immutable (repository 'Release immutability' setting may not be enabled)
+  Cause: The repository setting 'Release immutability' is unknown because it could not be read (permission denied).
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/release_should_be_immutable.md
+
+Summary: 57 errors, 0 warnings, 0 ignored.
+57 findings can be fixed automatically (run: gh actions-version fix --mode auto).
+Skipped check: immutable_releases_enabled (permission denied).
+--- stderr ---
+Resolve repository, token and policy...
+Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)
+Loading tags...
+page 1, 85 tags loaded
+Loading tags: 85 tags (<DURATION>)
+Loading branches...
+page 1, 0 branches loaded
+Loading branches: 0 branches (<DURATION>)
+Loading releases...
+page 1, 55 releases loaded
+Loading releases: 55 releases (<DURATION>)
+Reading repository settings...
+Reading repository settings: settings read (<DURATION>)
+Running 26 rules...
+Running 26 rules: 26/26 rules (<DURATION>)

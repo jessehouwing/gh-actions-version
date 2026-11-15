@@ -1,11 +1,12 @@
 package rules
 
-import "github.com/jessehouwing/gh-version-action/internal/state"
+import "github.com/jessehouwing/gh-actions-version/internal/state"
 
 func init() {
 	Register(&Rule{
 		Name:        "major_branch_tracks_highest_patch",
 		Description: "Major version branches must point to the highest patch version",
+		Findings:    []FindingDef{{ID: "major_branch_wrong_target", Summary: "A major version branch points to the wrong patch version"}},
 		Priority:    20,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {

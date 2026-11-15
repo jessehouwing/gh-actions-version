@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Mode selects how fixable issues are handled.
@@ -21,6 +22,10 @@ const (
 	AutoFix
 	// Interactive prompts for every fixable issue.
 	Interactive
+	// Manual prints remediation instructions without applying fixes.
+	Manual
+	// DryRun reports the actions auto mode would apply without executing them.
+	DryRun
 )
 
 func (m Mode) String() string {
@@ -29,6 +34,10 @@ func (m Mode) String() string {
 		return "auto-fix"
 	case Interactive:
 		return "interactive"
+	case Manual:
+		return "manual"
+	case DryRun:
+		return "dry-run"
 	}
 	return "report-only"
 }
@@ -55,6 +64,7 @@ type Options struct {
 	Client   state.Client
 	Log      *output.Logger
 	Prompter Prompter // required for Interactive
+	Progress progress.Stage
 }
 
 func (o Options) log() *output.Logger {
@@ -67,6 +77,17 @@ func (o Options) log() *output.Logger {
 // Fix handles the pending issues according to opt.Mode (port of Invoke-AutoFix plus the interactive runner).
 // In Interactive mode skipped issues stay pending.
 func Fix(ctx context.Context, st *state.State, opt Options) error {
+	defer func() {
+		issues := st.Issues[:0]
+		for _, issue := range st.Issues {
+			if st.MatchesIgnore(issue.Version, "all", issue.Rule, issue.Finding) ||
+				st.MatchesIgnore(issue.Version, "validation", issue.Rule, issue.Finding) {
+				continue
+			}
+			issues = append(issues, issue)
+		}
+		st.Issues = issues
+	}()
 	for _, i := range st.Issues {
 		if i.Status == state.StatusPending && i.ManualOnly {
 			i.Status = state.StatusManualFixRequired
@@ -78,6 +99,14 @@ func Fix(ctx context.Context, st *state.State, opt Options) error {
 		return nil
 	case Interactive:
 		return interactive(ctx, st, opt)
+	case DryRun:
+		issues := pendingFixable(st)
+		for n, i := range issues {
+			if opt.Progress != nil {
+				opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+			}
+			opt.log().Infof("Would apply: %s (%s)", i.Action.Description(), i.Action.Version())
+		}
 	}
 	for _, i := range st.Issues {
 		if i.Status == state.StatusPending {
@@ -112,7 +141,11 @@ func autoFix(ctx context.Context, st *state.State, opt Options) {
 		log.Group("Verifying potential solutions")
 		defer log.EndGroup()
 	}
-	for _, i := range pendingFixable(st) {
+	issues := pendingFixable(st)
+	for n, i := range issues {
+		if opt.Progress != nil {
+			opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+		}
 		execute(ctx, st, i, opt)
 	}
 	markUnfixable(st, false)
@@ -148,6 +181,9 @@ func interactive(ctx context.Context, st *state.State, opt Options) error {
 	issues := pendingFixable(st)
 	applyAll := false
 	for n, i := range issues {
+		if opt.Progress != nil {
+			opt.Progress.Update(fmt.Sprintf("[%d/%d] %s %s", n+1, len(issues), i.Finding, i.Version))
+		}
 		if !applyAll {
 			log.Info("")
 			log.Infof("[%d/%d] %s", n+1, len(issues), i.String())

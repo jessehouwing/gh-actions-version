@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Issue statuses.
@@ -156,7 +157,8 @@ type Action interface {
 
 // Issue is a validation problem.
 type Issue struct {
-	Type             string
+	Rule             string
+	Finding          string
 	Severity         string
 	Message          string
 	Version          string
@@ -165,13 +167,13 @@ type Issue struct {
 	ManualFixCommand string
 	Action           Action
 	Status           string
-	// ManualOnly is set by the policy (autofix: false): the issue is reported with manual instructions
+	// ManualOnly is set by the policy (fix: manual): the issue is reported with manual instructions
 	// and never fixed by the tool.
 	ManualOnly bool
 }
 
-func NewIssue(typ, severity, message string) *Issue {
-	return &Issue{Type: typ, Severity: severity, Message: message, Status: StatusPending}
+func NewIssue(finding, severity, message string) *Issue {
+	return &Issue{Finding: finding, Severity: severity, Message: message, Status: StatusPending}
 }
 
 func (i *Issue) IsAutoFixable() bool { return i.Action != nil && !i.ManualOnly }
@@ -198,22 +200,41 @@ type Config struct {
 	// AllowDestructiveTagDeletion permits deleting a tag whose immutable release was deleted (irreversible).
 	AllowDestructiveTagDeletion bool
 	IgnoreVersions              []string
-	// Rules holds the per-rule level/autofix policy from action-version.yml, keyed by rule name.
+	IgnoreEntries               []IgnoreEntry
+	// Sources maps effective policy paths to flag, file:<path>, or default.
+	Sources map[string]string
+	// Rules holds the per-rule level/fix policy from action-version.yml, keyed by rule name.
 	Rules map[string]RulePolicy
+}
+
+type IgnoreEntry struct {
+	Versions []string `yaml:"versions" json:"versions"`
+	Reason   string   `yaml:"reason,omitempty" json:"reason,omitempty"`
+	Scope    string   `yaml:"scope,omitempty" json:"scope"`
+	Rules    []string `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Until    string   `yaml:"until,omitempty" json:"until,omitempty"`
 }
 
 // RulePolicy overrides how the issues of one rule are reported and fixed. Empty fields change nothing.
 type RulePolicy struct {
-	Level   string // error|warning|none
-	AutoFix *bool  // false: always a manual fix
+	Level    string // error|warning|none
+	AutoFix  *bool  // false: always a manual fix
+	Findings map[string]FindingPolicy
+}
+
+// FindingPolicy overrides a rule's reporting and fix settings for one finding.
+type FindingPolicy struct {
+	Level   string
+	AutoFix *bool
 }
 
 // State is the single source of truth (port of RepositoryState).
 type State struct {
-	Tags        []*VersionRef
-	Branches    []*VersionRef
-	Releases    []*ReleaseInfo
-	Marketplace *MarketplaceMetadata
+	Tags          []*VersionRef
+	Branches      []*VersionRef
+	Releases      []*ReleaseInfo
+	Marketplace   *MarketplaceMetadata
+	SkippedChecks []SkippedCheck
 	// ImmutableReleasesEnabled is the repository's 'Release immutability' setting; nil when unknown.
 	ImmutableReleasesEnabled *bool
 	Owner                    string
@@ -221,6 +242,15 @@ type State struct {
 	Host                     string
 	Config                   Config
 	Issues                   []*Issue
+	SuppressedIssues         []*Issue
+	CheckedAt                time.Time
+	ActiveRule               string
+	ActiveFindings           []string
+}
+
+type SkippedCheck struct {
+	Check  string
+	Reason string
 }
 
 func New() *State { return &State{Marketplace: &MarketplaceMetadata{}} }

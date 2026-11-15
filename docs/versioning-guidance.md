@@ -133,7 +133,7 @@ git push origin <v1.0.1-sha>:refs/tags/v1.0 --force
 **When to update:**
 
 - After releasing any new stable version
-- Skip if using `ignore-preview-releases` and releasing a preview
+- Skip if using `preview: exclude` and releasing a preview
 
 **How to update:**
 
@@ -419,7 +419,7 @@ floating-versions-use: tags             # Use tags (not branches)
 
 Update your workflow:
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0      # Fetch full history
     fetch-tags: true    # Fetch all tags
@@ -448,7 +448,7 @@ git push origin $SHA:refs/tags/v1
 
 If tags exist but weren't fetched:
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0
     fetch-tags: true    # Add this!
@@ -465,10 +465,11 @@ If tags exist but weren't fetched:
 **How to fix:**
 
 ```yaml
-- uses: jessehouwing/actions-semver-checker@v2
-  with:
-    auto-fix: true
-    token: ${{ secrets.GITHUB_TOKEN }}  # Add this!
+- run: |
+    gh extension install jessehouwing/gh-actions-version
+    gh actions-version fix --mode auto
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Add this!
 ```
 
 ### Auto-fix: "Permission denied"
@@ -494,16 +495,17 @@ If tags exist but weren't fetched:
 
 3. Ensure token is provided:
    ```yaml
-   - uses: actions/checkout@v4
+   - uses: actions/checkout@v7
      with:
        fetch-depth: 0
        fetch-tags: true
        token: ${{ secrets.GITHUB_TOKEN }}
    
-   - uses: jessehouwing/actions-semver-checker@v2
-     with:
-       auto-fix: true
-       token: ${{ secrets.GITHUB_TOKEN }}
+   - run: |
+       gh extension install jessehouwing/gh-actions-version
+       gh actions-version fix --mode auto
+     env:
+       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
    ```
 
 ## Additional Resources

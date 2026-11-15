@@ -398,8 +398,8 @@ testResults.xml
 unit-test-results.xml
 
 # Go
-/gh-version-action
-/gh-version-action.exe
+/gh-actions-version
+/gh-actions-version.exe
 /dist/
 *.test
 *.out

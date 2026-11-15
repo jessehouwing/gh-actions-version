@@ -3,13 +3,14 @@ package rules
 import (
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "action_metadata_required",
 		Description: "Action metadata (name, description, branding) and README.md are required for GitHub Marketplace",
+		Findings:    []FindingDef{{ID: "marketplace_metadata_missing", Summary: "Required GitHub Marketplace metadata is missing"}},
 		Priority:    5,
 		Category:    "marketplace",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -27,7 +28,7 @@ func init() {
 			if md == nil {
 				md = &state.MarketplaceMetadata{}
 			}
-			issue := state.NewIssue("missing_marketplace_metadata", releaseSeverity(cfg.CheckMarketplace),
+			issue := state.NewIssue("marketplace_metadata_missing", releaseSeverity(cfg.CheckMarketplace),
 				"GitHub Marketplace requires: "+strings.Join(md.MissingRequirements(), "; "))
 			issue.Status = state.StatusManualFixRequired
 

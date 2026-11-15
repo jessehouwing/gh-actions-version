@@ -3,11 +3,12 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // ReleasesPageSize is the GraphQL page size used when listing releases.
@@ -74,8 +75,12 @@ func toReleaseInfo(n releaseNode) *state.ReleaseInfo {
 
 // GetReleases lists all releases via GraphQL (Get-GitHubRelease).
 func (c *Client) GetReleases(ctx context.Context) ([]*state.ReleaseInfo, error) {
+	stage := c.startProgress("Loading releases")
+	result := "failed"
+	defer func() { stage.Done(result) }()
 	var out []*state.ReleaseInfo
 	var after *string
+	pages := 0
 	for {
 		vars := map[string]any{"owner": c.Repo.Owner, "name": c.Repo.Name, "first": ReleasesPageSize, "after": after}
 		var resp struct {
@@ -100,7 +105,10 @@ func (c *Client) GetReleases(ctx context.Context) ([]*state.ReleaseInfo, error) 
 			ri.IsIgnored = c.ignored(ri.TagName)
 			out = append(out, ri)
 		}
+		pages++
+		stage.Update(fmt.Sprintf("page %d, %d releases loaded", pages, len(out)))
 		if len(rel.Nodes) == 0 || !rel.PageInfo.HasNextPage {
+			result = fmt.Sprintf("%d releases", len(out))
 			return out, nil
 		}
 		cur := rel.PageInfo.EndCursor
@@ -180,7 +188,11 @@ func (c *Client) CreateReleaseWithLatest(ctx context.Context, tag string, draft 
 	var r restRelease
 	if err := c.do(ctx, http.MethodPost, c.repoPath("/releases"), body, &r); err != nil {
 		c.logf("Failed to create release for %s: %s", tag, ErrorDetail(err))
-		return releaseFailure(err), err
+		res := releaseFailure(err)
+		if res.Unfixable {
+			return res, fmt.Errorf("%w: %w", state.ErrUnfixable, err)
+		}
+		return res, err
 	}
 	return state.ReleaseResult{Success: true, ID: r.ID, HtmlUrl: r.HtmlUrl}, nil
 }

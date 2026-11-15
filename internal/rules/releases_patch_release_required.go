@@ -3,16 +3,20 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "patch_release_required",
 		Description: "Patch versions must have GitHub Releases when check-releases is enabled",
-		Priority:    10,
-		Category:    "releases",
+		Findings: []FindingDef{
+			{ID: "release_missing", Summary: "A patch version does not have a GitHub Release"},
+			{ID: "patch_tag_locked_by_deleted_release", Summary: "A patch tag is locked by a deleted immutable release"},
+		},
+		Priority: 10,
+		Category: "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {
 			if !checkEnabled(cfg.CheckReleases) {
 				return nil
@@ -81,7 +85,7 @@ func init() {
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
 			v := item.(*state.VersionRef)
 			autoPublish := checkEnabled(cfg.CheckImmutability)
-			issue := state.NewIssue("missing_release", releaseSeverity(cfg.CheckReleases),
+			issue := state.NewIssue("release_missing", releaseSeverity(cfg.CheckReleases),
 				fmt.Sprintf("Release required for patch version %s", v.Version))
 			issue.Version = v.Version
 			action := actions.NewCreateReleaseAction(v.Version, !autoPublish, autoPublish, v.Sha)

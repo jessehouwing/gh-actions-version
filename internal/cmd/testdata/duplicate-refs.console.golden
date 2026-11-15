@@ -1,0 +1,27 @@
+exit code: 1
+--- stdout ---
+v1 — 1 error
+  [ERROR] finding refs / floating_tag_and_branch_both_exist: Version 'v1' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/duplicate_floating_version_ref.md
+v1.0 — 1 error
+  [ERROR] finding refs / floating_tag_and_branch_both_exist: Version 'v1.0' exists as both tag and branch. Branch will be deleted (floating-versions-use: tags)
+  Docs: https://github.com/jessehouwing/gh-actions-version/blob/main/docs/rules/duplicate_floating_version_ref.md
+
+Summary: 2 errors, 0 warnings, 0 ignored.
+2 findings can be fixed automatically (run: gh actions-version fix --mode auto).
+--- stderr ---
+Resolve repository, token and policy...
+Resolve repository, token and policy: repository resolved and policy loaded (<DURATION>)
+Loading tags...
+page 1, 3 tags loaded
+Loading tags: 3 tags (<DURATION>)
+Loading branches...
+page 1, 2 branches loaded
+Loading branches: 2 branches (<DURATION>)
+Loading releases...
+page 1, 1 releases loaded
+Loading releases: 1 releases (<DURATION>)
+Reading repository settings...
+Reading repository settings: settings read (<DURATION>)
+Running 26 rules...
+Running 26 rules: 26/26 rules (<DURATION>)

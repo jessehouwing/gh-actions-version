@@ -3,14 +3,15 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "release_should_be_immutable",
 		Description: "Published releases for patch versions should be immutable (via repository settings)",
+		Findings:    []FindingDef{{ID: "release_not_immutable", Summary: "A published patch release is not immutable"}},
 		Priority:    12,
 		Category:    "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -32,7 +33,7 @@ func init() {
 		},
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
 			r := item.(*state.ReleaseInfo)
-			issue := state.NewIssue("non_immutable_release", releaseSeverity(cfg.CheckImmutability),
+			issue := state.NewIssue("release_not_immutable", releaseSeverity(cfg.CheckImmutability),
 				fmt.Sprintf("Release %s is published but not immutable (repository 'Release immutability' setting may not be enabled)", r.TagName))
 			issue.Version = r.TagName
 			action := actions.NewRepublishReleaseAction(r.TagName)

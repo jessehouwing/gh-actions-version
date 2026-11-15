@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type refObject struct {
@@ -47,7 +48,11 @@ func (c *Client) GetTags(ctx context.Context, pattern string) ([]*state.VersionR
 	if err != nil {
 		return nil, err
 	}
+	stage := c.startProgress("Loading tags")
+	result := "failed"
+	defer func() { stage.Done(result) }()
 	var out []*state.VersionRef
+	pages := 0
 	err = c.getPages(ctx, c.repoPath("/git/refs/tags?per_page=100"), func(b []byte) error {
 		refs, err := decodeRefs(b)
 		if err != nil {
@@ -66,15 +71,19 @@ func (c *Client) GetTags(ctx context.Context, pattern string) ([]*state.VersionR
 			vr.IsIgnored = c.ignored(name)
 			out = append(out, vr)
 		}
+		pages++
+		stage.Update(fmt.Sprintf("page %d, %d tags loaded", pages, len(out)))
 		return nil
 	})
 	if IsNotFound(err) {
 		c.logf("No tags found in repository (404 response - this is normal for repos with no tags)")
+		result = "0 tags"
 		return nil, nil
 	}
 	if err != nil {
 		return nil, wrapOnce("fetching tags", err)
 	}
+	result = fmt.Sprintf("%d tags", len(out))
 	return out, nil
 }
 
@@ -93,7 +102,11 @@ func (c *Client) GetBranches(ctx context.Context, pattern string) ([]*state.Vers
 	if err != nil {
 		return nil, err
 	}
+	stage := c.startProgress("Loading branches")
+	result := "failed"
+	defer func() { stage.Done(result) }()
 	var out []*state.VersionRef
+	pages := 0
 	err = c.getPages(ctx, c.repoPath("/branches?per_page=100"), func(b []byte) error {
 		var items []struct {
 			Name   string `json:"name"`
@@ -112,11 +125,14 @@ func (c *Client) GetBranches(ctx context.Context, pattern string) ([]*state.Vers
 			vr.IsIgnored = c.ignored(br.Name)
 			out = append(out, vr)
 		}
+		pages++
+		stage.Update(fmt.Sprintf("page %d, %d branches loaded", pages, len(out)))
 		return nil
 	})
 	if err != nil {
 		return nil, wrapOnce("fetching branches", err)
 	}
+	result = fmt.Sprintf("%d branches", len(out))
 	return out, nil
 }
 

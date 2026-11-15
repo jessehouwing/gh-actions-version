@@ -4,12 +4,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
+
+func TestFindingScopedAllDoesNotHideAnotherFindingOfSameRule(t *testing.T) {
+	st := state.New()
+	st.Releases = []*state.ReleaseInfo{{TagName: "v1", ID: 1, IsImmutable: true}, {TagName: "v1", ID: 2}}
+	cfg := state.Config{CheckReleases: "error", CheckImmutability: "error", IgnoreEntries: []state.IgnoreEntry{
+		{Versions: []string{"v1"}, Scope: "all", Rules: []string{"immutable_floating_release"}},
+	}}
+	for _, rule := range All() {
+		if rule.Name == "floating_version_no_release" {
+			Run(st, &cfg, []*Rule{rule})
+			if len(st.Issues) != 1 || st.Issues[0].Finding != "mutable_floating_release" {
+				t.Fatalf("findings = %+v", st.Issues)
+			}
+			return
+		}
+	}
+	t.Fatal("rule not registered")
+}
 
 func engIssue(item any) *state.Issue {
 	s := item.(string)
-	i := state.NewIssue("test_issue", state.SeverityError, "issue for "+s)
+	i := state.NewIssue("test_finding", state.SeverityError, "issue for "+s)
 	i.Version = s
 	return i
 }
@@ -17,6 +35,7 @@ func engIssue(item any) *state.Issue {
 func engRule(name string, prio int, items []any, passes bool, create func(any, *state.State, *state.Config) *state.Issue) *Rule {
 	return &Rule{
 		Name: name, Description: name, Category: "test", Priority: prio,
+		Findings:    []FindingDef{{ID: "test_finding", Summary: "A test finding"}},
 		Condition:   func(*state.State, *state.Config) []any { return items },
 		Check:       func(any, *state.State, *state.Config) bool { return passes },
 		CreateIssue: create,
@@ -28,9 +47,21 @@ func TestInvokeValidationRule(t *testing.T) {
 		st := state.New()
 		rule := engRule("rule_adds_issue", 10, []any{"item-1"}, false, func(item any, _ *state.State, _ *state.Config) *state.Issue { return engIssue(item) })
 		res := Run(st, &state.Config{}, []*Rule{rule})
-		if len(st.Issues) != 1 || st.Issues[0].Version != "item-1" || len(res) != 1 {
+		if len(st.Issues) != 1 || st.Issues[0].Version != "item-1" || len(res) != 1 ||
+			st.Issues[0].Rule != rule.Name || st.Issues[0].Finding != "test_finding" {
 			t.Fatalf("issues %v result %v", st.Issues, res)
 		}
+	})
+	t.Run("panics when a rule creates an undeclared finding", func(t *testing.T) {
+		defer func() {
+			if recovered := recover(); recovered == nil || !strings.Contains(recovered.(string), "created undeclared finding") {
+				t.Fatalf("expected undeclared finding panic, got %v", recovered)
+			}
+		}()
+		rule := engRule("undeclared", 1, []any{"item"}, false, func(any, *state.State, *state.Config) *state.Issue {
+			return state.NewIssue("not_declared", state.SeverityError, "unexpected")
+		})
+		Run(state.New(), &state.Config{}, []*Rule{rule})
 	})
 	t.Run("skips issue creation when check passes", func(t *testing.T) {
 		st := state.New()
@@ -97,6 +128,25 @@ func TestInvokeValidationRule(t *testing.T) {
 			t.Fatal("expected no issues")
 		}
 	})
+}
+
+func TestFindingRegistry(t *testing.T) {
+	owners := map[string]string{}
+	for _, rule := range All() {
+		if len(rule.Findings) == 0 {
+			t.Errorf("rule %s declares no findings", rule.Name)
+			continue
+		}
+		for _, finding := range rule.Findings {
+			if finding.ID == "" || finding.Summary == "" {
+				t.Errorf("rule %s has incomplete finding: %+v", rule.Name, finding)
+			}
+			if owner, ok := owners[finding.ID]; ok {
+				t.Errorf("finding %s is declared by both %s and %s", finding.ID, owner, rule.Name)
+			}
+			owners[finding.ID] = rule.Name
+		}
+	}
 }
 
 type engRef struct {

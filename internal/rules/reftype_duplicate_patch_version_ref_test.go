@@ -3,7 +3,7 @@ package rules
 import (
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func TestDuplicatePatchVersionRef(t *testing.T) {
@@ -59,7 +59,7 @@ func TestDuplicatePatchVersionRef(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		t.Run("creates issue with DeleteBranchAction (always delete branch)", func(t *testing.T) {
 			issue := rule(t).CreateIssue(item, state.New(), cfg("tags"))
-			if issue == nil || issue.Type != "duplicate_patch_ref" || issue.Severity != "error" || issue.Version != "v1.0.0" {
+			if issue == nil || issue.Finding != "patch_ref_duplicate" || issue.Severity != "error" || issue.Version != "v1.0.0" {
 				t.Fatalf("unexpected issue %+v", issue)
 			}
 			if rtActionType(issue.Action) != "DeleteBranchAction" || issue.Action.Version() != "v1.0.0" {

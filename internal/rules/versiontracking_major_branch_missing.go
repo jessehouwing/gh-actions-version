@@ -1,11 +1,12 @@
 package rules
 
-import "github.com/jessehouwing/gh-version-action/internal/state"
+import "github.com/jessehouwing/gh-actions-version/internal/state"
 
 func init() {
 	Register(&Rule{
 		Name:        "major_branch_missing",
 		Description: "Major version branches should exist for all major versions that have patches",
+		Findings:    []FindingDef{{ID: "major_branch_missing", Summary: "A major version branch is missing"}},
 		Priority:    21,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {

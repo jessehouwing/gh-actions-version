@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type fakeClient struct {
@@ -33,6 +31,9 @@ func (f *fakeClient) DeleteRef(_ context.Context, ref string) state.RefResult {
 }
 
 func (f *fakeClient) CreateReleaseWithLatest(context.Context, string, bool, *bool) (state.ReleaseResult, error) {
+	if f.createRelease.Unfixable {
+		return f.createRelease, state.ErrUnfixable
+	}
 	return f.createRelease, nil
 }
 
@@ -91,6 +92,13 @@ type fakePrompter struct {
 	asked   int
 }
 
+type progressRecorder struct {
+	updates []string
+}
+
+func (p *progressRecorder) Update(message string) { p.updates = append(p.updates, message) }
+func (*progressRecorder) Done(string)             {}
+
 func (p *fakePrompter) Select(_ string, options []string) (int, error) {
 	if p.err != nil {
 		return 0, p.err
@@ -110,36 +118,23 @@ func TestUnfixableReleaseRemediation(t *testing.T) {
 		st := newState()
 		st.Config.IgnoreVersions = []string{"v1.*"}
 		a := actions.NewCreateReleaseAction("v6.3.0", false, false, "")
-		i := state.NewIssue("missing_release", "error", "Release required for patch version v6.3.0")
+		i := state.NewIssue("release_missing", "error", "Release required for patch version v6.3.0")
 		i.Version, i.Status, i.Action = "v6.3.0", state.StatusPending, a
 		st.Issues = []*state.Issue{i}
 		return st, a, i
 	}
-	t.Run("Marks the missing_release issue as unfixable and attaches a YAML manual-fix snippet with the suggested ignore-versions value", func(t *testing.T) {
+	t.Run("Reclassifies a burned tag and attaches a YAML manual-fix snippet with the suggested ignore-versions value", func(t *testing.T) {
 		st, a, i := setup()
 		actions.Out = &bytes.Buffer{}
 		if a.Execute(context.Background(), st, &fakeClient{createRelease: state.ReleaseResult{Unfixable: true}}) {
 			t.Fatal("expected failure")
 		}
-		if i.Status != state.StatusUnfixable || !strings.Contains(i.Message, "immutable release") {
-			t.Fatalf("status %s msg %s", i.Status, i.Message)
+		if i.Finding != "patch_tag_locked_by_deleted_release" || i.Status != state.StatusManualFixRequired || !strings.Contains(i.Message, "immutable release") {
+			t.Fatalf("finding %s status %s msg %s", i.Finding, i.Status, i.Message)
 		}
 		cmds := a.ManualCommands(st)
-		if a.ManualCommandsLanguage() != "yaml" || !regexp.MustCompile(`ignore-versions:\s*"v1\.\*,v6\.3\.0"`).MatchString(strings.Join(cmds, "\n")) {
+		if a.ManualCommandsLanguage() != "yaml" || !regexp.MustCompile(`versions:\s*\["v6\.3\.0"\]`).MatchString(strings.Join(cmds, "\n")) || !strings.Contains(strings.Join(cmds, "\n"), "scope: selection") {
 			t.Fatalf("lang %s cmds %v", a.ManualCommandsLanguage(), cmds)
-		}
-	})
-	t.Run("Renders the snippet inside a fenced ```yaml block (not ```bash) in the GitHub Actions job summary", func(t *testing.T) {
-		st, a, _ := setup()
-		actions.Out = &bytes.Buffer{}
-		a.Execute(context.Background(), st, &fakeClient{createRelease: state.ReleaseResult{Unfixable: true}})
-		p := filepath.Join(t.TempDir(), "step-summary.md")
-		t.Setenv("GITHUB_STEP_SUMMARY", p)
-		WriteManualInstructionsToStepSummary(st)
-		raw, _ := os.ReadFile(p)
-		s := string(raw)
-		if !regexp.MustCompile("(?s)```yaml.*?ignore-versions:\\s*\"v1\\.\\*,v6\\.3\\.0\".*?```").MatchString(s) {
-			t.Fatalf("summary: %s", s)
 		}
 	})
 }
@@ -163,6 +158,16 @@ func TestFixAutoFix(t *testing.T) {
 		_ = Fix(ctx, st, Options{Mode: AutoFix})
 		if strings.Join(order, ",") != "v1,v2,v3" || st.FixedCount() != 3 {
 			t.Fatalf("order %v fixed %d", order, st.FixedCount())
+		}
+	})
+	t.Run("reports progress for each applied fix", func(t *testing.T) {
+		i := issue("v1", "error", &testAction{ver: "v1"})
+		i.Finding = "test_finding"
+		st := newState(i)
+		reporter := &progressRecorder{}
+		_ = Fix(ctx, st, Options{Mode: AutoFix, Progress: reporter})
+		if len(reporter.updates) != 1 || reporter.updates[0] != "[1/1] test_finding v1" {
+			t.Fatalf("progress updates %v", reporter.updates)
 		}
 	})
 	t.Run("marks failed when the action returns false", func(t *testing.T) {
@@ -333,21 +338,6 @@ func TestManualInstructions(t *testing.T) {
 		WriteManualInstructions(newState(), log, false)
 		if out.Len() != 0 {
 			t.Fatal(out.String())
-		}
-	})
-	t.Run("step summary does nothing without GITHUB_STEP_SUMMARY", func(t *testing.T) {
-		t.Setenv("GITHUB_STEP_SUMMARY", "")
-		WriteManualInstructionsToStepSummary(mk())
-	})
-	t.Run("step summary marks failed issues with a cross", func(t *testing.T) {
-		st := mk()
-		st.Issues[0].Status = state.StatusFailed
-		p := filepath.Join(t.TempDir(), "s.md")
-		t.Setenv("GITHUB_STEP_SUMMARY", p)
-		WriteManualInstructionsToStepSummary(st)
-		raw, _ := os.ReadFile(p)
-		if !strings.Contains(string(raw), "❌ **v2.0.0:**") || !strings.Contains(string(raw), "## Manual Remediation Required") {
-			t.Fatal(string(raw))
 		}
 	})
 }

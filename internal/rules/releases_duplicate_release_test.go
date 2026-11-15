@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func rlRule(t *testing.T, name string) *Rule {
@@ -98,7 +98,7 @@ func TestDuplicateReleaseRule(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		t.Run("should create issue with error severity when check-releases is 'error'", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1.0.0", 200, true, false, false), state.New(), &state.Config{CheckReleases: "error"})
-			if issue.Severity != "error" || issue.Type != "duplicate_release" || issue.Version != "v1.0.0" ||
+			if issue.Severity != "error" || issue.Finding != "release_duplicate" || issue.Version != "v1.0.0" ||
 				!strings.Contains(issue.Message, "Duplicate draft release") || !strings.Contains(issue.Message, "200") {
 				t.Errorf("unexpected issue %+v", issue)
 			}

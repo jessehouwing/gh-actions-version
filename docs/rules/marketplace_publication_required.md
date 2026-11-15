@@ -12,32 +12,52 @@ Verifies that the latest release has been published to the GitHub Marketplace. T
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-marketplace` is set to `error` or `warning`
+- `--level marketplace=error` or `--level marketplace=warning`
 - Marketplace metadata is valid (name, description, branding, README exist)
 - A release marked as "latest" exists in the repository
 
 **Note:** This rule only checks the release marked as "latest" by GitHub. It does not check every release.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `marketplace_not_published` | The latest release is not published to GitHub Marketplace |
+
 ## Configuration
 
-This rule belongs to the `marketplace` concern.
+This rule belongs to the `marketplace` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  marketplace:
+    level: warning
+rules:
+  marketplace_publication_required:
+    level: error
+    findings:
+      marketplace_not_published:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-marketplace=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level marketplace=<level>` sets this concern; `--rule-level marketplace_publication_required=<level>` overrides this rule.
 - Config file: `concerns.marketplace.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.marketplace_publication_required.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.marketplace.autofix: false` or `rules.marketplace_publication_required.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.marketplace.fix: manual` or `rules.marketplace_publication_required.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## How Detection Works
 

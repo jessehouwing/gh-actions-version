@@ -12,30 +12,54 @@ Validates that floating versions (e.g., `v1`, `v1.0`, `latest`) do not have GitH
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-releases` is set to `error` or `warning`, OR
-- `--check-release-immutability` is set to `error` or `warning`
+- `--level releases=error` or `--level releases=warning`, OR
+- `--level immutability=error` or `--level immutability=warning`
 - A release exists for a floating version (vX, vX.Y, or latest)
+
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `immutable_floating_release` | An immutable release exists for a floating version |
+| `mutable_floating_release` | A release exists for a floating version |
 
 ## Configuration
 
-This rule belongs to the `releases` concern.
+This rule belongs to the `releases` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  releases:
+    level: warning
+rules:
+  floating_version_no_release:
+    level: error
+    findings:
+      immutable_floating_release:
+        level: warning
+        fix: manual
+      mutable_floating_release:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-releases=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level releases=<level>` sets this concern; `--rule-level floating_version_no_release=<level>` overrides this rule.
 - Config file: `concerns.releases.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.floating_version_no_release.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.releases.autofix: false` or `rules.floating_version_no_release.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.releases.fix: manual` or `rules.floating_version_no_release.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Required Permissions
 
@@ -45,7 +69,7 @@ Default: `error`.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `DeleteReleaseAction` for **mutable** (draft) releases:
+When you run `fix --mode auto`, this rule uses `DeleteReleaseAction` for **mutable** (draft) releases:
 
 1. Deletes the release
 2. Leaves the tag/branch intact (to preserve the version pointer)
@@ -75,7 +99,7 @@ Using GitHub Web UI:
 Immutable releases **cannot be deleted**. You have two options:
 
 1. **Add to ignore-versions** (recommended):
-   - CLI: `--ignore-versions v1,v1.0,latest`
+   - CLI: `--ignore-version v1 --ignore-version v1.0`
    - Config file: `ignore-versions: [v1, v1.0, latest]`
 
 2. **Contact GitHub Support** to request deletion (only for exceptional cases)
@@ -105,7 +129,7 @@ Repository state:
 - Release: v1 (draft, mutable)
 
 Configuration:
-- --check-releases=error
+- --level releases=error
 
 Issue: mutable_floating_release for v1
 Action: DeleteReleaseAction (will delete the release)
@@ -119,7 +143,7 @@ Repository state:
 - Release: v1 (published, immutable)
 
 Configuration:
-- --check-release-immutability=error
+- --level immutability=error
 
 Issue: immutable_floating_release for v1
 Status: unfixable

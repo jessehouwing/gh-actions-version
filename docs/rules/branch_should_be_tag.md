@@ -17,27 +17,47 @@ This rule runs when:
 - `floating-versions-use` is set to `tags` (the default)
 - Branches exist for versions that should be tags
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `floating_ref_should_be_tag` | A floating version should be a tag |
+
 ## Configuration
 
-This rule belongs to the `refs` concern.
+This rule belongs to the `refs` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  refs:
+    level: warning
+rules:
+  branch_should_be_tag:
+    level: error
+    findings:
+      floating_ref_should_be_tag:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level refs=<level>` sets this concern; `--rule-level branch_should_be_tag=<level>` overrides this rule.
 - Config file: `concerns.refs.level` for all rules of the concern, or `rules.branch_should_be_tag.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.refs.autofix: false` or `rules.branch_should_be_tag.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.refs.fix: manual` or `rules.branch_should_be_tag.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--include-preview-releases` / `ignore-preview-releases: false` in the config file: releases marked as prerelease are skipped when picking the latest patch by default. The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--preview-releases=included|excluded` / `preview: include|exclude` in the config file controls prerelease selection when picking the latest patch (default: exclude). The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Manual Remediation
 

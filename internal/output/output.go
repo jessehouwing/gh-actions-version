@@ -10,18 +10,21 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/term"
-	"github.com/jessehouwing/gh-version-action/internal/state"
 )
 
 // Logger writes messages either as GitHub Actions workflow commands or as plain text.
 type Logger struct {
 	Out io.Writer
+	// DebugOut receives verbose diagnostics when set.
+	DebugOut io.Writer
 	// Actions emits workflow commands (::error::, ##[group], ...) instead of plain text.
 	Actions bool
+	// Verbose enables debug messages without relying on GH_DEBUG.
+	Verbose bool
+	// Quiet suppresses informational and progress messages.
+	Quiet bool
 	// Color enables ANSI colors in plain mode.
 	Color bool
-	// ErrorCount counts errors written without a State (port of $global:returnCode = 1).
-	ErrorCount int
 }
 
 // New returns a Logger for out. Actions annotations are used only when GITHUB_ACTIONS=true;
@@ -65,25 +68,53 @@ func escapeProperty(s string) string {
 }
 
 // Info writes a plain line.
-func (l *Logger) Info(msg string) { l.println(msg) }
+func (l *Logger) Info(msg string) {
+	if !l.Quiet {
+		l.println(msg)
+	}
+}
 
 // Infof writes a formatted plain line.
-func (l *Logger) Infof(format string, args ...any) { l.println(fmt.Sprintf(format, args...)) }
+func (l *Logger) Infof(format string, args ...any) {
+	if !l.Quiet {
+		l.println(fmt.Sprintf(format, args...))
+	}
+}
 
-// Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." only when GH_DEBUG is set.
+// Debug writes ::debug:: in Actions; locally it shows "[DEBUG] ..." when verbose or GH_DEBUG is set.
 func (l *Logger) Debug(msg string) {
+	if l.Quiet {
+		return
+	}
 	if l.Actions {
-		l.println("::debug::" + escapeData(msg))
+		out := l.Out
+		if l.Verbose && l.DebugOut != nil {
+			out = l.DebugOut
+		}
+		fmt.Fprintln(out, "::debug::"+escapeData(msg))
 		return
 	}
-	if v := os.Getenv("GH_DEBUG"); v == "" || v == "0" || v == "false" {
+	verbose := l.Verbose
+	if !verbose {
+		v := os.Getenv("GH_DEBUG")
+		verbose = v != "" && v != "0" && v != "false"
+	}
+	if !verbose {
 		return
 	}
-	l.println(l.colored("36", "[DEBUG] "+msg))
+	out := l.Out
+	if l.Verbose && l.DebugOut != nil {
+		out = l.DebugOut
+	}
+	fmt.Fprintln(out, l.colored("36", "[DEBUG] "+msg))
 }
 
 // Notice writes a notice annotation.
-func (l *Logger) Notice(msg string) { l.annotate("notice", "", msg, "NOTICE: ", "32") }
+func (l *Logger) Notice(msg string) {
+	if !l.Quiet {
+		l.annotate("notice", "", msg, "NOTICE: ", "32")
+	}
+}
 
 // Warning writes a warning annotation.
 func (l *Logger) Warning(msg string) { l.annotate("warning", "", msg, "WARNING: ", "33") }
@@ -99,7 +130,9 @@ func (l *Logger) Annotate(level, title, msg string) {
 	case "warning":
 		l.annotate(level, title, msg, "WARNING: ", "33")
 	default:
-		l.annotate("notice", title, msg, "NOTICE: ", "32")
+		if !l.Quiet {
+			l.annotate("notice", title, msg, "NOTICE: ", "32")
+		}
 	}
 }
 
@@ -146,9 +179,6 @@ func (l *Logger) SafeLines(lines []string) {
 	}
 }
 
-// SafeInfo writes untrusted text without a prefix.
-func (l *Logger) SafeInfo(msg string) { l.Safe(msg, "") }
-
 // Mask hides secret in the Actions log. It is a no-op outside Actions.
 func (l *Logger) Mask(secret string) {
 	if l.Actions && secret != "" {
@@ -158,6 +188,9 @@ func (l *Logger) Mask(secret string) {
 
 // Group starts a collapsible log section.
 func (l *Logger) Group(title string) {
+	if l.Quiet {
+		return
+	}
 	if l.Actions {
 		l.println("##[group]" + title)
 		return
@@ -167,30 +200,11 @@ func (l *Logger) Group(title string) {
 
 // EndGroup ends the section started by Group.
 func (l *Logger) EndGroup() {
-	if l.Actions {
-		l.println("##[endgroup]")
-	}
-}
-
-// IssueError writes an error and tracks it in st as an error issue; without st it increments ErrorCount
-// (port of Write-ActionsError).
-func (l *Logger) IssueError(msg string, st *state.State) {
-	l.Error(msg)
-	if st != nil {
-		st.AddIssue(state.NewIssue("error", state.SeverityError, msg))
+	if l.Quiet {
 		return
 	}
-	l.ErrorCount++
-}
-
-// Message writes msg according to severity: "error" (tracked), "warning", or nothing for "none"
-// (port of Write-ActionsMessage).
-func (l *Logger) Message(msg, severity string, st *state.State) {
-	switch severity {
-	case state.SeverityError:
-		l.IssueError(msg, st)
-	case state.SeverityWarning:
-		l.Warning(msg)
+	if l.Actions {
+		l.println("##[endgroup]")
 	}
 }
 
@@ -200,23 +214,4 @@ func newMarker() string {
 	b[6] = b[6]&0x0f | 0x40
 	b[8] = b[8]&0x3f | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-// AppendStepSummary appends text to the file named by GITHUB_STEP_SUMMARY. It returns false when the
-// variable is unset or the file cannot be written.
-func AppendStepSummary(text string) bool {
-	path := os.Getenv("GITHUB_STEP_SUMMARY")
-	if path == "" {
-		return false
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	if !strings.HasSuffix(text, "\n") {
-		text += "\n"
-	}
-	_, err = f.WriteString(text)
-	return err == nil
 }

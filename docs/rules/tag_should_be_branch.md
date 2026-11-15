@@ -19,26 +19,46 @@ This rule runs when:
 - `floating-versions-use` is set to `branches`
 - Tags exist for major (vX) or minor (vX.Y) versions that should be branches
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `floating_ref_should_be_branch` | A floating version should be a branch |
+
 ## Configuration
 
-This rule belongs to the `refs` concern.
+This rule belongs to the `refs` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  refs:
+    level: warning
+rules:
+  tag_should_be_branch:
+    level: error
+    findings:
+      floating_ref_should_be_branch:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level refs=<level>` sets this concern; `--rule-level tag_should_be_branch=<level>` overrides this rule.
 - Config file: `concerns.refs.level` for all rules of the concern, or `rules.tag_should_be_branch.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.refs.autofix: false` or `rules.tag_should_be_branch.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.refs.fix: manual` or `rules.tag_should_be_branch.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Manual Remediation
 

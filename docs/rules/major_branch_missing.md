@@ -19,27 +19,47 @@ This rule runs when:
 - At least one patch version exists for a major version (e.g., `v1.0.0`)
 - No major version branch exists (e.g., `v1`)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `major_branch_missing` | A major version branch is missing |
+
 ## Configuration
 
-This rule belongs to the `major` concern.
+This rule belongs to the `major` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  major:
+    level: warning
+rules:
+  major_branch_missing:
+    level: error
+    findings:
+      major_branch_missing:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level major=<level>` sets this concern; `--rule-level major_branch_missing=<level>` overrides this rule.
 - Config file: `concerns.major.level` for all rules of the concern, or `rules.major_branch_missing.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.major.autofix: false` or `rules.major_branch_missing.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.major.fix: manual` or `rules.major_branch_missing.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--include-preview-releases` / `ignore-preview-releases: false` in the config file: releases marked as prerelease are skipped when picking the latest patch by default. The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--preview-releases=included|excluded` / `preview: include|exclude` in the config file controls prerelease selection when picking the latest patch (default: exclude). The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Manual Remediation
 

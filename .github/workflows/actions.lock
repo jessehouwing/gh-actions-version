@@ -12,9 +12,6 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'jessehouwing/actions-example-checker@v0.0.12'
         - 'step-security/harden-runner@v2.22.4'
-    '.github/workflows/action-semver-checker.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/ci.yml':
         - 'actions/checkout@v4.4.0'
         - 'actions/setup-go@v5.6.0'

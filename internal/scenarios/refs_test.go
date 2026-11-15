@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // push is the manual command that creates/updates a ref (PowerShell: "git push origin <sha>:refs/tags/v1").
@@ -247,7 +247,7 @@ func TestFloatingVersionValidation(t *testing.T) {
 		t.Run("Should not require releases for floating versions", func(t *testing.T) {
 			r := newRepo().tag(c1, "v1.0.0", "v1.0", "v1")
 			st := validate(t, r, relCfg(immutability("none")))
-			if len(issuesOfType(st, "missing_release")) != 1 || issuesOfType(st, "missing_release")[0].Version != "v1.0.0" {
+			if len(issuesOfType(st, "release_missing")) != 1 || issuesOfType(st, "release_missing")[0].Version != "v1.0.0" {
 				t.Fatalf("expected only v1.0.0 to need a release: %s", messages(st))
 			}
 			if len(st.ErrorIssues()) == 0 {
@@ -262,7 +262,7 @@ func TestFloatingVersionValidation(t *testing.T) {
 		})
 		t.Run("Should validate that v1 has patch version even when v2.0.0 exists", func(t *testing.T) {
 			st := missingPatch(t, newRepo().tag(c1, "v1", "v2.0.0"), "v1.0.0")
-			for _, i := range issuesOfType(st, "missing_patch_version") {
+			for _, i := range issuesOfType(st, "patch_tag_missing") {
 				if i.Version == "v2" || i.Version == "v2.0.0" {
 					t.Errorf("v2 must not be flagged: %s", i.Message)
 				}
@@ -485,7 +485,7 @@ func TestVersionEdgeCases(t *testing.T) {
 			has(t, cmds, push(c1, "refs/tags/v1")+"\n")
 			has(t, cmds, push(c1, "refs/tags/v1.0")+"\n")
 			// the prerelease is excluded from floating-version calculations: no latest tag is derived from it
-			for _, i := range issuesOfType(st, "wrong_latest_release") {
+			for _, i := range issuesOfType(st, "latest_release_wrong") {
 				hasNot(t, i.Message, "v2.0.0")
 			}
 		})

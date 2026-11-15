@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func TestHighestPatchReleaseShouldBeLatestRule(t *testing.T) {
@@ -96,7 +96,7 @@ func TestHighestPatchReleaseShouldBeLatestRule(t *testing.T) {
 			r1, r2 := latest(rel("v1.0.0", 100, false, false, false)), rel("v2.0.0", 200, false, false, false)
 			issue := rule.CreateIssue(&latestReleaseItem{r2, r1}, rlState(r1, r2), cfg("error"))
 			a, ok := issue.Action.(*actions.SetLatestReleaseAction)
-			if issue.Type != "wrong_latest_release" || issue.Severity != "error" || issue.Version != "v2.0.0" ||
+			if issue.Finding != "latest_release_wrong" || issue.Severity != "error" || issue.Version != "v2.0.0" ||
 				!strings.Contains(issue.Message, "v2.0.0") || !strings.Contains(issue.Message, "latest") ||
 				!ok || a.TagName != "v2.0.0" || a.ReleaseID != 200 {
 				t.Errorf("unexpected issue %+v", issue)

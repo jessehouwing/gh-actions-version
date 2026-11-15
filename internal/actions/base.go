@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Base carries the shared RemediationAction fields.
@@ -92,56 +92,38 @@ func newReleaseBase(desc, tag string, prio int) ReleaseBase {
 	return ReleaseBase{Base: newBase(desc, tag, prio), TagName: tag}
 }
 
-func (b *ReleaseBase) findIssue(st *state.State, issueType string) *state.Issue {
+func (b *ReleaseBase) findIssue(st *state.State, finding string) *state.Issue {
 	for _, i := range st.Issues {
-		if i.Version == b.TagName && i.Type == issueType {
+		if i.Version == b.TagName && i.Finding == finding {
 			return i
 		}
 	}
 	return nil
 }
 
-// suggestedIgnoreVersions is the configured ignore-versions list plus this tag, deduplicated.
-func (b *ReleaseBase) suggestedIgnoreVersions(st *state.State) string {
-	seen := map[string]bool{}
-	var out []string
-	for _, v := range append(append([]string{}, st.Config.IgnoreVersions...), b.TagName) {
-		if v != "" && !seen[v] {
-			seen[v] = true
-			out = append(out, v)
-		}
-	}
-	return strings.Join(out, ",")
-}
-
-// ignoreVersionsYamlSnippet switches the manual command language to yaml.
-func (b *ReleaseBase) ignoreVersionsYamlSnippet(st *state.State) []string {
+func (b *ReleaseBase) ignoreSelectionYamlSnippet() []string {
 	b.Language = "yaml"
-	return []string{
-		"# Update your workflow step to skip this locked version:",
-		"with:",
-		fmt.Sprintf("  ignore-versions: %q", b.suggestedIgnoreVersions(st)),
-	}
+	return []string{fmt.Sprintf("# Add this entry to ignore in action-version.yml:\nignore:\n  - versions: [%q]\n    scope: selection\n    reason: Tag was used by a deleted immutable release; no release can be created for it.", b.TagName)}
 }
 
-func (b *ReleaseBase) markAsUnfixable(st *state.State, issueType, msg string) {
+func (b *ReleaseBase) markAsUnfixable(st *state.State, finding, msg string) {
 	outf("✗ Unfixable: %s", msg)
-	if i := b.findIssue(st, issueType); i != nil {
+	if i := b.findIssue(st, finding); i != nil {
 		i.Status = state.StatusUnfixable
 		i.Message = msg
 	}
 }
 
-func (b *ReleaseBase) markAsManualFixRequired(st *state.State, issueType, msg string) {
+func (b *ReleaseBase) markAsManualFixRequired(st *state.State, finding, msg string) {
 	outf("⚠ Manual fix required: %s", msg)
-	if i := b.findIssue(st, issueType); i != nil {
+	if i := b.findIssue(st, finding); i != nil {
 		i.Status = state.StatusManualFixRequired
 		i.Message = msg
 	}
 }
 
-func (b *ReleaseBase) isIssueUnfixable(st *state.State, issueType string) bool {
-	i := b.findIssue(st, issueType)
+func (b *ReleaseBase) isIssueUnfixable(st *state.State, finding string) bool {
+	i := b.findIssue(st, finding)
 	return i != nil && i.Status == state.StatusUnfixable
 }
 

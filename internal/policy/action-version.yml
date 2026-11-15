@@ -1,4 +1,4 @@
-# action-version.yml - the versioning strategy enforced by gh version-action.
+# action-version.yml - the versioning strategy enforced by gh actions-version.
 #
 # This is the built-in default. It applies when a repository has no action-version.yml of its own.
 # A repository file is looked up next to action.yaml (the repository root), then in .github/, and its
@@ -19,8 +19,12 @@ version: 1
 # that cannot pin tags. Allowed: tags, branches.
 floating-versions-use: tags
 
-# Skip releases marked as prerelease when deciding which patch a floating ref must point to.
-ignore-preview-releases: true
+# Whether releases marked as prerelease can be selected as the latest patch for a floating ref.
+preview: exclude
+
+# A tag used by a deleted immutable release cannot be republished. Deleting it is irreversible;
+# allow this only deliberately. Allowed: deny, dangerously-allow.
+permanently-delete-immutable-tags: deny
 
 # Versions that are never validated or changed. Supports exact versions and wildcards (v1.*, v1.0.*).
 ignore-versions: []
@@ -31,55 +35,63 @@ ignore-versions: []
 #   level     error    the problem fails the run (exit code 1)
 #             warning  the problem is reported but does not fail the run
 #             none     the check is skipped
-#   autofix   true     fixed by --auto-fix / --interactive
-#             false    always reported with manual instructions, never changed by the tool
+#   fix       auto     eligible for `fix --mode auto` / `fix --mode interactive`
+#             manual   always reported with manual instructions, never changed by the tool
 #
 # Without a file every concern reports errors and may be fixed automatically.
 concerns:
+  # Ignore entries that expired or no longer match a version.
+  config:
+    level: warning
+    fix: manual
   # vN must exist for every major with a patch release and point at its latest patch.
   major:
     level: error
-    autofix: true
+    fix: auto
   # vN.M must exist for every minor with a patch release and point at its latest patch.
-  # Equivalent to --check-minor-version.
+  # Override with --level minor=LEVEL.
   minor:
     level: error
-    autofix: true
+    fix: auto
   # Every vN.M.P ref must exist as a tag (created from its release when missing).
   patch:
     level: error
-    autofix: true
+    fix: auto
   # 'latest' must exist and point at the highest patch, and must not exist as both tag and branch.
   latest:
     level: error
-    autofix: true
+    fix: auto
   # Refs must have the configured type (tag or branch) and must not exist twice.
   refs:
     level: error
-    autofix: true
+    fix: auto
   # Every patch needs a GitHub Release, floating versions must not have releases, and the highest
-  # patch is the "latest" release. Equivalent to --check-releases.
+  # patch is the "latest" release. Override with --level releases=LEVEL.
   releases:
     level: error
-    autofix: true
+    fix: auto
   # The repository setting 'Release immutability' is enabled and patch releases are published and
-  # immutable. Equivalent to --check-release-immutability.
-  # Republishing a release whose tag was used by a deleted immutable release also needs
-  # --dangerously-allow-destructive-tag-deletion, whatever the autofix setting.
+  # immutable. Override with --level immutability=LEVEL.
+  # Deleting a tag used by a deleted immutable release also requires
+  # permanently-delete-immutable-tags: dangerously-allow (or the CLI flag), whatever the fix setting.
   immutability:
     level: error
-    autofix: true
+    fix: auto
   # action.yaml has name, description and branding, README.md exists, and the release is published to
-  # the Marketplace. Equivalent to --check-marketplace.
+  # the Marketplace. Override with --level marketplace=LEVEL.
   marketplace:
     level: error
-    autofix: true
+    fix: auto
 
-# Override one rule; settings left out are inherited from its concern. Example:
+# Override one rule or finding; settings left out are inherited from the rule, then its concern.
 #
 # rules:
 #   minor_tag_tracks_highest_patch:
 #     level: warning
 #   duplicate_release:
-#     autofix: false
+#     fix: manual
+#   patch_tag_missing:
+#     findings:
+#       patch_tag_missing:
+#         level: warning
 rules: {}

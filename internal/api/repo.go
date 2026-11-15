@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 	"io"
 	"net/http"
 	"net/url"

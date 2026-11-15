@@ -24,10 +24,10 @@ func TestMajorTagTracksHighestPatch(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{tg("v1", "old123"), tg("v1.0.0", "abc123")}, item: "v1", cfg: vtPreTags,
-				typ: "incorrect_version", version: "v1", currentSha: "old123", expectedSha: "abc123", checkAction: wantUpdateTag("v1", "abc123"),
+				typ: "major_tag_wrong_target", version: "v1", currentSha: "old123", expectedSha: "abc123", checkAction: wantUpdateTag("v1", "abc123"),
 				message: "v1 points to old123 but should point to v1.0.0 at abc123"},
 			{name: "should configure UpdateTagAction with force flag", refs: []vtRef{tg("v2", "old123"), tg("v2.5.3", "new456")}, item: "v2", cfg: vtPreTags,
-				typ: "incorrect_version", currentSha: "old123", checkAction: wantUpdateTag("v2", "new456")},
+				typ: "major_tag_wrong_target", currentSha: "old123", checkAction: wantUpdateTag("v2", "new456")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestMajorTagTracksHighestPatch(t *testing.T) {
 		})
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.1.0"}, refs: []vtRef{tg("v1", "old123"), tg("v1.0.0", "stable456"), tg("v1.1.0", "prerel789")}, item: "v1", cfg: vtPreTags,
-				typ: "incorrect_version", currentSha: "old123", expectedSha: "stable456"},
+				typ: "major_tag_wrong_target", currentSha: "old123", expectedSha: "stable456"},
 		})
 	})
 }
@@ -70,10 +70,10 @@ func TestMajorBranchTracksHighestPatch(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with correct details", refs: []vtRef{br("v1", "old123"), tg("v1.0.0", "new456")}, item: "v1", cfg: vtPreBr,
-				typ: "incorrect_version", version: "v1", currentSha: "old123", expectedSha: "new456", checkAction: wantUpdateBranch("v1", "new456"),
+				typ: "major_branch_wrong_target", version: "v1", currentSha: "old123", expectedSha: "new456", checkAction: wantUpdateBranch("v1", "new456"),
 				message: "v1 points to old123 but should point to v1.0.0 at new456"},
 			{name: "should configure UpdateBranchAction with correct SHA", refs: []vtRef{br("v2", "old123"), tg("v2.0.0", "old456"), tg("v2.1.0", "new789")}, item: "v2", cfg: vtPreBr,
-				typ: "incorrect_version", currentSha: "old123", checkAction: wantUpdateBranch("v2", "new789")},
+				typ: "major_branch_wrong_target", currentSha: "old123", checkAction: wantUpdateBranch("v2", "new789")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestMajorBranchTracksHighestPatch(t *testing.T) {
 		})
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.1.0"}, refs: []vtRef{br("v1", "old123"), tg("v1.0.0", "stable456"), tg("v1.1.0", "prerel789")}, item: "v1", cfg: vtPreBr,
-				typ: "incorrect_version", currentSha: "old123", expectedSha: "stable456"},
+				typ: "major_branch_wrong_target", currentSha: "old123", expectedSha: "stable456"},
 		})
 	})
 }

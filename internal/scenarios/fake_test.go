@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/options"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/rules"
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/options"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/rules"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 func TestMain(m *testing.M) {
@@ -342,7 +342,7 @@ func messages(st *state.State) string {
 func types(st *state.State) []string {
 	var out []string
 	for _, i := range st.Issues {
-		out = append(out, i.Type)
+		out = append(out, i.Finding)
 	}
 	return out
 }
@@ -350,7 +350,7 @@ func types(st *state.State) []string {
 func issuesOfType(st *state.State, typ string) []*state.Issue {
 	var out []*state.Issue
 	for _, i := range st.Issues {
-		if i.Type == typ {
+		if i.Finding == typ {
 			out = append(out, i)
 		}
 	}

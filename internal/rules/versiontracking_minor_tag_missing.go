@@ -3,14 +3,15 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "minor_tag_missing",
 		Description: "Minor version tags should exist for all major.minor versions that have patches",
+		Findings:    []FindingDef{{ID: "minor_tag_missing", Summary: "A minor version tag is missing"}},
 		Priority:    23,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -58,7 +59,7 @@ func init() {
 					}
 				}
 			}
-			issue := state.NewIssue("missing_minor_version", minorSeverity(cfg),
+			issue := state.NewIssue("minor_tag_missing", minorSeverity(cfg),
 				fmt.Sprintf("Minor version tag %s does not exist. It should point to %s at %s", version, targetVersion, targetSha))
 			issue.Version = version
 			issue.ExpectedSha = targetSha

@@ -1,0 +1,131 @@
+package cmd
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/jessehouwing/gh-actions-version/internal/testutil"
+)
+
+var updateGoldens = flag.Bool("update", false, "update command output golden files")
+
+func TestGolden(t *testing.T) {
+	fixtures := []struct {
+		name string
+		new  func(testing.TB) *testutil.GitHub
+	}{
+		{"checkout", testutil.CheckoutFixture},
+		{"clean", testutil.CleanFixture},
+		{"floating-branches", testutil.FloatingOnBranchesFixture},
+		{"duplicate-refs", testutil.DuplicateRefsFixture},
+		{"drafts", testutil.DraftsFixture},
+		{"ignored", func(t testing.TB) *testutil.GitHub {
+			return testutil.CleanFixture(t).File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n    scope: selection\n    reason: yanked\n    rules: [major_tag_tracks_highest_patch]\n")
+		}},
+	}
+	formats := []string{"console", "json", "actions"}
+	for _, fixture := range fixtures {
+		for _, format := range formats {
+			t.Run(fixture.name+"/"+format, func(t *testing.T) {
+				gh := fixture.new(t)
+				e := newEnv(t, gh)
+				args := []string{"verify", "-R", "o/r", "--level=marketplace=none", "--output", format}
+				tempDir := t.TempDir()
+				var summaryPath, outputsPath string
+				if format == "actions" {
+					summaryPath = filepath.Join(tempDir, "summary.md")
+					outputsPath = filepath.Join(tempDir, "outputs")
+					e.vars["GITHUB_ACTIONS"] = "true"
+					e.vars["GITHUB_STEP_SUMMARY"] = summaryPath
+					e.vars["GITHUB_OUTPUT"] = outputsPath
+				}
+				result := e.run(args...)
+				output := fmt.Sprintf("exit code: %d\n--- stdout ---\n%s--- stderr ---\n%s", result.code, result.out, result.err)
+				if summaryPath != "" {
+					summary, err := os.ReadFile(summaryPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					output += "--- step summary ---\n" + string(summary)
+					outputs, err := os.ReadFile(outputsPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					output += "--- step outputs ---\n" + string(outputs)
+				}
+				output = normalizeGolden(output, gh.URL, tempDir)
+				path := filepath.Join("testdata", fixture.name+"."+format+".golden")
+				if *updateGoldens {
+					if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte(output), 0o644); err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				want, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if normalizeGolden(string(want), gh.URL, tempDir) != output {
+					t.Errorf("output differs from %s; run go test ./internal/cmd -run '^TestGolden$' -update", path)
+				}
+			})
+		}
+	}
+}
+
+func TestManualConsoleGolden(t *testing.T) {
+	gh := testutil.CheckoutFixture(t)
+	e := newEnv(t, gh)
+	result := e.run("fix", "-R", "o/r", "--mode=manual", "--level=marketplace=none", "--output=console")
+	output := fmt.Sprintf("exit code: %d\n--- stdout ---\n%s--- stderr ---\n%s", result.code, result.out, result.err)
+	tempDir := t.TempDir()
+	output = normalizeGolden(output, gh.URL, tempDir)
+	path := filepath.Join("testdata", "manual.console.golden")
+	if *updateGoldens {
+		if err := os.WriteFile(path, []byte(output), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalizeGolden(string(want), gh.URL, tempDir) != output {
+		t.Errorf("output differs from %s; run go test ./internal/cmd -run '^TestManualConsoleGolden$' -update", path)
+	}
+	verbose := e.run("fix", "-R", "o/r", "--mode=manual", "--level=marketplace=none", "--output=console", "-v")
+	for _, command := range []string{
+		"[v4.5.1] gh release edit v4.5.1 --repo o/r --draft=true",
+		"[v4.5.0] gh release edit v4.5.0 --repo o/r --draft=true",
+	} {
+		if !strings.Contains(verbose.out, command) {
+			t.Errorf("verbose output %q does not contain %q", verbose.out, command)
+		}
+	}
+}
+
+var (
+	goldenMarkerPattern    = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`)
+	goldenDurationPattern  = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:ns|µs|ms|s)\b`)
+	goldenTimestampPattern = regexp.MustCompile(`"generatedAt":"[^"]+"`)
+)
+
+func normalizeGolden(value, host, tempDir string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, host, "<GITHUB_HOST>")
+	value = strings.ReplaceAll(value, tempDir, "<TEMP_DIR>")
+	value = strings.ReplaceAll(value, filepath.ToSlash(tempDir), "<TEMP_DIR>")
+	value = goldenMarkerPattern.ReplaceAllString(value, "<MARKER>")
+	value = goldenDurationPattern.ReplaceAllString(value, "<DURATION>")
+	value = goldenTimestampPattern.ReplaceAllString(value, `"generatedAt":"<TIMESTAMP>"`)
+	return value
+}

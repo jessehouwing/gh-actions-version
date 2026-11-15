@@ -4,22 +4,23 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/jq"
 	"github.com/cli/go-gh/v2/pkg/jsonpretty"
 	"github.com/cli/go-gh/v2/pkg/template"
 	"github.com/cli/go-gh/v2/pkg/term"
 
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/report"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
-// jsonFields are the top-level fields of the --json document.
-var jsonFields = []string{"repository", "mode", "local", "config", "issues", "summary", "exitCode"}
+// jsonFields are the top-level fields of the JSON report.
+var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "ignored", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
 
-func parseJSONFields(in []string, set bool) ([]string, error) {
+func parseJSONFields(in []string) ([]string, error) {
 	var out []string
 	for _, f := range in {
 		f = strings.TrimSpace(f)
@@ -41,91 +42,72 @@ func parseJSONFields(in []string, set bool) ([]string, error) {
 	return out, nil
 }
 
-type jsonAction struct {
-	Description    string   `json:"description"`
-	ManualCommands []string `json:"manualCommands"`
+func buildReport(st *state.State, r *run, code int) report.Report {
+	out := report.Build(st, report.BuildOptions{Mode: r.mode.String(), DocsVersion: Version, Timings: r.progress.Timings()})
+	out.Local = r.f.local
+	out.ExitCode = code
+	return out
 }
 
-type jsonIssue struct {
-	Type        string      `json:"type"`
-	Severity    string      `json:"severity"`
-	Message     string      `json:"message"`
-	Version     string      `json:"version"`
-	CurrentSha  string      `json:"currentSha"`
-	ExpectedSha string      `json:"expectedSha"`
-	Status      string      `json:"status"`
-	AutoFixable bool        `json:"autoFixable"`
-	Action      *jsonAction `json:"action"`
-}
-
-type jsonSummary struct {
-	Total             int `json:"total"`
-	Errors            int `json:"errors"`
-	Warnings          int `json:"warnings"`
-	Fixed             int `json:"fixed"`
-	Failed            int `json:"failed"`
-	ManualFixRequired int `json:"manualFixRequired"`
-	Unfixable         int `json:"unfixable"`
-	Pending           int `json:"pending"`
-}
-
-func buildReport(st *state.State, r *run, code int) map[string]any {
-	issues := make([]jsonIssue, 0, len(st.Issues))
-	for _, i := range st.Issues {
-		ji := jsonIssue{
-			Type: i.Type, Severity: i.Severity, Message: i.Message, Version: i.Version,
-			CurrentSha: i.CurrentSha, ExpectedSha: i.ExpectedSha, Status: i.Status, AutoFixable: i.IsAutoFixable(),
+func buildFindingsReport(st *state.State, r *run, code int, versions []string) (report.Report, error) {
+	out := buildReport(st, r, code)
+	out.GeneratedAt = time.Now().UTC()
+	out.Filters = report.Filters{
+		Rules: append([]string{}, r.f.ruleFilter...), SkipRule: append([]string{}, r.f.skipRule...),
+		Findings: append([]string{}, r.f.findingFilter...), Versions: append([]string{}, versions...),
+		Ignored: append([]string{}, st.Config.IgnoreVersions...),
+	}
+	out.Refs = report.Refs{Tags: []report.Ref{}, Branches: []report.Ref{}, Releases: []report.Release{}}
+	for _, ref := range st.Tags {
+		out.Refs.Tags = append(out.Refs.Tags, report.Ref{Name: ref.Version, Ref: ref.Ref, SHA: ref.Sha, Ignored: ref.IsIgnored})
+	}
+	for _, ref := range st.Branches {
+		out.Refs.Branches = append(out.Refs.Branches, report.Ref{Name: ref.Version, Ref: ref.Ref, SHA: ref.Sha, Ignored: ref.IsIgnored})
+	}
+	for _, release := range st.Releases {
+		out.Refs.Releases = append(out.Refs.Releases, report.Release{
+			TagName: release.TagName, SHA: release.Sha, ID: release.ID, Draft: release.IsDraft,
+			Prerelease: release.IsPrerelease, Immutable: release.IsImmutable, Ignored: release.IsIgnored,
+			Latest: release.IsLatest, HTMLURL: release.HtmlUrl,
+		})
+	}
+	for i, issue := range st.Issues {
+		if issue.Action == nil {
+			continue
 		}
-		if i.Action != nil {
-			cmds := i.Action.ManualCommands(st)
-			if cmds == nil {
-				cmds = []string{}
-			}
-			ji.Action = &jsonAction{Description: i.Action.Description(), ManualCommands: cmds}
+		if manual, ok := issue.Action.(savedManualAction); ok {
+			out.Findings[i].Action = manual.serialized
+			continue
 		}
-		issues = append(issues, ji)
+		action, err := actions.Serialize(st, issue.Action)
+		if err != nil {
+			return report.Report{}, fmt.Errorf("serialize %s/%s: %w", issue.Rule, issue.Finding, err)
+		}
+		out.Findings[i].Action = &action
 	}
-	cfg := st.Config
-	ignore := cfg.IgnoreVersions
-	if ignore == nil {
-		ignore = []string{}
-	}
-	return map[string]any{
-		"repository": map[string]string{"host": st.Host, "owner": st.Owner, "name": st.Repo, "nameWithOwner": st.Owner + "/" + st.Repo},
-		"mode":       r.mode.String(),
-		"local":      r.f.local,
-		"config": map[string]any{
-			"checkMinorVersion":        cfg.CheckMinorVersion,
-			"checkReleases":            cfg.CheckReleases,
-			"checkReleaseImmutability": cfg.CheckImmutability,
-			"checkMarketplace":         cfg.CheckMarketplace,
-			"ignorePreviewReleases":    cfg.IgnorePreviewReleases,
-			"floatingVersionsUse":      cfg.FloatingVersionsUse,
-			"ignoreVersions":           ignore,
-		},
-		"issues": issues,
-		"summary": jsonSummary{
-			Total: len(st.Issues), Errors: len(st.ErrorIssues()), Warnings: len(st.WarningIssues()),
-			Fixed: st.FixedCount(), Failed: st.FailedCount(), ManualFixRequired: st.ManualFixCount(),
-			Unfixable: st.UnfixableCount(), Pending: st.CountStatus(state.StatusPending),
-		},
-		"exitCode": code,
-	}
+	return out, nil
 }
 
 // writeJSON prints the report (optionally restricted to fields) through --jq, --template or as
 // JSON: indented with colors on a terminal, compact otherwise.
-func writeJSON(env Env, f *flags, fields []string, report map[string]any) error {
-	if len(fields) > 0 {
-		filtered := map[string]any{}
-		for _, k := range fields {
-			filtered[k] = report[k]
-		}
-		report = filtered
-	}
-	data, err := json.Marshal(report)
+func writeJSON(env Env, f *flags, fields []string, reportData any) error {
+	data, err := json.Marshal(reportData)
 	if err != nil {
 		return err
+	}
+	if len(fields) > 0 {
+		var values map[string]json.RawMessage
+		if err := json.Unmarshal(data, &values); err != nil {
+			return err
+		}
+		filtered := make(map[string]json.RawMessage, len(fields))
+		for _, k := range fields {
+			filtered[k] = values[k]
+		}
+		data, err = json.Marshal(filtered)
+		if err != nil {
+			return err
+		}
 	}
 	switch {
 	case f.jq != "":
@@ -144,44 +126,4 @@ func writeJSON(env Env, f *flags, fields []string, report map[string]any) error 
 	}
 	_, err = env.Stdout.Write(append(data, '\n'))
 	return err
-}
-
-// writeStepSummary appends a markdown report to GITHUB_STEP_SUMMARY. Manual remediation steps are
-// added separately by remediation.Finish.
-func writeStepSummary(env Env, st *state.State, mode remediation.Mode, code int) {
-	path := env.Getenv("GITHUB_STEP_SUMMARY")
-	if path == "" {
-		return
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "## Version validation: %s/%s\n\n", st.Owner, st.Repo)
-	if len(st.Issues) == 0 {
-		b.WriteString("✅ No issues found.\n\n")
-	} else {
-		fmt.Fprintf(&b, "Mode: **%s** · errors: %d · warnings: %d · fixed: %d · failed: %d · manual: %d · unfixable: %d\n\n",
-			mode, len(st.ErrorIssues()), len(st.WarningIssues()), st.FixedCount(), st.FailedCount(), st.ManualFixCount(), st.UnfixableCount())
-		b.WriteString("| Version | Severity | Status | Message |\n|---|---|---|---|\n")
-		for _, i := range st.Issues {
-			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", mdCell(i.Version), i.Severity, i.Status, mdCell(i.Message))
-		}
-		b.WriteString("\n")
-	}
-	if code != 0 {
-		b.WriteString("❌ Validation errors remain.\n")
-	}
-	appendFile(path, b.String())
-}
-
-func mdCell(s string) string {
-	s = strings.NewReplacer("|", "\\|", "\r", " ", "\n", " ").Replace(s)
-	return s
-}
-
-func appendFile(path, text string) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	_, _ = f.WriteString(text)
 }

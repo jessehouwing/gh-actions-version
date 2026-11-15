@@ -21,7 +21,7 @@ When determining which release should be "latest", this rule checks `ReleaseInfo
 
 This rule is triggered when:
 
-- `--check-releases` is set to `error` or `warning`
+- `--level releases=error` or `--level releases=warning`
 - There is at least one published, non-prerelease release
 
 ## Validation Logic
@@ -50,26 +50,46 @@ gh release edit v1.0.0 --latest
 - `release_should_be_published` - Ensures draft releases are published
 - `release_should_be_immutable` - Ensures releases are immutable
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `latest_release_wrong` | The highest patch release is not marked as latest |
+
 ## Configuration
 
-This rule belongs to the `releases` concern.
+This rule belongs to the `releases` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  releases:
+    level: warning
+rules:
+  highest_patch_release_should_be_latest:
+    level: error
+    findings:
+      latest_release_wrong:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-releases=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level releases=<level>` sets this concern; `--rule-level highest_patch_release_should_be_latest=<level>` overrides this rule.
 - Config file: `concerns.releases.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.highest_patch_release_should_be_latest.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.releases.autofix: false` or `rules.highest_patch_release_should_be_latest.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.releases.fix: manual` or `rules.highest_patch_release_should_be_latest.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Examples
 

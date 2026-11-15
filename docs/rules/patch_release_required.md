@@ -14,28 +14,52 @@ The rule also detects when floating versions (e.g., `v1`, `v1.0`) exist but thei
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-releases` is set to `error` or `warning`
+- `--level releases=error` or `--level releases=warning`
+
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_missing` | A patch version does not have a GitHub Release |
+| `patch_tag_locked_by_deleted_release` | A patch tag is locked by a deleted immutable release |
 
 ## Configuration
 
-This rule belongs to the `releases` concern.
+This rule belongs to the `releases` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  releases:
+    level: warning
+rules:
+  patch_release_required:
+    level: error
+    findings:
+      release_missing:
+        level: warning
+        fix: manual
+      patch_tag_locked_by_deleted_release:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-releases=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level releases=<level>` sets this concern; `--rule-level patch_release_required=<level>` overrides this rule.
 - Config file: `concerns.releases.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.patch_release_required.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.releases.autofix: false` or `rules.patch_release_required.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.releases.fix: manual` or `rules.patch_release_required.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Required Permissions
 
@@ -43,20 +67,19 @@ Default: `error`.
 
 To see draft releases, use a token with write access to repository contents (in GitHub Actions: `permissions: contents: write`).
 
-Without write access, use `--check-releases=none` to disable this rule, or ensure all releases are published (not draft).
+Without write access, use `--level releases=none` to disable this rule, or ensure all releases are published (not draft).
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `CreateReleaseAction` which:
+When you run `fix --mode auto`, this rule uses `CreateReleaseAction` which:
 
 1. Creates a GitHub Release for the patch version
-2. If `--check-release-immutability` is enabled, publishes the release immediately (making it immutable)
+2. If the immutability level is not `none`, publishes the release immediately (making it immutable)
 3. If the tag doesn't exist yet, GitHub's API will create it automatically
 
-**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422 and the issue will be marked as **unfixable**. This tag can never have a release again. Floating versions (major/minor tags) and `latest` can track any version, but they *should* track the latest released version. Recommended remediation (do both):
+**Note:** If release creation returns HTTP 422 because this tag was used by a deleted immutable release, the issue is reclassified as `patch_tag_locked_by_deleted_release`. The default fix does not delete the tag. Deletion is irreversible and requires `permanently-delete-immutable-tags: dangerously-allow` in the policy or `--dangerously-allow-destructive-tag-deletion`. Otherwise, the finding requires manual attention.
 
-1. Add the affected version to `ignore-versions` so floating versions and `latest` fall back to the previous version that still has a valid release. The unfixable issue message includes the ready-to-paste new `ignore-versions` value, computed from your current configured list (wildcard patterns preserved) plus the affected version. For example: `--ignore-versions "v1.*,v6.3.0"`, or `ignore-versions: ["v1.*", v6.3.0]` in `action-version.yml`.
-2. Publish a new patch (or minor) release so floating versions and `latest` can advance forward to a version with a valid release, instead of remaining pinned to the previous one indefinitely.
+Add the affected version to `ignore-versions` so floating versions and `latest` fall back to the previous version that still has a valid release. The finding message includes the ready-to-paste updated value; publish a new patch (or minor) release so floating versions and `latest` can advance to a valid release.
 
 ## Manual Remediation
 
@@ -88,7 +111,7 @@ gh release create v1.0.0 --title "v1.0.0" --notes "Release v1.0.0" --draft
 
 ## Coordination with patch_tag_missing Rule
 
-When `--check-releases` is enabled (not `none`), the `patch_tag_missing` rule is automatically skipped. This is because:
+When `--level releases` is not `none`, the `patch_tag_missing` rule is automatically skipped. This is because:
 
 1. GitHub's release API creates tags implicitly if they don't exist
 2. Avoiding duplicate issues for the same problem
@@ -105,8 +128,8 @@ Repository state:
 - No release: v1.0.0
 
 Configuration:
-- --check-releases=error
-- --check-release-immutability=error
+- --level releases=error
+- --level immutability=error
 
 Issue: missing_release for v1.0.0
 Action: CreateReleaseAction (will create both release and tag)

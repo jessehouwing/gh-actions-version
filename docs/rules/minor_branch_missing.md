@@ -16,31 +16,51 @@ Minor version branches provide a convenient way for users to track the latest pa
 
 This rule runs when:
 - `floating-versions-use: branches`
-- `--check-minor-version=error` or `--check-minor-version=warning`
+- `--level minor=error` or `--level minor=warning`
 - At least one patch version exists for a major.minor series
+
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `minor_branch_missing` | A minor version branch is missing |
 
 ## Configuration
 
-This rule belongs to the `minor` concern.
+This rule belongs to the `minor` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  minor:
+    level: warning
+rules:
+  minor_branch_missing:
+    level: error
+    findings:
+      minor_branch_missing:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-minor-version=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level minor=<level>` sets this concern; `--rule-level minor_branch_missing=<level>` overrides this rule.
 - Config file: `concerns.minor.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.minor_branch_missing.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.minor.autofix: false` or `rules.minor_branch_missing.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.minor.fix: manual` or `rules.minor_branch_missing.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--include-preview-releases` / `ignore-preview-releases: false` in the config file: releases marked as prerelease are skipped when picking the latest patch by default. The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--preview-releases=included|excluded` / `preview: include|exclude` in the config file controls prerelease selection when picking the latest patch (default: exclude). The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Manual Remediation
 

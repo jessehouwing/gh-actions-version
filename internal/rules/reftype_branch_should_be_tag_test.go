@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Helpers shared by the ref_type and latest rule tests.
@@ -134,7 +134,7 @@ func TestBranchShouldBeTag(t *testing.T) {
 				st := state.New()
 				b := rtBranch(c.version, "abc123")
 				issue := rule(t).CreateIssue(b, st, cfg("tags"))
-				if issue == nil || issue.Type != "wrong_ref_type" || issue.Severity != "error" || issue.Version != c.version {
+				if issue == nil || issue.Finding != "floating_ref_should_be_tag" || issue.Severity != "error" || issue.Version != c.version {
 					t.Fatalf("unexpected issue %+v", issue)
 				}
 				a, ok := issue.Action.(*actions.ConvertBranchToTagAction)

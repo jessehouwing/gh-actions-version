@@ -15,26 +15,46 @@ This rule runs when:
 - A floating version (vX or vX.Y) exists as both a tag and a branch
 - Applies regardless of `floating-versions-use` setting (rule will clean up the wrong ref type)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `floating_tag_and_branch_both_exist` | A floating version exists as both a tag and a branch |
+
 ## Configuration
 
-This rule belongs to the `refs` concern.
+This rule belongs to the `refs` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  refs:
+    level: warning
+rules:
+  duplicate_floating_version_ref:
+    level: error
+    findings:
+      floating_tag_and_branch_both_exist:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level refs=<level>` sets this concern; `--rule-level duplicate_floating_version_ref=<level>` overrides this rule.
 - Config file: `concerns.refs.level` for all rules of the concern, or `rules.duplicate_floating_version_ref.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.refs.autofix: false` or `rules.duplicate_floating_version_ref.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.refs.fix: manual` or `rules.duplicate_floating_version_ref.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Manual Remediation
 

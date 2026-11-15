@@ -3,7 +3,7 @@ package rules
 import (
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func TestPatchTagMissing(t *testing.T) {
@@ -71,10 +71,10 @@ func TestPatchTagMissing(t *testing.T) {
 		c := cfg("tags", "none")
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with correct details for major version", missing: patchItem{Floating: state.NewVersionRef("v1", "refs/tags/v1", "abc123", state.TypeTag), Expected: "v1.0.0"}, cfg: c,
-				typ: "missing_patch_version", version: "v1.0.0", checkAction: wantCreateTag("v1.0.0", "abc123"),
+				typ: "patch_tag_missing", version: "v1.0.0", checkAction: wantCreateTag("v1.0.0", "abc123"),
 				message: "Floating version v1 exists but no corresponding patch version found. Expected: v1.0.0"},
 			{name: "should configure CreateTagAction with floating version SHA", missing: patchItem{Floating: state.NewVersionRef("v2", "refs/tags/v2", "def456", state.TypeTag), Expected: "v2.0.0"}, cfg: c,
-				typ: "missing_patch_version", checkAction: wantCreateTag("v2.0.0", "def456")},
+				typ: "patch_tag_missing", checkAction: wantCreateTag("v2.0.0", "def456")},
 		})
 	})
 }

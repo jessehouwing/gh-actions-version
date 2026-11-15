@@ -12,37 +12,57 @@ Validates that published (non-draft) releases for patch versions are truly immut
 ## When This Rule Applies
 
 This rule runs when:
-- `--check-release-immutability` is set to `error` or `warning`
+- `--level immutability=error` or `--level immutability=warning`
 - A published (non-draft) release exists for a patch version (vX.Y.Z)
 - The release does not have the `immutable: true` flag (checked via GraphQL API)
 
 **Note:** This rule only checks patch versions. Floating versions (vX, vX.Y) should not have releases at all.
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `release_not_immutable` | A published patch release is not immutable |
+
 ## Configuration
 
-This rule belongs to the `immutability` concern.
+This rule belongs to the `immutability` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  immutability:
+    level: warning
+rules:
+  release_should_be_immutable:
+    level: error
+    findings:
+      release_not_immutable:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: `--check-release-immutability=<level>` sets the level of every rule in this concern; `none` disables the rule.
+- CLI: `--level immutability=<level>` sets this concern; `--rule-level release_should_be_immutable=<level>` overrides this rule.
 - Config file: `concerns.immutability.level` (the flag wins over it).
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 - Config file, this rule only: `rules.release_should_be_immutable.level` (wins over the concern; `none` disables just this rule).
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.immutability.autofix: false` or `rules.release_should_be_immutable.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.immutability.fix: manual` or `rules.release_should_be_immutable.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 - `--dangerously-allow-destructive-tag-deletion`: required for the fix to delete a tag whose immutable release was deleted; there is no config file equivalent.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `RepublishReleaseAction` which:
+When you run `fix --mode auto`, this rule uses `RepublishReleaseAction` which:
 
 1. Queries whether "Release immutability" is enabled (`GET /repos/{owner}/{repo}/immutable-releases`) and enables it (`PUT`) if it is off
 2. Converts the release to draft
@@ -51,7 +71,7 @@ When `--auto-fix` is enabled, this rule uses `RepublishReleaseAction` which:
 
 **Important:** Enabling the setting requires repository admin permissions, which the default Actions `GITHUB_TOKEN` usually lacks. If it cannot be enabled, the issue is marked as "manual_fix_required" with the `gh api -X PUT` command to run, and the release is not republished (it would stay mutable).
 
-**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422. Because the release was most likely deleted for security reasons, auto-fix **deletes the tag** so it can no longer be referenced, but only when `--dangerously-allow-destructive-tag-deletion` is set; otherwise the issue is a **manual_fix_required** with the command to delete the tag yourself. If the tag cannot be deleted (e.g. a tag ruleset blocks it), the issue is marked as **manual_fix_required**; the message and manual instructions name the ruleset(s) to bypass or disable and give the command to delete the tag remotely (`git push origin :refs/tags/<tag>`).
+**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422. Deleting the tag is irreversible and requires `permanently-delete-immutable-tags: dangerously-allow` in the policy or `--dangerously-allow-destructive-tag-deletion`. Otherwise the issue is **manual_fix_required** with a command to delete the tag yourself. If a tag ruleset blocks deletion, the issue is also **manual_fix_required**; the message and manual instructions name the ruleset(s) and give the remote deletion command (`git push origin :refs/tags/<tag>`).
 
 ## Manual Remediation
 

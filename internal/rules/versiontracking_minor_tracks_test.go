@@ -24,12 +24,12 @@ func TestMinorTagTracksHighestPatch(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with error severity", refs: []vtRef{tg("v1.0", "old123"), tg("v1.0.0", "abc123")}, item: "v1.0", cfg: vtMinorCfg("tags", "error", true),
-				typ: "incorrect_minor_version", version: "v1.0", currentSha: "old123", expectedSha: "abc123", checkAction: wantUpdateTag("v1.0", "abc123"),
+				typ: "minor_tag_wrong_target", version: "v1.0", currentSha: "old123", expectedSha: "abc123", checkAction: wantUpdateTag("v1.0", "abc123"),
 				message: "v1.0 points to old123 but should point to v1.0.0 at abc123"},
 			{name: "should create issue with warning severity", refs: []vtRef{tg("v1.0", "old123"), tg("v1.0.0", "abc123")}, item: "v1.0", cfg: vtMinorCfg("tags", "warning", true),
-				typ: "incorrect_minor_version", severity: "warning", currentSha: "old123"},
+				typ: "minor_tag_wrong_target", severity: "warning", currentSha: "old123"},
 			{name: "should configure UpdateTagAction with force flag", refs: []vtRef{tg("v2.1", "old123"), tg("v2.1.5", "new456")}, item: "v2.1", cfg: vtMinorCfg("tags", "error", true),
-				typ: "incorrect_minor_version", currentSha: "old123", checkAction: wantUpdateTag("v2.1", "new456")},
+				typ: "minor_tag_wrong_target", currentSha: "old123", checkAction: wantUpdateTag("v2.1", "new456")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestMinorTagTracksHighestPatch(t *testing.T) {
 		})
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.0.1"}, refs: []vtRef{tg("v1.0", "old123"), tg("v1.0.0", "stable456"), tg("v1.0.1", "prerel789")}, item: "v1.0", cfg: vtMinorCfg("tags", "error", true),
-				typ: "incorrect_minor_version", currentSha: "old123", expectedSha: "stable456"},
+				typ: "minor_tag_wrong_target", currentSha: "old123", expectedSha: "stable456"},
 		})
 	})
 }
@@ -67,12 +67,12 @@ func TestMinorBranchTracksHighestPatch(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should create issue with error severity", refs: []vtRef{br("v1.0", "old123"), tg("v1.0.0", "new456")}, item: "v1.0", cfg: vtMinorCfg("branches", "error", true),
-				typ: "incorrect_minor_version", version: "v1.0", currentSha: "old123", expectedSha: "new456", checkAction: wantUpdateBranch("v1.0", "new456"),
+				typ: "minor_branch_wrong_target", version: "v1.0", currentSha: "old123", expectedSha: "new456", checkAction: wantUpdateBranch("v1.0", "new456"),
 				message: "v1.0 points to old123 but should point to v1.0.0 at new456"},
 			{name: "should create issue with warning severity", refs: []vtRef{br("v1.0", "old123"), tg("v1.0.0", "new456")}, item: "v1.0", cfg: vtMinorCfg("branches", "warning", true),
-				typ: "incorrect_minor_version", severity: "warning", currentSha: "old123"},
+				typ: "minor_branch_wrong_target", severity: "warning", currentSha: "old123"},
 			{name: "should configure UpdateBranchAction with correct SHA", refs: []vtRef{br("v2.1", "old123"), tg("v2.1.0", "old456"), tg("v2.1.1", "new789")}, item: "v2.1", cfg: vtMinorCfg("branches", "error", true),
-				typ: "incorrect_minor_version", currentSha: "old123", checkAction: wantUpdateBranch("v2.1", "new789")},
+				typ: "minor_branch_wrong_target", currentSha: "old123", checkAction: wantUpdateBranch("v2.1", "new789")},
 		})
 	})
 	t.Run("Prerelease Filtering", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestMinorBranchTracksHighestPatch(t *testing.T) {
 		})
 		vtRunIssue(t, name, []vtIssue{
 			{name: "should use non-prerelease SHA in CreateIssue when ignore-preview-releases is true", prerelease: []string{"v1.0.1"}, refs: []vtRef{br("v1.0", "old123"), tg("v1.0.0", "stable456"), tg("v1.0.1", "prerel789")}, item: "v1.0", cfg: vtMinorCfg("branches", "error", true),
-				typ: "incorrect_minor_version", currentSha: "old123", expectedSha: "stable456"},
+				typ: "minor_branch_wrong_target", currentSha: "old123", expectedSha: "stable456"},
 		})
 	})
 }

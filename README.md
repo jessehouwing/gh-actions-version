@@ -1,4 +1,4 @@
-# gh-version-action
+# gh-actions-version
 
 A [`gh`](https://cli.github.com) extension that validates and repairs the version tags, branches and releases of a
 GitHub Action repository, following GitHub's
@@ -8,17 +8,18 @@ It is the Go successor of the PowerShell `jessehouwing/actions-semver-checker` A
 ## Install
 
 ```sh
-gh extension install jessehouwing/gh-version-action
-gh extension upgrade version-action
+gh extension install jessehouwing/gh-actions-version
+gh extension upgrade actions-version
 ```
 
 ## Quickstart
 
 ```sh
 cd my-action-repo
-gh version-action                 # report problems (read-only)
-gh version-action --auto-fix      # fix them
-gh version-action -R owner/repo   # run against another repository
+gh actions-version setup           # configure and write action-version.yml
+gh actions-version verify          # report problems (read-only)
+gh actions-version fix --mode auto      # fix them
+gh actions-version verify -R owner/repo # run against another repository
 ```
 
 ## What it checks
@@ -30,25 +31,46 @@ gh version-action -R owner/repo   # run against another repository
 
 Prerelease status comes only from the GitHub Release API, never from tag suffixes.
 
-## Modes
+## Commands and output
 
-| Flag | Behavior |
+| Command or flag | Behavior |
 |---|---|
-| `--check` (alias `--no-fix`) | Report only; exit 1 when errors are found. |
-| `--auto-fix` | Apply fixes (needs write access). |
-| `--interactive` / `-i` | Review and confirm each fix on a terminal; `--yes` turns it into auto-fix. |
+| `setup` | Configure a local policy interactively; `--yes` accepts defaults. |
+| `verify [versions...]` | Report only; exit 1 when errors meet `--fail-on` (default: `error`). |
+| `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
+| `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
+| `fix --mode manual` | Print remediation instructions without changing anything. |
+| `verify --save FILE` / `fix --from FILE` | Save findings for review and apply them later. |
+| `ignore PATTERN` / `ignore --list` / `ignore --remove PATTERN` | Manage local ignore entries without network access. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
-| `--json fields` (`--jq`, `--template`) | Machine-readable output, as in other `gh` commands. |
+| `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
+| `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
 
 Every rule is documented in [docs/rules](docs/rules/README.md).
+See [CLI output formats](docs/cli.md#output-formats) for details on console, JSON, and GitHub Actions reports.
 
-Rule options: `--check-minor-version`, `--check-releases`, `--check-release-immutability`, `--check-marketplace`
-(`error`, `warning`, `none`), `--include-preview-releases`, `--floating-versions-use` (`tags`, `branches`, `both`),
-`--ignore-versions` (supports `v1.*`), `--max-wait`. See `gh version-action --help`.
+### Verify now, fix later
 
-`--dangerously-allow-destructive-tag-deletion` is needed only when a tag was used by an immutable release that has since been deleted: such a tag can't be republished, and deleting it is irreversible. Without the flag the issue is reported as a manual fix with the `git push origin :refs/tags/<tag>` command. Other tag deletions are not affected.
+```sh
+gh actions-version verify -R owner/repo --save findings.json
+gh actions-version fix --from findings.json --mode manual
+gh actions-version fix -R owner/repo --from findings.json --mode auto
+```
 
-Exit codes: `0` success, `1` validation errors remain, `2` usage error.
+Remote automatic or interactive replay requires the independently selected repository to match the saved
+repository. Use `-R` when it cannot be inferred. The saved file is trusted and is not checked for staleness;
+re-run `verify` when the repository may have changed. See [saved findings](docs/cli.md#verify-now-fix-later).
+
+Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
+(`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
+Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`),
+`--ignore-version` (repeatable; supports `v1.*`), `--no-ignore`, and `--max-wait`. See `gh actions-version --help`.
+
+Deleting a tag used by a deleted immutable release is irreversible. It is denied by default; explicitly set
+`permanently-delete-immutable-tags: dangerously-allow` in the policy or pass
+`--dangerously-allow-destructive-tag-deletion` to permit it. Other tag deletions are not affected.
+
+Exit codes: `0` success, `1` qualifying findings remain, `2` usage or runtime error, `3` fixes applied but qualifying findings remain.
 
 ## Authentication
 
@@ -64,22 +86,45 @@ In Actions, `GITHUB_TOKEN` with `contents: write` can push tags and create relea
 ## Version policy (`action-version.yml`)
 
 Defaults for the versioning strategy (tags or branches, major/minor/patch, releases, immutability) and
-for each concern's `error`/`warning`/`none` level and `autofix` come from a built-in policy. Commit an
+for each concern's `error`/`warning`/`none` level and `fix` policy come from a built-in policy. Commit an
 `action-version.yml` at the repository root (or `.github/`; the first found wins) to override it, per
 concern or per rule:
 
 ```yaml
 version: 1
 floating-versions-use: tags
+preview: include
+permanently-delete-immutable-tags: deny
 concerns:
   minor: { level: warning }
-  releases: { autofix: false }
+  releases: { fix: manual }
 rules:
   immutable_releases_enabled: { level: none }
 ```
 
 Precedence: command-line flag > `action-version.yml` > built-in default. The built-in file is
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
+
+`setup` asks about floating versions, releases, preview handling, irreversible tag deletion, ignores,
+and fix policies. It runs locally without a token. Use `setup --yes --print` to review defaults or
+`setup --yes --path .github/action-version.yml` to write them without prompts. Existing files require
+confirmation or `--force`; updates preserve comments and unrelated settings. Existing ignores are retained
+unless `--no-ignore` is supplied. Preview releases default to excluded and destructive tag deletion to denied.
+
+### Ignored versions
+
+```sh
+gh actions-version ignore 'v1.2.3' --scope selection --reason "broken release"
+gh actions-version ignore --list
+gh actions-version ignore --remove 'v1.2.3'
+gh actions-version verify --no-ignore
+```
+
+`all` hides a version entirely; `selection` excludes it from highest-version selection while retaining
+validation; `validation` suppresses findings; `fix` makes findings manual-only. Add `--until YYYY-MM-DD`
+and repeat `--rule RULE_OR_FINDING` to restrict an entry. Expired and unused entries produce warnings.
+`--ignore-version` adds one-off `all` entries; `--no-ignore` clears configured entries first.
+Use `--config PATH` to edit a specific file. See [ignored versions](specs/ignored_versions.md).
 
 ## Rate limiting
 
@@ -94,7 +139,7 @@ or can be set to `none`.
 
 ## Limitations
 
-- A tag used by a deleted immutable release cannot be reused; use `--ignore-versions` or a new patch version.
+- A tag used by a deleted immutable release cannot be reused; use a `selection` ignore or a new patch version.
 - Tag rulesets can block tag deletion; the tool names the ruleset and prints manual commands.
 - Auto-fix never rewrites published immutable releases.
 
@@ -106,10 +151,10 @@ or can be set to `none`.
 permissions:
   contents: write
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v7
   - run: |
-      gh extension install jessehouwing/gh-version-action
-      gh version-action --auto-fix
+      gh extension install jessehouwing/gh-actions-version
+      gh actions-version fix --mode auto
     env:
       GH_TOKEN: ${{ github.token }}
 ```
@@ -120,7 +165,7 @@ steps:
 |---|---|---|
 | Runtime | `pwsh` on a runner | single Go binary via `gh` |
 | Local use | no | yes (`--local`, interactive) |
-| Output | log annotations | annotations, `--json`, `--jq`, `--template` |
+| Output | log annotations | console, JSON, or GitHub Actions workflow commands (`--output`, `--jq`, `--template`) |
 | Inputs | action inputs | command-line flags |
 
 See [docs/migration.md](docs/migration.md) and [docs/troubleshooting.md](docs/troubleshooting.md).

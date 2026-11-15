@@ -14,7 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/progress"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type rewrite struct{ target *url.URL }
@@ -238,7 +239,7 @@ func TestImmutableReleaseError(t *testing.T) {
 	t.Run("Should mark create release result unfixable", func(t *testing.T) {
 		hn := newHarness(t, func(w http.ResponseWriter, r *http.Request) { jsonResp(w, 422, immut) })
 		res, err := hn.c.CreateReleaseWithLatest(ctx(), "v1.0.0", false, nil)
-		if err == nil || res.Success || !res.Unfixable {
+		if err == nil || !errors.Is(err, state.ErrUnfixable) || res.Success || !res.Unfixable {
 			t.Fatalf("%+v %v", res, err)
 		}
 	})
@@ -318,6 +319,7 @@ func TestGetReleases(t *testing.T) {
 	})
 	t.Run("Should map GraphQL nodes, paginate and honour ignore-versions", func(t *testing.T) {
 		var pages int
+		var progressOutput strings.Builder
 		h := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
 			pages++
 			if pages == 1 {
@@ -329,7 +331,10 @@ func TestGetReleases(t *testing.T) {
 			jsonResp(w, 200, releasesPage([]map[string]any{
 				{"databaseId": 2, "tagName": "v2.0.0", "isPrerelease": true, "isDraft": true, "immutable": false, "isLatest": false},
 			}, false, ""))
-		}, func(o *Options) { o.IgnoreVersions = []string{"v2.*"} })
+		}, func(o *Options) {
+			o.IgnoreVersions = []string{"v2.*"}
+			o.Progress = progress.New(progress.Options{Writer: &progressOutput})
+		})
 		rels, err := h.c.GetReleases(ctx())
 		if err != nil || len(rels) != 2 || pages != 2 {
 			t.Fatalf("%v %d %v", rels, pages, err)
@@ -340,6 +345,11 @@ func TestGetReleases(t *testing.T) {
 		}
 		if rl, ok := h.c.LastGraphQLRateLimit(); !ok || rl.Remaining != 4999 {
 			t.Fatalf("%+v", rl)
+		}
+		for _, want := range []string{"page 1, 1 releases loaded", "page 2, 2 releases loaded"} {
+			if !strings.Contains(progressOutput.String(), want) {
+				t.Errorf("progress output %q does not contain %q", progressOutput.String(), want)
+			}
 		}
 	})
 }
@@ -437,6 +447,7 @@ func TestLoad(t *testing.T) {
 		default:
 			jsonResp(w, 404, map[string]any{"message": "nf"})
 		}
+
 	})
 	cfg := state.Config{CheckMarketplace: "error", IgnoreVersions: []string{"v1.0.0"}}
 	s, err := Load(ctx(), h.c, cfg)
@@ -469,6 +480,25 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("%v %v", s2.Marketplace, err)
 		}
 	})
+}
+
+func TestLoadFailsOnMarketplaceMetadataError(t *testing.T) {
+	h := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/git/") || strings.HasSuffix(r.URL.Path, "/branches"):
+			jsonResp(w, 200, []any{})
+		case strings.HasSuffix(r.URL.Path, "/graphql"):
+			jsonResp(w, 200, releasesPage(nil, false, ""))
+		case strings.HasSuffix(r.URL.Path, "/contents/action.yaml"):
+			jsonResp(w, 403, map[string]any{"message": "metadata denied"})
+		default:
+			jsonResp(w, 404, map[string]any{"message": "unexpected request"})
+		}
+	})
+	s, err := Load(ctx(), h.c, state.Config{CheckMarketplace: "error"})
+	if err == nil || s != nil || !strings.Contains(err.Error(), "metadata denied") {
+		t.Fatalf("state=%+v error=%v", s, err)
+	}
 }
 
 func b64(s string) string {

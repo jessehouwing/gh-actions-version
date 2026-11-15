@@ -3,8 +3,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type vtRef struct {
@@ -133,8 +133,8 @@ func vtRunIssue(t *testing.T, rule string, cases []vtIssue) {
 				item = vtFindRef(t, st, c.item)
 			}
 			issue := vtRule(t, rule).CreateIssue(item, st, &cfg)
-			if issue.Type != c.typ {
-				t.Errorf("Type = %s, want %s", issue.Type, c.typ)
+			if issue.Finding != c.typ {
+				t.Errorf("Finding = %s, want %s", issue.Finding, c.typ)
 			}
 			sev := c.severity
 			if sev == "" {

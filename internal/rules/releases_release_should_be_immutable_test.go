@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func TestReleaseShouldBeImmutableRule(t *testing.T) {
@@ -80,14 +80,14 @@ func TestReleaseShouldBeImmutableRule(t *testing.T) {
 	t.Run("CreateIssue", func(t *testing.T) {
 		t.Run("should create issue with error severity when configured as error", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1.0.0", 123, false, false, false), state.New(), cfg("error"))
-			if _, ok := issue.Action.(*actions.RepublishReleaseAction); issue.Type != "non_immutable_release" || issue.Severity != "error" ||
+			if _, ok := issue.Action.(*actions.RepublishReleaseAction); issue.Finding != "release_not_immutable" || issue.Severity != "error" ||
 				!strings.Contains(issue.Message, "v1.0.0") || !ok {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})
 		t.Run("should create issue with warning severity when configured as warning", func(t *testing.T) {
 			issue := rule.CreateIssue(rel("v1.0.1", 124, false, false, false), state.New(), cfg("warning"))
-			if issue.Type != "non_immutable_release" || issue.Severity != "warning" {
+			if issue.Finding != "release_not_immutable" || issue.Severity != "warning" {
 				t.Errorf("unexpected issue %+v", issue)
 			}
 		})

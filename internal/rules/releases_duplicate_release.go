@@ -3,14 +3,15 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "duplicate_release",
 		Description: "Delete duplicate draft releases that point to the same tag as another release",
+		Findings:    []FindingDef{{ID: "release_duplicate", Summary: "A duplicate draft release exists"}},
 		Priority:    9,
 		Category:    "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -26,7 +27,7 @@ func init() {
 		Check: func(item any, st *state.State, cfg *state.Config) bool { return false },
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
 			r := item.(*state.ReleaseInfo)
-			issue := state.NewIssue("duplicate_release", releaseSeverity(cfg.CheckReleases),
+			issue := state.NewIssue("release_duplicate", releaseSeverity(cfg.CheckReleases),
 				fmt.Sprintf("Duplicate draft release found for %s (release ID: %d) - will be deleted", r.TagName, r.ID))
 			issue.Version = r.TagName
 			issue.Action = actions.NewDeleteReleaseAction(r.TagName, r.ID)

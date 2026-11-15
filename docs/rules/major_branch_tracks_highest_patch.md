@@ -16,31 +16,51 @@ This rule runs when:
 - `floating-versions-use` is set to `branches`
 - A major version branch exists (vX)
 
+## Findings
+
+| Finding | Summary |
+|---|---|
+| `major_branch_wrong_target` | A major version branch points to the wrong patch version |
+
 ## Configuration
 
-This rule belongs to the `major` concern.
+This rule belongs to the `major` concern. Configure it and its findings in `action-version.yml`:
+
+```yaml
+concerns:
+  major:
+    level: warning
+rules:
+  major_branch_tracks_highest_patch:
+    level: error
+    findings:
+      major_branch_wrong_target:
+        level: warning
+        fix: manual
+```
 
 ### Level (`error`, `warning`, `none`)
 
-- CLI: no flag; configure it in `action-version.yml`.
+- CLI: `--level major=<level>` sets this concern; `--rule-level major_branch_tracks_highest_patch=<level>` overrides this rule.
 - Config file: `concerns.major.level` for all rules of the concern, or `rules.major_branch_tracks_highest_patch.level` for this rule only (wins over the concern). `none` skips the check.
+- Finding override: use `--finding-level FINDING=<level>` or the finding-specific YAML keys above.
 
 Default: `error`.
 
 ### Auto-fix
 
-- CLI: `--auto-fix` (or `--interactive`, `--yes`) applies the fix; `--check` / `--no-fix` never changes anything. Without a mode flag the tool prompts on a terminal and only reports otherwise.
-- Config file: `concerns.major.autofix: false` or `rules.major_branch_tracks_highest_patch.autofix: false` turns the fix into a manual instruction, even with `--auto-fix`.
+- CLI: `fix --mode auto` applies the fix; use `fix --mode interactive` to review changes one by one. `verify` never changes anything.
+- Config file: `concerns.major.fix: manual` or `rules.major_branch_tracks_highest_patch.fix: manual` turns the fix into a manual instruction, even when `fix --mode auto` is selected.
 
 ### Other settings that influence this rule
 
 - `--floating-versions-use <tags|branches>` / `floating-versions-use` in the config file: whether floating refs are tags or branches (default `tags`). The flag wins.
-- `--include-preview-releases` / `ignore-preview-releases: false` in the config file: releases marked as prerelease are skipped when picking the latest patch by default. The flag wins.
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--preview-releases=included|excluded` / `preview: include|exclude` in the config file controls prerelease selection when picking the latest patch (default: exclude). The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Automatic Remediation
 
-When `--auto-fix` is enabled, this rule uses `UpdateBranchAction` which:
+When you run `fix --mode auto`, this rule uses `UpdateBranchAction` which:
 
 1. Updates the major branch to point to the highest patch version's SHA
 2. Force-pushes the branch reference

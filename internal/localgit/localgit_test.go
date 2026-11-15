@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 var ctx = context.Background()
@@ -92,6 +92,10 @@ func TestLoad(t *testing.T) {
 		st, warnings, err := Load(ctx, dir, state.Config{CheckReleases: "error", CheckImmutability: "error", CheckMarketplace: "error"})
 		if err != nil || st.Config.CheckReleases != "none" || st.Config.CheckImmutability != "none" || st.Config.CheckMarketplace != "none" || len(warnings) != 1 {
 			t.Fatalf("%v %+v %v", err, st, warnings)
+		}
+		if len(st.SkippedChecks) != 1 || st.SkippedChecks[0].Check != "release and marketplace checks" ||
+			st.SkippedChecks[0].Reason != "local mode" {
+			t.Fatalf("skipped checks = %+v, want release checks skipped in local mode", st.SkippedChecks)
 		}
 	})
 	t.Run("fails outside a git repository", func(t *testing.T) {
@@ -347,7 +351,7 @@ func TestActions(t *testing.T) {
 	t.Run("release actions are reported as unfixable and change nothing", func(t *testing.T) {
 		dir, _, _, _, st := setup(t)
 		a := actions.NewCreateReleaseAction("v1.0.0", false, false, "")
-		i := state.NewIssue("missing_release", "error", "Release required")
+		i := state.NewIssue("release_missing", "error", "Release required")
 		i.Version, i.Action = "v1.0.0", a
 		st.AddIssue(i)
 		if a.Execute(ctx, st, New(dir)) || i.Status == state.StatusFixed {

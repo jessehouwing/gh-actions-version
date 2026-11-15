@@ -12,13 +12,215 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jessehouwing/gh-version-action/internal/api"
-	"github.com/jessehouwing/gh-version-action/internal/testutil"
+	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/policy"
+	"github.com/jessehouwing/gh-actions-version/internal/testutil"
 )
 
 type result struct {
 	code     int
 	out, err string
+}
+
+func TestParseLevelOverridesTracksFlagSources(t *testing.T) {
+	over, err := parseLevelOverrides(
+		[]string{"major=warning"},
+		[]string{"major_tag_missing=error"},
+		[]string{"major_tag_missing=none"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		"concerns.major.level",
+		"rules.major_tag_missing.level",
+		"rules.major_tag_missing.findings.major_tag_missing.level",
+	} {
+		if got := over.Sources[path]; got != "flag" {
+			t.Errorf("source for %q = %q, want flag", path, got)
+		}
+	}
+}
+
+func TestImmutableTagDeletionConfig(t *testing.T) {
+	const error422 = `{"message":"Validation Failed","errors":[{"resource":"Release","code":"custom","field":"tag_name","message":"tag_name was used by an immutable release"}]}`
+	for _, tc := range []struct {
+		name, config, flag, source string
+		allow                      bool
+	}{
+		{"default deny", "", "", "default", false},
+		{"file deny", "deny", "", "file:action-version.yml", false},
+		{"file allows", "dangerously-allow", "", "file:action-version.yml", true},
+		{"no config denies", "dangerously-allow", "--no-config", "default", false},
+		{"flag overrides deny", "deny", "--dangerously-allow-destructive-tag-deletion", "flag", true},
+		{"explicit false overrides file", "dangerously-allow", "--dangerously-allow-destructive-tag-deletion=false", "flag", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1")
+			if tc.config != "" {
+				gh.File("action-version.yml", "permanently-delete-immutable-tags: "+tc.config+"\n")
+			}
+			gh.Fail("POST", "/releases", 422, error422, 1)
+			args := []string{"fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--level=minor=none", "--level=immutability=none", "--level=marketplace=none", "--output=json"}
+			if tc.flag != "" {
+				args = append(args, tc.flag)
+			}
+			result := newEnv(t, gh).runRaw(args...)
+			config := result.json(t)["config"].(map[string]any)
+			if config["allowDestructiveTagDeletion"] != tc.allow || config["sources"].(map[string]any)["permanently-delete-immutable-tags"] != tc.source {
+				t.Fatalf("config = %v", config)
+			}
+			if deleted := gh.TagSha("v1.0.0") == ""; deleted != tc.allow {
+				t.Fatalf("deleted=%t, want %t; exit=%d, output=%s", deleted, tc.allow, result.code, result.all())
+			}
+		})
+	}
+	t.Run("invalid policy is rejected", func(t *testing.T) {
+		gh := testutil.NewGitHub(t).File("action-version.yml", "permanently-delete-immutable-tags: allow\n")
+		result := newEnv(t, gh).runRaw("verify", "-R", "o/r")
+		if result.code != ExitUsage || !strings.Contains(result.all(), "permanently-delete-immutable-tags") {
+			t.Fatalf("exit=%d, output=%s", result.code, result.all())
+		}
+	})
+}
+
+func TestStructuredIgnoreScopes(t *testing.T) {
+	fixture := func(policy string) *testutil.GitHub {
+		return testutil.NewGitHub(t).Tag(c1, "v1.0.0").Tag(c2, "v1.0.1", "v1", "v1.0").
+			File("action-version.yml", policy)
+	}
+	t.Run("selection applies only to the specified rule", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: selection\n    rules: [major_tag_tracks_highest_patch]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d: %s", r.code, r.all())
+		}
+		findings := r.json(t)["findings"].([]any)
+		var major, minor bool
+		for _, raw := range findings {
+			f := raw.(map[string]any)
+			if f["finding"] == "major_tag_wrong_target" {
+				major = f["expectedSha"] == c1
+			}
+			minor = minor || f["finding"] == "minor_tag_wrong_target"
+		}
+		if !major || minor {
+			t.Fatalf("unexpected findings: %v", findings)
+		}
+	})
+	t.Run("validation hides findings without changing selection", func(t *testing.T) {
+		base := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1").Tag(c2, "v1.0.1", "v1.0")
+		control := newEnv(t, base).runRaw("verify", "-R", "o/r", "--output=json", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if len(control.json(t)["findings"].([]any)) != 1 {
+			t.Fatalf("control did not produce expected finding: %s", control.all())
+		}
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1").Tag(c2, "v1.0.1", "v1.0").
+			File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: validation\n    rules: [major_tag_wrong_target]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		for _, raw := range r.json(t)["findings"].([]any) {
+			if raw.(map[string]any)["finding"] == "major_tag_wrong_target" {
+				t.Fatal("validation ignore did not suppress finding")
+			}
+		}
+		verbose := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--verbose", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if !strings.Contains(verbose.out, "Skipped finding: v1 major_tag_tracks_highest_patch / major_tag_wrong_target") {
+			t.Fatalf("verbose ignore detail missing: %s", verbose.all())
+		}
+	})
+	t.Run("all scope suppresses and excludes a patch only for its rule", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: all\n    rules: [major_tag_tracks_highest_patch]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		findings := r.json(t)["findings"].([]any)
+		if len(findings) != 1 || findings[0].(map[string]any)["expectedSha"] != c1 {
+			t.Fatalf("all scope did not exclude target: %s", r.all())
+		}
+	})
+	t.Run("selection does not suppress validation", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: selection\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--rule=patch_release_required", "--level=marketplace=none")
+		found := false
+		for _, raw := range r.json(t)["findings"].([]any) {
+			f := raw.(map[string]any)
+			found = found || f["version"] == "v1.0.1" && f["finding"] == "release_missing"
+		}
+		if !found {
+			t.Fatalf("selection suppressed validation: %s", r.all())
+		}
+	})
+	t.Run("fix scope and expiry protect automatic fixes", func(t *testing.T) {
+		for _, tc := range []struct {
+			policy string
+			writes bool
+		}{
+			{"ignore:\n  - versions: [v1]\n    scope: fix\n", false},
+			{"ignore:\n  - versions: [v1]\n    scope: fix\n    until: 2000-01-01\n", true},
+		} {
+			gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", tc.policy)
+			r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+			if (len(gh.Writes()) != 0) != tc.writes {
+				t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+			}
+		}
+	})
+	t.Run("saved findings retain manual fix policy", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--output=json")
+		if r.code != ExitValidation || len(replay.Requests()) != 0 {
+			t.Fatalf("replay exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		}
+		if len(r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)) != 1 {
+			t.Fatal("recorded ignore entry lost on replay")
+		}
+		replay = testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore")
+		if r.code != ExitOK || replay.TagSha("v1") != c1 {
+			t.Fatalf("no-ignore replay exit %d: %s", r.code, r.all())
+		}
+	})
+	t.Run("no-ignore preserves recorded manual rule policy", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\nrules:\n  major_tag_missing:\n    fix: manual\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore")
+		if r.code != ExitValidation || len(replay.Writes()) != 0 {
+			t.Fatalf("manual policy lost: %s", r.all())
+		}
+	})
+	t.Run("saved no-ignore does not restore absent findings or stale ignore counts", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore-versions: [v1.0.0]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitOK {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--no-ignore", "--output=json")
+		out := r.json(t)
+		if r.code != ExitOK || len(replay.Writes()) != 0 || len(out["findings"].([]any)) != 0 ||
+			out["summary"].(map[string]any)["ignored"].(float64) != 0 {
+			t.Fatalf("replay exit %d: %s", r.code, r.all())
+		}
+	})
+	t.Run("fix scope protects a finding discovered during execution", func(t *testing.T) {
+		const error422 = `{"message":"Validation Failed","errors":[{"resource":"Release","code":"custom","field":"tag_name","message":"tag_name was used by an immutable release"}]}`
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1").
+			File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n    scope: fix\n    rules: [patch_tag_locked_by_deleted_release]\n")
+		gh.Fail("POST", "/releases", 422, error422, 1)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--dangerously-allow-destructive-tag-deletion", "--rule=patch_release_required")
+		if gh.TagSha("v1.0.0") == "" || !strings.Contains(r.all(), "ignore policy") {
+			t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+		}
+	})
 }
 
 func (r result) json(t *testing.T) map[string]any {
@@ -55,15 +257,18 @@ func (p *fakePrompter) Confirm(msg string, def bool) (bool, error) {
 
 // testEnv builds an Env wired to the fake server with a fixed process environment.
 type testEnv struct {
-	gh       *testutil.GitHub
-	vars     map[string]string
-	tty      bool
-	prompter Prompter
-	dir      string
-	cfgToken string // token known to gh's config (returned when no variable is set)
-	refresh  func(ctx context.Context, host string, scopes []string) error
-	stdout   strings.Builder
-	stderr   strings.Builder
+	gh          *testutil.GitHub
+	vars        map[string]string
+	tty         bool
+	prompter    Prompter
+	dir         string
+	currentRepo *api.Repo
+	cfgToken    string // token known to gh's config (returned when no variable is set)
+	tokenCalls  int
+	refresh     func(ctx context.Context, host string, scopes []string) error
+	stdin       string
+	stdout      strings.Builder
+	stderr      strings.Builder
 }
 
 func newEnv(t *testing.T, gh *testutil.GitHub) *testEnv {
@@ -72,10 +277,46 @@ func newEnv(t *testing.T, gh *testutil.GitHub) *testEnv {
 }
 
 func (e *testEnv) run(args ...string) result {
+	command := ""
+	filtered := make([]string, 0, len(args))
+	for _, arg := range args {
+		switch arg {
+		case "verify", "fix":
+			command = arg
+		case "--check", "--no-fix":
+			if command == "" {
+				command = "verify"
+			}
+		case "--auto-fix":
+			if command == "" {
+				command = "fix"
+			}
+		case "--interactive", "-i", "--yes":
+			if command == "" {
+				command = "fix"
+			}
+			filtered = append(filtered, arg)
+		default:
+			filtered = append(filtered, arg)
+		}
+	}
+	if command == "" {
+		if e.tty {
+			command = "fix"
+		} else {
+			command = "verify"
+		}
+	}
+	return e.runRaw(append([]string{command}, filtered...)...)
+}
+
+func (e *testEnv) runRaw(args ...string) result {
 	env := Env{
 		Stdout: &e.stdout, Stderr: &e.stderr, IsTTY: e.tty, Dir: e.dir, Prompter: e.prompter,
+		Stdin:  strings.NewReader(e.stdin),
 		Getenv: func(k string) string { return e.vars[k] },
 		Token: func(string) (string, string) {
+			e.tokenCalls++
 			for _, k := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
 				if v := e.vars[k]; v != "" {
 					return v, k
@@ -84,6 +325,9 @@ func (e *testEnv) run(args ...string) result {
 			return e.cfgToken, "oauth_token"
 		},
 		ResolveRepo: func(flag string) (api.Repo, error) {
+			if flag == "" && e.currentRepo != nil {
+				return *e.currentRepo, nil
+			}
 			owner, name, ok := strings.Cut(flag, "/")
 			if flag == "" || !ok || owner == "" || name == "" {
 				return api.Repo{}, errors.New("expected the [HOST/]OWNER/REPO format")
@@ -105,9 +349,13 @@ func (e *testEnv) run(args ...string) result {
 }
 
 // Common flags: validate tags only unless a test asks for releases or marketplace metadata.
-var tagsOnly = []string{"-R", "o/r", "--check-releases=none", "--check-release-immutability=none", "--check-marketplace=none"}
+var tagsOnly = []string{"-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none"}
 
 func args(extra ...string) []string { return append(append([]string(nil), tagsOnly...), extra...) }
+
+func commandArgs(command string, args ...string) []string {
+	return append([]string{command}, args...)
+}
 
 var c1, c2 = testutil.SHA('1'), testutil.SHA('2')
 
@@ -117,21 +365,20 @@ func ghWithPatch(t *testing.T) *testutil.GitHub {
 }
 
 func TestParameterValidation(t *testing.T) {
-	t.Run("Should accept the documented check levels", func(t *testing.T) {
-		for _, flag := range []string{"--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace"} {
-			for _, v := range []string{"error", "warning", "none", "true", "false"} {
-				gh := testutil.NewGitHub(t).MarketplaceFiles()
-				r := newEnv(t, gh).run("-R", "o/r", "--check", flag+"="+v)
+	t.Run("Should accept documented concern, rule and finding levels", func(t *testing.T) {
+		for _, flag := range []string{"--level=minor", "--rule-level=patch_tag_missing", "--finding-level=patch_tag_missing"} {
+			for _, level := range []string{"error", "warning", "none"} {
+				r := newEnv(t, testutil.NewGitHub(t).MarketplaceFiles()).run("-R", "o/r", flag+"="+level)
 				if r.code != 0 && r.code != 1 {
-					t.Errorf("%s=%s: exit %d\n%s", flag, v, r.code, r.all())
+					t.Errorf("%s=%s: exit %d\n%s", flag, level, r.code, r.all())
 				}
 			}
 		}
 	})
-	t.Run("Should reject invalid check levels with exit code 2", func(t *testing.T) {
-		for _, flag := range []string{"--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace"} {
-			r := newEnv(t, testutil.NewGitHub(t)).run("-R", "o/r", flag+"=sometimes")
-			if r.code != 2 || !strings.Contains(r.all(), flag[2:]+" must be") {
+	t.Run("Should reject invalid levels and unknown policy keys with exit code 2", func(t *testing.T) {
+		for _, flag := range []string{"--level=minor=sometimes", "--level=unknown=error", "--rule-level=unknown=error", "--finding-level=unknown=error", "--level=minor"} {
+			r := newEnv(t, testutil.NewGitHub(t)).run("-R", "o/r", flag)
+			if r.code != ExitUsage {
 				t.Errorf("%s: exit %d\n%s", flag, r.code, r.all())
 			}
 		}
@@ -143,13 +390,15 @@ func TestParameterValidation(t *testing.T) {
 		}
 	})
 	t.Run("Should expose every flag in --help", func(t *testing.T) {
-		r := newEnv(t, nil).run("--help")
+		r := newEnv(t, nil).runRaw("fix", "--help")
 		if r.code != 0 {
 			t.Fatalf("exit %d", r.code)
 		}
-		for _, f := range []string{"--repo", "--check", "--no-fix", "--auto-fix", "--interactive", "--yes", "--local", "--local-only",
-			"--fetch-releases", "--check-minor-version", "--check-releases", "--check-release-immutability", "--check-marketplace",
-			"--include-preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--json", "--jq", "--template"} {
+		for _, f := range []string{"--repo", "--interactive", "--yes", "--local", "--local-only",
+			"--fetch-releases", "--level", "--rule-level", "--finding-level",
+			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
+			"--fail-on", "--rule", "--skip-rule", "--finding",
+			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-version", "--no-ignore", "--max-wait", "--output", "-o", "--group-by", "--json-fields", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
 			}
@@ -158,6 +407,9 @@ func TestParameterValidation(t *testing.T) {
 	t.Run("Should reject unknown flags and invalid version arguments with exit code 2", func(t *testing.T) {
 		if r := newEnv(t, nil).run("--bogus"); r.code != 2 {
 			t.Errorf("unknown flag: exit %d", r.code)
+		}
+		if r := newEnv(t, nil).run("--include-preview-releases"); r.code != ExitUsage {
+			t.Errorf("removed preview flag: exit %d", r.code)
 		}
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("not-a-version")...)
 		if r.code != 2 || !strings.Contains(r.all(), "invalid version argument") {
@@ -171,9 +423,188 @@ func TestParameterValidation(t *testing.T) {
 	})
 }
 
+func TestLevelFlagPrecedence(t *testing.T) {
+	file, err := policy.Parse([]byte(`concerns:
+  minor:
+    level: error
+rules:
+  major_tag_missing:
+    level: error
+    findings:
+      major_tag_missing:
+        level: error
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &run{f: &flags{
+		levels:        []string{"minor=warning"},
+		ruleLevels:    []string{"major_tag_missing=warning"},
+		findingLevels: []string{"major_tag_missing=warning"},
+	}}
+	if err := r.buildConfig(file); err != nil {
+		t.Fatal(err)
+	}
+	if r.cfg.CheckMinorVersion != "warning" {
+		t.Errorf("concern level = %q, want warning", r.cfg.CheckMinorVersion)
+	}
+	rule := r.cfg.Rules["major_tag_missing"]
+	if rule.Level != "warning" {
+		t.Errorf("rule level = %q, want warning", rule.Level)
+	}
+	if finding := rule.Findings["major_tag_missing"].Level; finding != "warning" {
+		t.Errorf("finding level = %q, want warning", finding)
+	}
+}
+
+func TestFiltersAndFailOn(t *testing.T) {
+	t.Run("--rule selects only the named rule", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--rule=major_tag_missing", "--output=json", "--json-fields=findings")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		for _, raw := range r.json(t)["findings"].([]any) {
+			if raw.(map[string]any)["rule"] != "major_tag_missing" {
+				t.Errorf("unexpected issue: %v", raw)
+			}
+		}
+	})
+	t.Run("--skip-rule excludes the named rule", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--skip-rule=major_tag_missing", "--output=json", "--json-fields=findings")
+		for _, raw := range r.json(t)["findings"].([]any) {
+			if raw.(map[string]any)["rule"] == "major_tag_missing" {
+				t.Errorf("skipped rule reported: %v", raw)
+			}
+		}
+	})
+	t.Run("--finding selects only the named finding", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--finding=major_tag_missing", "--output=json", "--json-fields=findings")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		for _, raw := range r.json(t)["findings"].([]any) {
+			if raw.(map[string]any)["finding"] != "major_tag_missing" {
+				t.Errorf("unexpected finding: %v", raw)
+			}
+		}
+	})
+	t.Run("unknown filters and invalid fail-on are rejected", func(t *testing.T) {
+		for _, flag := range []string{"--rule=unknown", "--skip-rule=unknown", "--finding=unknown", "--fail-on=invalid"} {
+			r := newEnv(t, testutil.NewGitHub(t)).runRaw("verify", "-R", "o/r", flag)
+			if r.code != ExitUsage {
+				t.Errorf("%s: exit %d\n%s", flag, r.code, r.all())
+			}
+		}
+	})
+	t.Run("fail-on controls warning exit status", func(t *testing.T) {
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
+		base := []string{"verify", "-R", "o/r", "--level=minor=warning", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none"}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=error")...); r.code != ExitOK {
+			t.Errorf("error threshold: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=warning")...); r.code != ExitValidation {
+			t.Errorf("warning threshold: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).runRaw(append(base, "--fail-on=never")...); r.code != ExitOK {
+			t.Errorf("never threshold: exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("fix returns 3 when some changes succeed and errors remain", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		gh.Fail("POST", "/git/refs", 500, `{"message":"temporary failure"}`, 1)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != 3 || !strings.Contains(r.all(), "Fixes: 1 fixed, 1 failed") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+}
+
+func TestSubcommands(t *testing.T) {
+	t.Run("bare invocation prints help and exits 2", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw()
+		if r.code != ExitUsage || !strings.Contains(r.out, "Usage:") || !strings.Contains(r.out, "verify") || !strings.Contains(r.out, "fix") {
+			t.Errorf("exit %d\n%s", r.code, r.out)
+		}
+	})
+	t.Run("verify is read-only", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).run(commandArgs("verify", args()...)...)
+		if r.code != ExitValidation || len(gh.Writes()) != 0 {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("fix applies remediations by default", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).run("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitOK || gh.TagSha("v1") != c1 || gh.TagSha("v1.0") != c1 {
+			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
+		}
+	})
+	t.Run("manual mode prints instructions without requiring a token or writing", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		delete(e.vars, "GH_TOKEN")
+		r := e.runRaw("fix", "-R", "o/r", "--mode=manual", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "git push origin") {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("dry-run names actions but does not write", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--dry-run", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "Would apply: Create tag (v1)") || !strings.Contains(r.all(), "Dry run: no changes made.") {
+			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
+		}
+	})
+	t.Run("conflicting fix modes are rejected", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw("fix", "--mode=manual", "--auto")
+		if r.code != ExitUsage {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("fix revalidates after applying actions by default", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		tagLists := 0
+		for _, request := range gh.Requests() {
+			if strings.Contains(request, "GET /repos/o/r/git/refs/tags?") {
+				tagLists++
+			}
+		}
+		if r.code != ExitOK || tagLists != 2 {
+			t.Errorf("exit %d tag-list requests %d\n%s", r.code, tagLists, r.all())
+		}
+	})
+	t.Run("--no-verify-after skips revalidation", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--no-verify-after", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		tagLists := 0
+		for _, request := range gh.Requests() {
+			if strings.Contains(request, "GET /repos/o/r/git/refs/tags?") {
+				tagLists++
+			}
+		}
+		if r.code != ExitOK || tagLists != 1 {
+			t.Errorf("exit %d tag-list requests %d\n%s", r.code, tagLists, r.all())
+		}
+	})
+	t.Run("legacy mode flags are not accepted", func(t *testing.T) {
+		for _, args := range [][]string{{"verify", "--check"}, {"verify", "--no-fix"}, {"fix", "--auto-fix"}} {
+			if r := newEnv(t, nil).runRaw(args...); r.code != ExitUsage {
+				t.Errorf("%v: exit %d\n%s", args, r.code, r.all())
+			}
+		}
+	})
+	t.Run("legacy check flags are not accepted", func(t *testing.T) {
+		if r := newEnv(t, nil).runRaw("verify", "--check-releases=none"); r.code != ExitUsage {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+}
+
 func TestRepositoryParameterHandling(t *testing.T) {
 	t.Run("Should return error when Repository is not provided and GITHUB_REPOSITORY is not set", func(t *testing.T) {
-		r := newEnv(t, testutil.NewGitHub(t)).run("--check", "--check-marketplace=none")
+		r := newEnv(t, testutil.NewGitHub(t)).run("--check", "--level=marketplace=none")
 		if r.code != 2 || !strings.Contains(r.all(), "could not determine the repository") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -181,7 +612,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 	t.Run("Should use GITHUB_REPOSITORY environment variable when Repository not provided", func(t *testing.T) {
 		e := newEnv(t, testutil.NewGitHub(t))
 		e.vars["GITHUB_REPOSITORY"] = "test-owner/test-repo"
-		r := e.run("--check", "--check-marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--output=json", "--json-fields=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -206,7 +637,7 @@ func TestRepositoryParameterHandling(t *testing.T) {
 		e.vars["GITHUB_REPOSITORY"] = "o/r"
 		e.vars["GITHUB_SERVER_URL"] = "https://ghe.example.com"
 		e.vars["GITHUB_API_URL"] = "https://ghe.example.com/api/v3"
-		r := e.run("--check", "--check-marketplace=none", "--json=repository")
+		r := e.run("--check", "--level=marketplace=none", "--output=json", "--json-fields=repository")
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -259,7 +690,7 @@ func TestTokenResolution(t *testing.T) {
 func TestEmptyRepository(t *testing.T) {
 	t.Run("Should work without tags (new repository scenario)", func(t *testing.T) {
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("--check")...)
-		if r.code != 0 || !strings.Contains(r.all(), "No issues found") {
+		if r.code != 0 || !strings.Contains(r.all(), "No findings.") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -272,8 +703,8 @@ func TestModes(t *testing.T) {
 		if r.code != 1 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d writes %v\n%s", r.code, gh.Writes(), r.all())
 		}
-		if !strings.Contains(r.all(), "git push origin") {
-			t.Errorf("manual instructions missing:\n%s", r.all())
+		if strings.Contains(r.all(), "git push origin") || !strings.Contains(r.all(), "fix --mode auto") {
+			t.Errorf("verify should show a fix hint without remediation commands:\n%s", r.all())
 		}
 	})
 	t.Run("Should report only without a terminal when no mode flag is given", func(t *testing.T) {
@@ -283,9 +714,9 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d writes %v", r.code, gh.Writes())
 		}
 	})
-	t.Run("--no-fix is an alias of --check", func(t *testing.T) {
+	t.Run("verify never writes", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).run(args("--no-fix")...)
+		r := newEnv(t, gh).run(commandArgs("verify", args()...)...)
 		if r.code != 1 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d writes %v", r.code, gh.Writes())
 		}
@@ -313,11 +744,8 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should not check minor version tags when check-minor-version is none", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		if r := newEnv(t, gh).run(args("--check", "--check-minor-version=none")...); r.code != 0 {
+		if r := newEnv(t, gh).run(args("--check", "--level=minor=none")...); r.code != 0 {
 			t.Errorf("none: exit %d\n%s", r.code, r.all())
-		}
-		if r := newEnv(t, gh).run(args("--check", "--check-minor-version=false")...); r.code != 0 {
-			t.Errorf("false: exit %d", r.code)
 		}
 		if r := newEnv(t, gh).run(args("--check")...); r.code != 1 {
 			t.Errorf("error: exit %d", r.code)
@@ -325,7 +753,7 @@ func TestModes(t *testing.T) {
 	})
 	t.Run("Should report warnings without failing", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1")
-		r := newEnv(t, gh).run(args("--check", "--check-minor-version=warning", "--json=issues,summary")...)
+		r := newEnv(t, gh).run(args("--check", "--level=minor=warning", "--output=json", "--json-fields=findings,summary")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -342,17 +770,6 @@ func TestModes(t *testing.T) {
 		}
 	})
 
-	t.Run("mode exclusions are usage errors", func(t *testing.T) {
-		for _, a := range [][]string{
-			{"--auto-fix", "--check"}, {"-i", "--auto-fix"}, {"-i", "--check"}, {"--yes", "--check"},
-		} {
-			e := newEnv(t, testutil.NewGitHub(t))
-			e.tty = true
-			if r := e.run(args(a...)...); r.code != 2 || !strings.Contains(r.all(), "mutually exclusive") {
-				t.Errorf("%v: exit %d\n%s", a, r.code, r.all())
-			}
-		}
-	})
 	t.Run("--interactive requires a terminal", func(t *testing.T) {
 		r := newEnv(t, testutil.NewGitHub(t)).run(args("-i")...)
 		if r.code != 2 || !strings.Contains(r.all(), "requires a terminal") {
@@ -366,21 +783,21 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
-	t.Run("interactive is the default on a terminal and applies approved fixes", func(t *testing.T) {
+	t.Run("interactive mode applies approved fixes", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{picks: []int{0, 1, 4}} // apply, skip, ... quit
 		e.prompter = p
-		r := e.run(args()...)
+		r := e.run(args("--interactive")...)
 		if len(p.asked) == 0 {
 			t.Fatalf("no prompt shown\n%s", r.all())
 		}
 		if len(gh.Writes()) != 1 {
 			t.Errorf("writes = %v", gh.Writes())
 		}
-		if r.code != 1 {
-			t.Errorf("skipped issues must keep exit code 1, got %d\n%s", r.code, r.all())
+		if r.code != 3 {
+			t.Errorf("applied fixes with qualifying issues remaining must exit 3, got %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("interactive apply all remaining fixes everything", func(t *testing.T) {
@@ -393,23 +810,23 @@ func TestModes(t *testing.T) {
 			t.Errorf("exit %d tags %v\n%s", r.code, gh.Tags(), r.all())
 		}
 	})
-	t.Run("--check on a terminal never prompts", func(t *testing.T) {
+	t.Run("verify on a terminal never prompts", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{}
 		e.prompter = p
-		if r := e.run(args("--check")...); r.code != 1 || len(p.asked) != 0 || len(gh.Writes()) != 0 {
+		if r := e.run(commandArgs("verify", args()...)...); r.code != 1 || len(p.asked) != 0 || len(gh.Writes()) != 0 {
 			t.Errorf("exit %d asked %v writes %v", r.code, p.asked, gh.Writes())
 		}
 	})
-	t.Run("--json on a terminal does not prompt unless -i is given", func(t *testing.T) {
+	t.Run("json output on a terminal does not prompt unless -i is given", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		e := newEnv(t, gh)
 		e.tty = true
 		p := &fakePrompter{}
 		e.prompter = p
-		if r := e.run(args("--json")...); r.code != 1 || len(p.asked) != 0 {
+		if r := e.run(commandArgs("verify", args("--output=json")...)...); r.code != 1 || len(p.asked) != 0 {
 			t.Errorf("exit %d asked %v\n%s", r.code, p.asked, r.all())
 		}
 	})
@@ -419,9 +836,9 @@ func TestReleaseChecks(t *testing.T) {
 	seed := func(t *testing.T) *testutil.GitHub {
 		return testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1")
 	}
-	rel := []string{"-R", "o/r", "--check-marketplace=none"}
+	rel := []string{"-R", "o/r", "--level=marketplace=none"}
 	t.Run("Should not check releases when check-releases is none", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-releases=none", "--check-release-immutability=none")
+		r := newEnv(t, seed(t)).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=releases=none", "--level=immutability=none")
 		if r.code != 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -443,15 +860,15 @@ func TestReleaseChecks(t *testing.T) {
 	t.Run("Should allow checking releases but not immutability separately", func(t *testing.T) {
 		gh := seed(t)
 		gh.Release("v1.0.0", testutil.Latest)
-		r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-release-immutability=none")
+		r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=immutability=none")
 		if r.code != 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
-		r = newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none", "--check-release-immutability=warning")
+		r = newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none", "--level=immutability=warning")
 		if r.code != 0 {
 			t.Errorf("warning: exit %d\n%s", r.code, r.all())
 		}
-		r = newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none")
+		r = newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none")
 		if r.code != 1 {
 			t.Errorf("error: exit %d\n%s", r.code, r.all())
 		}
@@ -460,70 +877,123 @@ func TestReleaseChecks(t *testing.T) {
 		gh := seed(t)
 		gh.Release("v1.0.0", testutil.Latest)
 		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: none\n")
-		args := []string{"-R", "o/r", "--check", "--check-marketplace=none"}
+		args := []string{"-R", "o/r", "--check", "--level=marketplace=none"}
 		if r := newEnv(t, gh).run(args...); r.code != 0 {
 			t.Errorf("file: exit %d\n%s", r.code, r.all())
 		}
-		if r := newEnv(t, gh).run(append(args, "--check-release-immutability=error")...); r.code != 1 {
+		if r := newEnv(t, gh).run(append(args, "--level=immutability=error")...); r.code != 1 {
 			t.Errorf("flag: exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("--config reads only the named repository policy", func(t *testing.T) {
+		gh := seed(t)
+		gh.Release("v1.0.0", testutil.Latest)
+		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: error\n")
+		gh.File(".github/custom.yml", "concerns:\n  immutability:\n    level: none\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--config", ".github/custom.yml", "--level=marketplace=none")
+		if r.code != 0 || !strings.Contains(r.all(), ".github/custom.yml") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("--no-config ignores repository policy files", func(t *testing.T) {
+		gh := seed(t)
+		gh.Release("v1.0.0", testutil.Latest)
+		gh.File("action-version.yml", "concerns:\n  immutability:\n    level: none\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--no-config", "--level=marketplace=none")
+		if r.code != 1 || !strings.Contains(r.all(), "Ignoring repository policy files") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("--config and --no-config cannot be combined", func(t *testing.T) {
+		r := newEnv(t, testutil.NewGitHub(t)).runRaw("verify", "--config", "policy.yml", "--no-config")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "cannot be used together") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("Should reject an invalid action-version.yml", func(t *testing.T) {
 		gh := seed(t)
 		gh.File("action-version.yml", "bogus: 1\n")
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-marketplace=none"); r.code == 0 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=marketplace=none"); r.code == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
-	t.Run("Should filter preview releases when ignore-preview-releases is true", func(t *testing.T) {
+	t.Run("Should select whether preview releases are candidates", func(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1").Tag(c2, "v1.1.0")
 		gh.Release("v1.0.0", testutil.Immutable, testutil.Latest)
 		gh.Release("v1.1.0", testutil.Prerelease, testutil.Immutable)
-		base := []string{"-R", "o/r", "--check", "--check-marketplace=none", "--check-minor-version=none"}
+		base := []string{"-R", "o/r", "--check", "--level=marketplace=none", "--level=minor=none"}
 		if r := newEnv(t, gh).run(base...); r.code != 0 {
-			t.Errorf("ignore (default): exit %d\n%s", r.code, r.all())
+			t.Errorf("default excludes previews: exit %d\n%s", r.code, r.all())
 		}
-		if r := newEnv(t, gh).run(append(base, "--include-preview-releases")...); r.code != 1 {
-			t.Errorf("not ignored: exit %d\n%s", r.code, r.all())
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=included")...); r.code != 1 {
+			t.Errorf("included preview should be selected: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=excluded")...); r.code != 0 {
+			t.Errorf("excluded preview should not be selected: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=unknown")...); r.code != ExitUsage || !strings.Contains(r.all(), "must be either 'included' or 'excluded'") {
+			t.Errorf("invalid preview setting: exit %d\n%s", r.code, r.all())
+		}
+		gh.File("action-version.yml", "preview: include\n")
+		if r := newEnv(t, gh).run(base...); r.code != 1 {
+			t.Errorf("config includes previews: exit %d\n%s", r.code, r.all())
+		}
+		if r := newEnv(t, gh).run(append(base, "--preview-releases=excluded")...); r.code != 0 {
+			t.Errorf("flag overrides config: exit %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("Should validate marketplace metadata", func(t *testing.T) {
 		gh := testutil.NewGitHub(t)
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-releases=none", "--check-release-immutability=none"); r.code != 1 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=releases=none", "--level=immutability=none"); r.code != 1 {
 			t.Errorf("missing metadata: exit %d\n%s", r.code, r.all())
 		}
 		gh.MarketplaceFiles()
-		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--check-releases=none", "--check-release-immutability=none"); r.code != 0 {
+		if r := newEnv(t, gh).run("-R", "o/r", "--check", "--level=releases=none", "--level=immutability=none"); r.code != 0 {
 			t.Errorf("valid metadata: exit %d\n%s", r.code, r.all())
 		}
 	})
 }
 
 func TestIgnoreVersions(t *testing.T) {
-	cases := map[string]struct {
-		value string
-		code  int
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  int
 	}{
-		"Should skip validation for versions in ignore-versions list":                  {"v1.0.0", 0},
-		"Should support wildcard patterns in ignore-versions":                          {"v1.*", 0},
-		"Should handle multiple comma-separated versions in ignore-versions":           {"v1.0.0,v1.0,v1", 0},
-		"Should silently skip invalid ignore-versions patterns but process valid ones": {"invalid,v1.0.0", 0},
-		"Should handle empty ignore-versions gracefully":                               {"", 1},
-		"Should handle ignore-versions with extra whitespace and commas":               {" v1.0.0 , , ", 0},
-		"Should support newline-separated ignore-versions":                             {"v1.0.0\nv1.1.0", 0},
-		"Should support JSON array format for ignore-versions":                         {`["v1.0.0","v2.0.0"]`, 0},
-		"Should support mixed newline and comma separators":                            {"v2.0.0,\nv1.0.0", 0},
-		"Should not ignore versions that do not match":                                 {"v2.0.0", 1},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			gh := ghWithPatch(t)
-			r := newEnv(t, gh).run(args("--check", "--ignore-versions="+c.value)...)
-			if r.code != c.code {
-				t.Errorf("exit %d, want %d\n%s", r.code, c.code, r.all())
+		{"exact", []string{"--ignore-version=v1.0.0"}, 0},
+		{"wildcard", []string{"--ignore-version=v1.*"}, 0},
+		{"repeatable", []string{"--ignore-version=v2", "--ignore-version=v1.0.0"}, 0},
+		{"invalid", []string{"--ignore-version=invalid"}, 2},
+		{"comma list rejected", []string{"--ignore-version=v1,v2"}, 2},
+		{"removed flag", []string{"--ignore-versions=v1"}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newEnv(t, ghWithPatch(t)).run(args(append([]string{"--check"}, tc.flags...)...)...)
+			if r.code != tc.want {
+				t.Errorf("exit %d, want %d\n%s", r.code, tc.want, r.all())
 			}
 		})
 	}
+	t.Run("flags add to config; no-ignore clears config first", func(t *testing.T) {
+		gh := ghWithPatch(t).File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n")
+		r := newEnv(t, gh).run(args("--check")...)
+		if r.code != ExitOK {
+			t.Fatalf("file: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--ignore-version=v2", "--output=json")...)
+		entries := r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)
+		if len(entries) != 2 {
+			t.Fatalf("flag must add to file entries: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--no-ignore")...)
+		if r.code != ExitValidation {
+			t.Fatalf("no-ignore: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--no-ignore", "--ignore-version=v1.0.0")...)
+		if r.code != ExitOK {
+			t.Fatalf("no-ignore and flag: %s", r.all())
+		}
+	})
 }
 
 func TestVersionScoping(t *testing.T) {
@@ -532,13 +1002,13 @@ func TestVersionScoping(t *testing.T) {
 	}
 	versions := func(r result, t *testing.T) []string {
 		var out []string
-		for _, i := range r.json(t)["issues"].([]any) {
+		for _, i := range r.json(t)["findings"].([]any) {
 			out = append(out, i.(map[string]any)["version"].(string))
 		}
 		return out
 	}
 	t.Run("scopes the report to the given versions", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--json=issues", "v2")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=findings", "v2")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v2") {
 				t.Errorf("unexpected issue for %s", v)
@@ -559,7 +1029,7 @@ func TestVersionScoping(t *testing.T) {
 		}
 	})
 	t.Run("supports wildcards", func(t *testing.T) {
-		r := newEnv(t, seed(t)).run(args("--check", "--json=issues", "v1.*")...)
+		r := newEnv(t, seed(t)).run(args("--check", "--output=json", "--json-fields=findings", "v1.*")...)
 		for _, v := range versions(r, t) {
 			if !strings.HasPrefix(v, "v1.") {
 				t.Errorf("unexpected issue for %s", v)
@@ -569,17 +1039,20 @@ func TestVersionScoping(t *testing.T) {
 }
 
 func TestJSONOutput(t *testing.T) {
-	t.Run("Should return the documented schema when --json is used", func(t *testing.T) {
+	t.Run("Should return the documented schema when --output=json is used", func(t *testing.T) {
 		gh := ghWithPatch(t)
-		r := newEnv(t, gh).run(args("--check", "--json")...)
+		r := newEnv(t, gh).run(args("--check", "--output=json")...)
 		if r.code != 1 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
 		m := r.json(t)
-		for _, k := range []string{"repository", "mode", "local", "config", "issues", "summary", "exitCode"} {
+		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "ignored", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
 			if _, ok := m[k]; !ok {
 				t.Errorf("missing field %s", k)
 			}
+		}
+		if m["schemaVersion"].(float64) != 1 {
+			t.Errorf("schemaVersion = %v", m["schemaVersion"])
 		}
 		if m["mode"] != "report-only" || m["exitCode"].(float64) != 1 {
 			t.Errorf("mode/exitCode = %v/%v", m["mode"], m["exitCode"])
@@ -588,30 +1061,41 @@ func TestJSONOutput(t *testing.T) {
 		if cfg["floatingVersionsUse"] != "tags" || cfg["checkReleases"] != "none" || cfg["ignorePreviewReleases"] != true {
 			t.Errorf("config = %v", cfg)
 		}
-		issues := m["issues"].([]any)
-		if len(issues) == 0 {
-			t.Fatal("no issues")
+		findings := m["findings"].([]any)
+		if len(findings) == 0 {
+			t.Fatal("no findings")
 		}
-		i := issues[0].(map[string]any)
-		for _, k := range []string{"type", "severity", "message", "version", "currentSha", "expectedSha", "status", "autoFixable", "action"} {
+		i := findings[0].(map[string]any)
+		for _, k := range []string{"rule", "finding", "concern", "severity", "message", "version", "docs", "status", "autoFixable", "manualCommands"} {
 			if _, ok := i[k]; !ok {
-				t.Errorf("issue is missing %s: %v", k, i)
+				t.Errorf("finding is missing %s: %v", k, i)
 			}
 		}
-		act := i["action"].(map[string]any)
-		if act["description"] == "" || len(act["manualCommands"].([]any)) == 0 {
-			t.Errorf("action = %v", act)
+		if _, ok := i["type"]; ok {
+			t.Errorf("finding contains removed type field: %v", i)
+		}
+		if action, ok := i["action"].(map[string]any); !ok || action["kind"] == "" {
+			t.Errorf("finding is missing serialized action: %v", i)
+		}
+		if len(i["manualCommands"].([]any)) == 0 {
+			t.Errorf("finding has no manual commands: %v", i)
 		}
 		sum := m["summary"].(map[string]any)
-		if sum["total"].(float64) != float64(len(issues)) || sum["manualFixRequired"].(float64) == 0 {
+		if sum["total"].(float64) != float64(len(findings)) || sum["manualFixRequired"].(float64) == 0 {
 			t.Errorf("summary = %v", sum)
+		}
+		if len(m["timings"].(map[string]any)) == 0 {
+			t.Errorf("report contains no stage timings: %v", m["timings"])
+		}
+		if _, ok := m["issues"]; ok {
+			t.Errorf("report contains removed issues field: %v", m)
 		}
 		if !strings.Contains(r.err, "git push") && !strings.Contains(r.err, "ERROR") {
 			t.Errorf("human logs should go to stderr:\n%s", r.err)
 		}
 	})
 	t.Run("keeps stdout machine readable", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--auto-fix", "--json")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--auto-fix", "--output=json")...)
 		if r.code != 0 {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
@@ -620,21 +1104,34 @@ func TestJSONOutput(t *testing.T) {
 			t.Errorf("report = %v", m["summary"])
 		}
 	})
+	t.Run("uses empty arrays for list fields", func(t *testing.T) {
+		r := newEnv(t, testutil.CleanFixture(t)).run("verify", "-R", "o/r", "--level=marketplace=none", "--output=json")
+		if r.code != ExitOK {
+			t.Fatalf("exit %d\n%s", r.code, r.all())
+		}
+		m := r.json(t)
+		for _, field := range []string{"findings", "groups", "skipped", "fixes"} {
+			values, ok := m[field].([]any)
+			if !ok || len(values) != 0 {
+				t.Errorf("%s = %v, want an empty array", field, m[field])
+			}
+		}
+	})
 	t.Run("selects fields", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--json=summary,exitCode")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--output=json", "--json-fields=summary,exitCode")...)
 		m := r.json(t)
 		if len(m) != 2 || m["summary"] == nil || m["exitCode"] == nil {
 			t.Errorf("fields = %v", m)
 		}
 	})
 	t.Run("rejects unknown fields", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--json=bogus")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--output=json", "--json-fields=bogus")...)
 		if r.code != 2 || !strings.Contains(r.all(), "unknown JSON field") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
 	t.Run("--jq filters the output", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--jq", ".issues | map(.version) | length")...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--jq", ".findings | map(.version) | length")...)
 		if strings.TrimSpace(r.out) == "" || strings.TrimSpace(r.out) == "0" || r.code != 1 {
 			t.Errorf("exit %d out %q", r.code, r.out)
 		}
@@ -644,7 +1141,7 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("--template formats the output", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--template", `{{range .issues}}{{.version}} {{.status}}{{"\n"}}{{end}}`)...)
+		r := newEnv(t, ghWithPatch(t)).run(args("--check", "--template", `{{range .findings}}{{.version}} {{.status}}{{"\n"}}{{end}}`)...)
 		if !strings.Contains(r.out, "v1 manual_fix_required") {
 			t.Errorf("out %q", r.out)
 		}
@@ -655,9 +1152,329 @@ func TestJSONOutput(t *testing.T) {
 		}
 	})
 	t.Run("prints nothing on stdout for usage errors", func(t *testing.T) {
-		r := newEnv(t, ghWithPatch(t)).run(args("--json", "--check", "--auto-fix")...)
+		r := newEnv(t, ghWithPatch(t)).run(commandArgs("verify", args("--output=json", "--bogus")...)...)
 		if r.code != 2 || r.out != "" {
 			t.Errorf("exit %d out %q", r.code, r.out)
+		}
+	})
+}
+
+func TestVerifySave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "findings.json")
+	e := newEnv(t, ghWithPatch(t))
+	args := []string{"verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--ignore-version=v3.*", "v1"}
+	r := e.runRaw(append(args, "--output=json")...)
+	if r.code != ExitValidation {
+		t.Fatalf("exit %d: %s", r.code, r.all())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]any
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	var stdout map[string]any
+	if err := json.Unmarshal([]byte(r.out), &stdout); err != nil {
+		t.Fatal(err)
+	}
+	savedJSON, _ := json.Marshal(saved)
+	stdoutJSON, _ := json.Marshal(stdout)
+	if string(savedJSON) != string(stdoutJSON) {
+		t.Fatalf("saved report differs from stdout")
+	}
+	filters := saved["filters"].(map[string]any)
+	if filters["rules"].([]any)[0] != "major_tag_missing" || filters["versions"].([]any)[0] != "v1" || filters["ignored"].([]any)[0] != "v3.*" {
+		t.Fatalf("filters = %v", filters)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, saved["generatedAt"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved["refs"].(map[string]any)["tags"].([]any)) == 0 {
+		t.Fatal("saved report has no tags")
+	}
+	consolePath := filepath.Join(t.TempDir(), "console.json")
+	r = newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", consolePath, "--output=console")
+	if r.code != ExitValidation || !strings.Contains(r.out, "[ERROR]") {
+		t.Fatalf("exit %d: %s", r.code, r.all())
+	}
+	if _, err := os.Stat(consolePath); err != nil {
+		t.Fatal(err)
+	}
+	r = newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", t.TempDir(), "--output=console")
+	if r.code != ExitUsage {
+		t.Fatalf("write failure exit %d: %s", r.code, r.all())
+	}
+}
+
+func TestFixFrom(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "findings.json")
+	verify := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", path, "--level=releases=none", "--level=immutability=none", "--level=marketplace=none", "--quiet")
+	if verify.code != ExitValidation {
+		t.Fatalf("verify: %s", verify.all())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("manual from stdin is offline and narrows", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		r := e.runRaw("fix", "--from=-", "--mode=manual", "--rule=major_tag_missing", "--verbose")
+		if r.code != ExitValidation || !strings.Contains(r.all(), "generated") || !strings.Contains(r.out, "refs/tags/v1") || strings.Contains(r.out, "refs/tags/v1.0") {
+			t.Fatalf("exit %d: %s", r.code, r.all())
+		}
+		if got := gh.Requests(); len(got) != 0 || e.tokenCalls != 0 {
+			t.Fatalf("manual requested credentials or made requests: %d %v", e.tokenCalls, got)
+		}
+	})
+	t.Run("dry run remains offline without a target", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		r := e.runRaw("fix", "--from=-", "--mode=auto", "--dry-run")
+		if r.code == ExitUsage || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("remote replay validates an independently resolved target before credentials", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, host, target, mode, message string
+		}{
+			{"host mismatch", "attacker.invalid", "o/r", "auto", "does not match"},
+			{"repository mismatch", "github.com", "other/repo", "auto", "does not match"},
+			{"no trusted target", "github.com", "", "auto", "could not determine"},
+			{"interactive host mismatch", "attacker.invalid", "o/r", "interactive", "does not match"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var saved map[string]any
+				if err := json.Unmarshal(data, &saved); err != nil {
+					t.Fatal(err)
+				}
+				saved["repository"].(map[string]any)["host"] = tc.host
+				contents, err := json.Marshal(saved)
+				if err != nil {
+					t.Fatal(err)
+				}
+				gh := ghWithPatch(t)
+				e := newEnv(t, gh)
+				e.stdin = string(contents)
+				e.vars["GH_REPO"] = tc.target
+				e.tty = tc.mode == "interactive"
+				r := e.runRaw("fix", "--from=-", "--mode="+tc.mode)
+				if r.code != ExitUsage || !strings.Contains(r.all(), tc.message) || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+					t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+				}
+			})
+		}
+	})
+	t.Run("Actions server host must match before credentials", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		e.vars["GITHUB_REPOSITORY"] = "o/r"
+		e.vars["GITHUB_SERVER_URL"] = "https://enterprise.example"
+		r := e.runRaw("fix", "--from=-", "--mode=auto")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "does not match") || e.tokenCalls != 0 || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("matching Actions enterprise host permits replay", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		saved["repository"].(map[string]any)["host"] = "enterprise.example"
+		contents, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(contents)
+		e.vars["GITHUB_REPOSITORY"] = "o/r"
+		e.vars["GITHUB_SERVER_URL"] = "https://enterprise.example"
+		r := e.runRaw("fix", "--from=-", "--mode=auto", "--rule=major_tag_missing")
+		if r.code != ExitOK || e.tokenCalls != 1 || gh.TagSha("v1") != c1 {
+			t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+		}
+	})
+	t.Run("matching independent repository permits remote replay", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, ghRepo, actionsRepo string
+			currentRepo               *api.Repo
+			extra                     []string
+		}{
+			{name: "explicit repository takes precedence", ghRepo: "other/repo", extra: []string{"-R", "o/r"}},
+			{name: "GH_REPO", ghRepo: "o/r"},
+			{name: "Actions repository", actionsRepo: "o/r"},
+			{name: "Git remote", currentRepo: &api.Repo{Host: "GITHUB.COM", Owner: "O", Name: "R"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				gh := ghWithPatch(t)
+				e := newEnv(t, gh)
+				e.stdin = string(data)
+				e.vars["GH_REPO"], e.vars["GITHUB_REPOSITORY"] = tc.ghRepo, tc.actionsRepo
+				e.currentRepo = tc.currentRepo
+				args := append([]string{"fix", "--from=-", "--mode=auto", "--rule=major_tag_missing"}, tc.extra...)
+				r := e.runRaw(args...)
+				if r.code != ExitOK || e.tokenCalls != 1 || gh.TagSha("v1") != c1 {
+					t.Fatalf("exit %d token calls=%d requests=%v: %s", r.code, e.tokenCalls, gh.Requests(), r.all())
+				}
+			})
+		}
+	})
+	t.Run("auto performs no reads before first action", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing")
+		requests := gh.Requests()
+		if r.code != ExitOK || len(requests) != 1 || !strings.HasPrefix(requests[0], "POST ") || gh.TagSha("v1") != c1 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
+		}
+	})
+	t.Run("recorded manual policy prevents auto fixes", func(t *testing.T) {
+		policyPath := filepath.Join(t.TempDir(), "manual.json")
+		gh := ghWithPatch(t).File("action-version.yml", "rules:\n  major_tag_missing:\n    fix: manual\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", policyPath, "--quiet")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := ghWithPatch(t)
+		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", policyPath, "--mode=auto", "--rule=major_tag_missing")
+		if r.code != ExitValidation || len(replay.Requests()) != 0 || replay.TagSha("v1") != "" {
+			t.Fatalf("exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		}
+	})
+	t.Run("level override narrows saved findings", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--level=major=none", "--level=minor=none")
+		if r.code != ExitOK || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+	})
+	t.Run("tampered action cannot escape version scope", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		finding := saved["findings"].([]any)[0].(map[string]any)
+		finding["action"].(map[string]any)["name"] = "v999"
+		bad, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(bad)
+		r := e.runRaw("fix", "-R", "o/r", "--from=-", "--mode=auto")
+		if r.code != ExitUsage || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+	})
+	t.Run("actions requiring reload stay manual in JSON output", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		finding := saved["findings"].([]any)[0].(map[string]any)
+		finding["action"] = map[string]any{"kind": "publish-release", "name": finding["version"], "requiresReload": "release ID unavailable; rerun verify"}
+		bad, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(bad)
+		r := e.runRaw("fix", "-R", "o/r", "--from=-", "--mode=auto", "--rule=major_tag_missing", "--output=json")
+		if r.code != ExitValidation || len(gh.Requests()) != 0 || !strings.Contains(r.err, "rerun verify") {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+		if r.json(t)["findings"].([]any)[0].(map[string]any)["action"].(map[string]any)["requiresReload"] == "" {
+			t.Fatal("reload requirement was not preserved")
+		}
+	})
+	t.Run("explicit reverify reloads after the action", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing", "--no-verify-after=false")
+		requests := gh.Requests()
+		if r.code != ExitOK || len(requests) < 2 || !strings.HasPrefix(requests[0], "POST ") || !strings.HasPrefix(requests[1], "GET ") {
+			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
+		}
+	})
+	t.Run("rejects mismatch and incomplete data without requests", func(t *testing.T) {
+		for _, tc := range []struct{ file, repo string }{
+			{string(data), "other/repo"},
+			{`{"schemaVersion":2}`, ""},
+			{`{"schemaVersion":1}`, ""},
+		} {
+			gh := ghWithPatch(t)
+			e := newEnv(t, gh)
+			e.stdin = tc.file
+			args := []string{"fix", "--from=-", "--mode=auto"}
+			if tc.repo != "" {
+				args = append(args, "-R", tc.repo)
+			}
+			r := e.runRaw(args...)
+			if r.code != ExitUsage || len(gh.Requests()) != 0 {
+				t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+			}
+		}
+	})
+}
+
+func TestOutputSelection(t *testing.T) {
+	t.Run("explicit console overrides the GitHub Actions default", func(t *testing.T) {
+		e := newEnv(t, ghWithPatch(t))
+		e.vars["GITHUB_ACTIONS"] = "true"
+		e.vars["GITHUB_STEP_SUMMARY"] = filepath.Join(t.TempDir(), "summary.md")
+		r := e.runRaw("verify", "-R", "o/r", "--output=console")
+		if r.code != ExitValidation || !strings.Contains(r.out, "[ERROR] finding") ||
+			!strings.Contains(r.out, "gh actions-version fix --mode auto") || strings.Contains(r.all(), "::error") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+		if _, err := os.Stat(e.vars["GITHUB_STEP_SUMMARY"]); !os.IsNotExist(err) {
+			t.Errorf("console output wrote a step summary: %v", err)
+		}
+	})
+	t.Run("console output supports rule grouping", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw(
+			"verify", "-R", "o/r", "--output=console", "--group-by=rule",
+			"--level=releases=none", "--level=immutability=none", "--level=marketplace=none",
+		)
+		if r.code != ExitValidation || !strings.Contains(r.out, "major / major_tag_missing") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("group-by rejects unsupported values", func(t *testing.T) {
+		r := newEnv(t, nil).runRaw("verify", "--group-by=other")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "--group-by must be version, rule or concern") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("actions can be selected outside GitHub Actions", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--output=actions")
+		if r.code != ExitValidation || !strings.Contains(r.out, "::error") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("json-fields implies JSON output", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--json-fields=summary")
+		if r.code != ExitValidation || len(r.json(t)) != 1 || r.json(t)["summary"] == nil {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("rejects incompatible format options and removed --json", func(t *testing.T) {
+		for _, args := range [][]string{
+			{"verify", "-R", "o/r", "--output=console", "--jq=."},
+			{"verify", "-R", "o/r", "--output=unknown"},
+			{"verify", "-R", "o/r", "--json"},
+		} {
+			r := newEnv(t, testutil.NewGitHub(t)).runRaw(args...)
+			if r.code != ExitUsage {
+				t.Errorf("%v: exit %d\n%s", args, r.code, r.all())
+			}
 		}
 	})
 }
@@ -722,7 +1539,7 @@ func TestAuthScopes(t *testing.T) {
 			gh.SetScopes("repo", "workflow")
 			return nil
 		}
-		r := e.run(args()...)
+		r := e.run(args("--interactive")...)
 		if r.code != 0 || strings.Join(refreshed, ",") != "github.com,repo,workflow" {
 			t.Errorf("exit %d refreshed %v\n%s", r.code, refreshed, r.all())
 		}
@@ -738,7 +1555,7 @@ func TestAuthScopes(t *testing.T) {
 		delete(e.vars, "GH_TOKEN")
 		e.tty = true
 		e.prompter = &fakePrompter{confirm: false}
-		if r := e.run(args()...); r.code != 2 {
+		if r := e.run(args("--interactive")...); r.code != 2 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
@@ -794,8 +1611,18 @@ func TestAPIErrors(t *testing.T) {
 		gh.Fail("GET", "/git/refs/tags", 403, `{"message":"API rate limit exceeded"}`, 0,
 			"X-RateLimit-Remaining", "0", "X-RateLimit-Reset", itoa(reset.Unix()))
 		r := newEnv(t, gh).run(args("--check", "--max-wait=1s")...)
-		if r.code != 2 || !strings.Contains(strings.ToLower(r.all()), "rate limit") {
+		if r.code != 2 || !strings.Contains(r.all(), "exceeds --max-wait 1s") {
 			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("Should report an accepted rate limit wait to stderr", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		reset := time.Now().Add(5 * time.Second)
+		gh.Fail("GET", "/git/refs/tags", 403, `{"message":"API rate limit exceeded"}`, 0,
+			"X-RateLimit-Remaining", "0", "X-RateLimit-Reset", itoa(reset.Unix()))
+		r := newEnv(t, gh).run(args("--check", "--max-wait=10s")...)
+		if !strings.Contains(r.err, "Rate limited, resuming in") || !strings.Contains(r.err, "--max-wait 10s") {
+			t.Errorf("stderr does not report the wait:\n%s", r.err)
 		}
 	})
 	t.Run("Should handle 422 errors when creating references", func(t *testing.T) {
@@ -809,7 +1636,7 @@ func TestAPIErrors(t *testing.T) {
 	t.Run("Should require manual fixes when the token lacks the workflows permission", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		gh.Fail("POST", "/git/refs", 403, `{"message":"Resource not accessible by integration"}`, 0)
-		r := newEnv(t, gh).run(args("--auto-fix", "--json=summary")...)
+		r := newEnv(t, gh).run(args("--auto-fix", "--output=json", "--json-fields=summary")...)
 		if r.code != 1 || r.json(t)["summary"].(map[string]any)["manualFixRequired"].(float64) == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -844,7 +1671,7 @@ func TestGitHubActions(t *testing.T) {
 		e.vars["GITHUB_STEP_SUMMARY"] = path
 		e.run(args("--check")...)
 		b := readFile(t, path)
-		if !strings.Contains(b, "Version validation: o/r") || !strings.Contains(b, "Manual Remediation Required") {
+		if !strings.Contains(b, "Version validation: o/r") || strings.Contains(b, "## Manual remediation") {
 			t.Errorf("summary:\n%s", b)
 		}
 	})
@@ -852,9 +1679,54 @@ func TestGitHubActions(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
 		e := newEnv(t, gh)
 		e.vars["GITHUB_ACTIONS"] = "true"
-		r := e.run(args("--check", "--ignore-versions=::set-env name=X::y")...)
+		r := e.run(args("--check", "--ignore-version=::set-env name=X::y")...)
 		if strings.Contains(r.all(), "\n::set-env") {
 			t.Errorf("unescaped workflow command:\n%s", r.all())
+		}
+	})
+}
+
+func TestPersistentGlobalFlags(t *testing.T) {
+	t.Run("flags before the subcommand are accepted", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("-R", "o/r", "--no-config", "verify", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != 1 || !strings.Contains(r.all(), "v1") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("max-wait is validated before the subcommand", func(t *testing.T) {
+		r := newEnv(t, testutil.NewGitHub(t)).runRaw("--max-wait=-1s", "verify")
+		if r.code != ExitUsage || !strings.Contains(r.all(), "--max-wait must not be negative") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("verbose diagnostics are written to stderr", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--verbose", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != 1 || !strings.Contains(r.err, "[DEBUG]") || strings.Contains(r.out, "[DEBUG]") {
+			t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", r.code, r.out, r.err)
+		}
+	})
+	t.Run("no-color disables forced terminal colors", func(t *testing.T) {
+		t.Setenv("CLICOLOR_FORCE", "1")
+		t.Setenv("NO_COLOR", "")
+		e := newEnv(t, ghWithPatch(t))
+		e.tty = true
+		r := e.runRaw("verify", "-R", "o/r", "--no-color", "--no-progress", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if strings.Contains(r.all(), "\x1b[") {
+			t.Errorf("ANSI color codes were emitted:\n%s", r.all())
+		}
+	})
+	t.Run("quiet suppresses progress but keeps findings", func(t *testing.T) {
+		r := newEnv(t, ghWithPatch(t)).run(args("--quiet")...)
+		if r.code != 1 || strings.Contains(r.all(), "Loading tags") || !strings.Contains(r.all(), "v1") {
+			t.Errorf("exit %d\n%s", r.code, r.all())
+		}
+	})
+	t.Run("no-progress uses plain lines on a terminal", func(t *testing.T) {
+		e := newEnv(t, ghWithPatch(t))
+		e.tty = true
+		r := e.run(append([]string{"verify"}, args("--no-progress", "--no-color")...)...)
+		if !strings.Contains(r.err, "Loading tags...") || strings.Contains(r.all(), "\r") || strings.Contains(r.all(), "\x1b[") {
+			t.Errorf("unexpected terminal progress output:\n%s", r.all())
 		}
 	})
 }
@@ -884,7 +1756,7 @@ func TestLocalMode(t *testing.T) {
 		dir := setup(t)
 		e := newEnv(t, nil)
 		e.dir = dir
-		r := e.run("--local", "--check", "--json=summary")
+		r := e.run("--local", "--check", "--output=json", "--json-fields=summary")
 		if r.code != 1 || r.json(t)["summary"].(map[string]any)["errors"].(float64) == 0 {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
@@ -906,6 +1778,22 @@ func TestLocalMode(t *testing.T) {
 		}
 		if !strings.Contains(r.out, "git push origin "+head+":refs/tags/v1") {
 			t.Errorf("push commands missing:\n%s", r.out)
+		}
+	})
+	t.Run("local findings replay remains offline without a remote target", func(t *testing.T) {
+		dir := setup(t)
+		path := filepath.Join(t.TempDir(), "findings.json")
+		verify := newEnv(t, nil)
+		verify.dir = dir
+		r := verify.runRaw("verify", "--local", "--save", path, "--rule=major_tag_missing")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		fix := newEnv(t, nil)
+		fix.dir = dir
+		r = fix.runRaw("fix", "--local", "--from", path, "--mode=auto")
+		if r.code != ExitOK || fix.tokenCalls != 0 || git(t, dir, "rev-parse", "v1^{commit}") != git(t, dir, "rev-parse", "HEAD") {
+			t.Fatalf("fix exit %d token calls=%d: %s", r.code, fix.tokenCalls, r.all())
 		}
 	})
 	t.Run("--fetch-releases requires --local", func(t *testing.T) {

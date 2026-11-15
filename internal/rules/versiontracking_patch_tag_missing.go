@@ -3,14 +3,15 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "patch_tag_missing",
 		Description: "Patch version tags should exist for all floating versions",
+		Findings:    []FindingDef{{ID: "patch_tag_missing", Summary: "A patch version tag is missing"}},
 		Priority:    25,
 		Category:    "version_tracking",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -65,7 +66,7 @@ func init() {
 		Check: func(any, *state.State, *state.Config) bool { return false },
 		CreateIssue: func(item any, st *state.State, cfg *state.Config) *state.Issue {
 			it := item.(patchItem)
-			issue := state.NewIssue("missing_patch_version", state.SeverityError,
+			issue := state.NewIssue("patch_tag_missing", state.SeverityError,
 				fmt.Sprintf("Floating version %s exists but no corresponding patch version found. Expected: %s", it.Floating.Version, it.Expected))
 			issue.Version = it.Expected
 			issue.Action = actions.NewCreateTagAction(it.Expected, it.Floating.Sha)

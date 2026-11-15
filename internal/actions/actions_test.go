@@ -9,13 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 type fakeClient struct {
 	createRef      state.RefResult
 	deleteRef      state.RefResult
 	createRelease  state.ReleaseResult
+	createErr      error
 	publish        state.ReleaseResult
 	deleteRelease  error
 	setLatest      error
@@ -86,7 +87,7 @@ func (f *fakeClient) SetReleaseLatest(_ context.Context, id int64) error {
 func (f *fakeClient) TagProtection(context.Context, string) ([]string, error) { return nil, nil }
 func (f *fakeClient) CreateReleaseWithLatest(_ context.Context, tag string, draft bool, ml *bool) (state.ReleaseResult, error) {
 	f.createRelCalls = append(f.createRelCalls, relCall{tag, draft, ml})
-	return f.createRelease, nil
+	return f.createRelease, f.createErr
 }
 func (f *fakeClient) ReleaseImmutable(context.Context, string) (bool, error) {
 	f.immutableCalls++
@@ -166,27 +167,40 @@ func TestReleaseRemediationActionBase(t *testing.T) {
 		eq(t, a.TagName, "v1.0.0")
 		eq(t, a.Version(), "v1.0.0")
 	})
-	t.Run("Should mark issue as unfixable when Execute encounters 422 error", func(t *testing.T) {
+	t.Run("Should reclassify the issue as manually fixable when Execute encounters 422", func(t *testing.T) {
 		st := newState()
-		i := addIssue(st, "missing_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_missing", "v1.0.0", state.StatusPending, nil)
 		f := newFake()
 		f.createRelease = state.ReleaseResult{Unfixable: true}
+		f.createErr = state.ErrUnfixable
 		a := NewCreateReleaseAction("v1.0.0", true, false, "")
 		eq(t, a.Execute(ctx, st, f), false)
-		eq(t, i.Status, state.StatusUnfixable)
+		eq(t, i.Finding, "patch_tag_locked_by_deleted_release")
+		eq(t, i.Status, state.StatusManualFixRequired)
+	})
+	t.Run("Should not treat a generic unfixable result as a burned tag", func(t *testing.T) {
+		st := newState()
+		st.Config.AllowDestructiveTagDeletion = true
+		i := addIssue(st, "release_missing", "v1.0.0", state.StatusPending, nil)
+		f := newFake()
+		f.createRelease = state.ReleaseResult{Unfixable: true}
+		eq(t, NewCreateReleaseAction("v1.0.0", false, true, "").Execute(ctx, st, f), false)
+		eq(t, i.Finding, "release_missing")
+		eq(t, len(f.deleteRefCalls), 0)
 	})
 	t.Run("Should return an ignore-versions YAML snippet instead of a gh command when issue is unfixable", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "missing_release", "v1.0.0", state.StatusUnfixable, nil)
+		addIssue(st, "release_missing", "v1.0.0", state.StatusUnfixable, nil)
 		cmds := NewCreateReleaseAction("v1.0.0", true, false, "").ManualCommands(st)
 		if len(cmds) == 0 {
 			t.Fatal("no commands")
 		}
-		match(t, strings.Join(cmds, "\n"), `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, strings.Join(cmds, "\n"), `versions:\s*\["v1\.0\.0"\]`)
+		match(t, strings.Join(cmds, "\n"), `scope: selection`)
 	})
 	t.Run("Should return manual commands when issue is not unfixable", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "missing_release", "v1.0.0", state.StatusPending, nil)
+		addIssue(st, "release_missing", "v1.0.0", state.StatusPending, nil)
 		if len(NewCreateReleaseAction("v1.0.0", true, false, "").ManualCommands(st)) == 0 {
 			t.Error("expected commands")
 		}
@@ -463,7 +477,7 @@ func TestConvertBranchToTagAction(t *testing.T) {
 		f.createRef = state.RefResult{RequiresManualFix: true}
 		st := newState()
 		a := NewConvertBranchToTagAction("v1.0.0", "abc123")
-		i := addIssue(st, "wrong_ref_type", "v1.0.0", state.StatusPending, a)
+		i := addIssue(st, "floating_ref_should_be_tag", "v1.0.0", state.StatusPending, a)
 		eq(t, a.Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusManualFixRequired)
 		match(t, i.Message, "workflows.*permission")
@@ -503,7 +517,7 @@ func TestConvertTagToBranchAction(t *testing.T) {
 	t.Run("Should return empty commands when issue is unfixable", func(t *testing.T) {
 		st := newState()
 		a := NewConvertTagToBranchAction("v1", "abc123")
-		addIssue(st, "wrong_ref_type", "v1", state.StatusUnfixable, a)
+		addIssue(st, "floating_ref_should_be_branch", "v1", state.StatusUnfixable, a)
 		eq(t, len(a.ManualCommands(st)), 0)
 	})
 	t.Run("Should mark issue unfixable when tag has immutable release", func(t *testing.T) {
@@ -511,7 +525,7 @@ func TestConvertTagToBranchAction(t *testing.T) {
 		f.immutable = true
 		st := newState()
 		a := NewConvertTagToBranchAction("v1", "abc123")
-		i := addIssue(st, "wrong_ref_type", "v1", state.StatusPending, a)
+		i := addIssue(st, "floating_ref_should_be_branch", "v1", state.StatusPending, a)
 		eq(t, a.Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusUnfixable)
 		match(t, i.Message, "immutable")
@@ -534,7 +548,7 @@ func TestConvertTagToBranchAction(t *testing.T) {
 		f.createRef = state.RefResult{RequiresManualFix: true}
 		st := newState()
 		a := NewConvertTagToBranchAction("v1", "abc123")
-		i := addIssue(st, "wrong_ref_type", "v1", state.StatusPending, a)
+		i := addIssue(st, "floating_ref_should_be_branch", "v1", state.StatusPending, a)
 		eq(t, a.Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusManualFixRequired)
 		match(t, i.Message, "workflows.*permission")
@@ -575,9 +589,10 @@ func TestCreateReleaseAction(t *testing.T) {
 	t.Run("Should return an ignore-versions YAML snippet (not a gh command) when issue is unfixable", func(t *testing.T) {
 		st := newState()
 		a := NewCreateReleaseAction("v1.0.0", false, true, "")
-		addIssue(st, "missing_release", "v1.0.0", state.StatusUnfixable, nil)
+		addIssue(st, "release_missing", "v1.0.0", state.StatusUnfixable, nil)
 		joined := strings.Join(a.ManualCommands(st), "\n")
-		match(t, joined, `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, joined, `versions:\s*\["v1\.0\.0"\]`)
+		match(t, joined, `scope: selection`)
 		notMatch(t, joined, "gh release")
 		eq(t, a.ManualCommandsLanguage(), "yaml")
 	})
@@ -594,23 +609,37 @@ func TestCreateReleaseAction(t *testing.T) {
 		eq(t, len(f.createRelCalls), 1)
 		eq(t, f.createRelCalls[0].draft, false)
 	})
-	t.Run("Should mark issue as unfixable on 422 error", func(t *testing.T) {
+	t.Run("Should reclassify a 422 and require destructive permission before deleting the tag", func(t *testing.T) {
 		f := newFake()
 		f.createRelease = state.ReleaseResult{Unfixable: true}
+		f.createErr = state.ErrUnfixable
 		st := newState()
-		i := addIssue(st, "missing_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_missing", "v1.0.0", state.StatusPending, nil)
 		eq(t, NewCreateReleaseAction("v1.0.0", false, true, "").Execute(ctx, st, f), false)
-		eq(t, i.Status, state.StatusUnfixable)
+		eq(t, i.Finding, "patch_tag_locked_by_deleted_release")
+		eq(t, i.Status, state.StatusManualFixRequired)
+		eq(t, len(f.deleteRefCalls), 0)
 		match(t, i.Message, "immutable release")
+
+		f = newFake()
+		f.createRelease = state.ReleaseResult{Unfixable: true}
+		f.createErr = state.ErrUnfixable
+		st = newState()
+		st.Config.AllowDestructiveTagDeletion = true
+		i = addIssue(st, "release_missing", "v1.0.0", state.StatusPending, nil)
+		eq(t, NewCreateReleaseAction("v1.0.0", false, true, "").Execute(ctx, st, f), true)
+		eq(t, i.Finding, "patch_tag_locked_by_deleted_release")
+		eq(t, f.deleteRefCalls[0], "refs/tags/v1.0.0")
 	})
-	t.Run("Should include the suggested new ignore-versions value, preserving existing wildcard patterns, on 422 error", func(t *testing.T) {
+	t.Run("Should suggest selection-scoped ignore on 422 error", func(t *testing.T) {
 		f := newFake()
 		f.createRelease = state.ReleaseResult{Unfixable: true}
+		f.createErr = state.ErrUnfixable
 		st := newState()
 		st.Config.IgnoreVersions = []string{"v1.*", "v2.0.0"}
-		i := addIssue(st, "missing_release", "v3.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_missing", "v3.0.0", state.StatusPending, nil)
 		NewCreateReleaseAction("v3.0.0", false, true, "").Execute(ctx, st, f)
-		if !strings.Contains(i.Message, `"v1.*,v2.0.0,v3.0.0"`) {
+		if !strings.Contains(i.Message, "selection") {
 			t.Errorf("message %q", i.Message)
 		}
 	})
@@ -707,9 +736,10 @@ func TestPublishReleaseAction(t *testing.T) {
 	t.Run("Should return an ignore-versions YAML snippet (not a gh command) when issue is unfixable", func(t *testing.T) {
 		st := newState()
 		a := NewPublishReleaseAction("v1.0.0", 12345)
-		addIssue(st, "draft_release", "v1.0.0", state.StatusUnfixable, nil)
+		addIssue(st, "release_is_draft", "v1.0.0", state.StatusUnfixable, nil)
 		joined := strings.Join(a.ManualCommands(st), "\n")
-		match(t, joined, `ignore-versions:\s*"v1\.0\.0"`)
+		match(t, joined, `versions:\s*\["v1\.0\.0"\]`)
+		match(t, joined, `scope: selection`)
 		notMatch(t, joined, "gh release")
 		eq(t, a.ManualCommandsLanguage(), "yaml")
 	})
@@ -733,7 +763,7 @@ func TestPublishReleaseAction(t *testing.T) {
 		f := newFake()
 		f.publish = state.ReleaseResult{Unfixable: true}
 		st := newState()
-		i := addIssue(st, "draft_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_is_draft", "v1.0.0", state.StatusPending, nil)
 		eq(t, NewPublishReleaseAction("v1.0.0", 12345).Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusUnfixable)
 		match(t, i.Message, "immutable release")
@@ -799,7 +829,7 @@ func TestSetLatestReleaseAction(t *testing.T) {
 	})
 	t.Run("Should return empty array when issue is unfixable", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "wrong_latest_release", "v1.0.0", state.StatusUnfixable, nil)
+		addIssue(st, "latest_release_wrong", "v1.0.0", state.StatusUnfixable, nil)
 		eq(t, len(NewSetLatestReleaseAction("v1.0.0", 123).ManualCommands(st)), 0)
 	})
 	t.Run("Should call SetReleaseLatest with correct parameters", func(t *testing.T) {
@@ -820,7 +850,7 @@ func TestSetLatestReleaseAction(t *testing.T) {
 		f := newFake()
 		f.setLatest = state.ErrUnfixable
 		st := newState()
-		i := addIssue(st, "wrong_latest_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "latest_release_wrong", "v1.0.0", state.StatusPending, nil)
 		eq(t, NewSetLatestReleaseAction("v1.0.0", 123).Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusUnfixable)
 	})
@@ -894,17 +924,17 @@ func TestRepublishReleaseAction(t *testing.T) {
 	}
 	t.Run("Should return the enable-immutability command AND remediation commands when no immutable releases exist", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "non_immutable_release", "v1.0.0", state.StatusManualFixRequired, nil)
+		addIssue(st, "release_not_immutable", "v1.0.0", state.StatusManualFixRequired, nil)
 		enableCmd(t, NewRepublishReleaseAction("v1.0.0").ManualCommands(st), "v1.0.0")
 	})
 	t.Run("Should return the enable-immutability command AND remediation commands when auto-fix is false", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "non_immutable_release", "v1.0.0", state.StatusPending, nil)
+		addIssue(st, "release_not_immutable", "v1.0.0", state.StatusPending, nil)
 		enableCmd(t, NewRepublishReleaseAction("v1.0.0").ManualCommands(st), "v1.0.0")
 	})
 	t.Run("Should return gh release edit commands when repo already has immutable releases", func(t *testing.T) {
 		st := immutableState()
-		addIssue(st, "non_immutable_release", "v1.0.0", state.StatusManualFixRequired, nil)
+		addIssue(st, "release_not_immutable", "v1.0.0", state.StatusManualFixRequired, nil)
 		cmds := NewRepublishReleaseAction("v1.0.0").ManualCommands(st)
 		eq(t, len(cmds), 2)
 		match(t, cmds[0], "--draft=true")
@@ -912,13 +942,13 @@ func TestRepublishReleaseAction(t *testing.T) {
 	})
 	t.Run("Should return gh release edit commands when repo has immutable releases even in manual_fix_required state", func(t *testing.T) {
 		st := immutableState()
-		addIssue(st, "non_immutable_release", "v1.0.0", state.StatusManualFixRequired, nil)
+		addIssue(st, "release_not_immutable", "v1.0.0", state.StatusManualFixRequired, nil)
 		eq(t, len(NewRepublishReleaseAction("v1.0.0").ManualCommands(st)), 2)
 	})
 	t.Run("Should not show settings URL when another immutability fix already succeeded", func(t *testing.T) {
 		st := newState()
-		addIssue(st, "non_immutable_release", "v1.0.8", state.StatusFixed, nil)
-		addIssue(st, "non_immutable_release", "v1.0.7", state.StatusFailed, nil)
+		addIssue(st, "release_not_immutable", "v1.0.8", state.StatusFixed, nil)
+		addIssue(st, "release_not_immutable", "v1.0.7", state.StatusFailed, nil)
 		cmds := NewRepublishReleaseAction("v1.0.7").ManualCommands(st)
 		eq(t, len(cmds), 2)
 		match(t, cmds[0], "gh release edit v1.0.7")
@@ -942,7 +972,7 @@ func TestRepublishReleaseAction(t *testing.T) {
 	t.Run("Should mark as manual_fix_required when republish succeeds but still mutable", func(t *testing.T) {
 		f := newFake()
 		st := newState()
-		i := addIssue(st, "non_immutable_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_not_immutable", "v1.0.0", state.StatusPending, nil)
 		eq(t, NewRepublishReleaseAction("v1.0.0").Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusManualFixRequired)
 		match(t, i.Message, "Enable 'Release immutability'")
@@ -967,7 +997,7 @@ func TestRepublishReleaseAction(t *testing.T) {
 		f := newFake()
 		f.enabled = boolp(false)
 		st := immutableState()
-		addIssue(st, "non_immutable_release", "v1.0.0", "", nil)
+		addIssue(st, "release_not_immutable", "v1.0.0", "", nil)
 		a := NewRepublishReleaseAction("v1.0.0")
 		eq(t, a.Execute(ctx, st, f), false)
 		match(t, strings.Join(a.ManualCommands(st), "\n"), "gh api -X PUT repos/test-owner/test-repo/immutable-releases")
@@ -976,7 +1006,7 @@ func TestRepublishReleaseAction(t *testing.T) {
 		f := newFake()
 		f.republish = state.RepublishResult{Unfixable: true}
 		st := newState()
-		i := addIssue(st, "non_immutable_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_not_immutable", "v1.0.0", state.StatusPending, nil)
 		a := NewRepublishReleaseAction("v1.0.0")
 		eq(t, a.Execute(ctx, st, f), false)
 		eq(t, len(f.deleteRefCalls), 0)
@@ -1000,7 +1030,7 @@ func TestRepublishReleaseAction(t *testing.T) {
 		f.rulesets = []state.Ruleset{{Name: "Protect tags", Enforcement: "active", Source: "repository test-owner/test-repo", Url: "https://github.com/test-owner/test-repo/rules/1"}}
 		st := newState()
 		st.Config.AllowDestructiveTagDeletion = true
-		i := addIssue(st, "non_immutable_release", "v1.0.0", state.StatusPending, nil)
+		i := addIssue(st, "release_not_immutable", "v1.0.0", state.StatusPending, nil)
 		a := NewRepublishReleaseAction("v1.0.0")
 		eq(t, a.Execute(ctx, st, f), false)
 		eq(t, i.Status, state.StatusManualFixRequired)

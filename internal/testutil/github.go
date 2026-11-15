@@ -420,7 +420,7 @@ func (g *GitHub) rest(w http.ResponseWriter, req *http.Request, path string, bod
 		record(fmt.Sprintf("POST /releases %s draft=%v", tag, draft))
 		g.nextID++
 		r := &Release{ID: g.nextID, Tag: tag, Draft: draft, Immutable: !draft && g.ImmutableEnabled}
-		if ml := str("make_latest"); ml == "true" {
+		if ml := str("make_latest"); ml == "true" || (ml == "" && !draft) {
 			g.setLatest(r)
 		}
 		g.releases = append(g.releases, r)

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func init() {
 	Register(&Rule{
 		Name:        "marketplace_publication_required",
 		Description: "The latest release should be published to GitHub Marketplace",
+		Findings:    []FindingDef{{ID: "marketplace_not_published", Summary: "The latest release is not published to GitHub Marketplace"}},
 		Priority:    50,
 		Category:    "marketplace",
 		Condition: func(st *state.State, cfg *state.Config) []any {

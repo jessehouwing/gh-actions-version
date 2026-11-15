@@ -13,8 +13,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/prompter"
 	"github.com/cli/go-gh/v2/pkg/term"
 
-	"github.com/jessehouwing/gh-version-action/internal/api"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/api"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
 )
 
 // Prompter asks questions on the terminal. It extends remediation.Prompter (the interactive
@@ -99,6 +99,10 @@ func (g goghPrompter) Select(message string, options []string) (int, error) {
 
 func (g goghPrompter) Confirm(message string, def bool) (bool, error) {
 	return g.p.Confirm(message, def)
+}
+
+func (g goghPrompter) Input(message, def string) (string, error) {
+	return g.p.Input(message, def)
 }
 
 // processPrompter prompts on the real terminal; prompts go to stderr when stdout carries JSON.

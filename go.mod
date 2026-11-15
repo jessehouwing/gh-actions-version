@@ -1,4 +1,4 @@
-module github.com/jessehouwing/gh-version-action
+module github.com/jessehouwing/gh-actions-version
 
 go 1.27.0
 

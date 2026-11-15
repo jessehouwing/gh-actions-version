@@ -3,8 +3,8 @@ package rules
 import (
 	"fmt"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // latestReleaseItem carries the expected and current "latest" releases.
@@ -17,6 +17,7 @@ func init() {
 	Register(&Rule{
 		Name:        "highest_patch_release_should_be_latest",
 		Description: "Ensures the correct release is marked as 'latest' (highest non-prerelease patch)",
+		Findings:    []FindingDef{{ID: "latest_release_wrong", Summary: "The highest patch release is not marked as latest"}},
 		Priority:    15,
 		Category:    "releases",
 		Condition: func(st *state.State, cfg *state.Config) []any {
@@ -26,7 +27,7 @@ func init() {
 			var expected *state.ReleaseInfo
 			var eMaj, eMin, ePat int
 			for _, r := range st.Releases {
-				if r.IsDraft || r.IsPrerelease || r.IsIgnored {
+				if r.IsDraft || r.IsPrerelease || r.IsIgnored || st.SelectionIgnored(r.TagName) {
 					continue
 				}
 				maj, min, pat, ok := parsePatchTag(r.TagName)
@@ -65,7 +66,7 @@ func init() {
 			} else {
 				msg = fmt.Sprintf("Release %s should be marked as 'latest', but no release is currently marked as latest", version)
 			}
-			issue := state.NewIssue("wrong_latest_release", releaseSeverity(cfg.CheckReleases), msg)
+			issue := state.NewIssue("latest_release_wrong", releaseSeverity(cfg.CheckReleases), msg)
 			issue.Version = version
 			issue.Action = actions.NewSetLatestReleaseAction(version, it.ExpectedLatest.ID)
 			return issue

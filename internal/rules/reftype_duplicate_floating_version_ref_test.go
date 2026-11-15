@@ -3,7 +3,7 @@ package rules
 import (
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func rtPair(v string) (*state.VersionRef, *state.VersionRef) {
@@ -71,7 +71,7 @@ func TestDuplicateFloatingVersionRef(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				issue := rule(t).CreateIssue(item, state.New(), cfg(c.use))
-				if issue == nil || issue.Type != "duplicate_ref" || issue.Severity != "error" || issue.Version != "v1" {
+				if issue == nil || issue.Finding != "floating_tag_and_branch_both_exist" || issue.Severity != "error" || issue.Version != "v1" {
 					t.Fatalf("unexpected issue %+v", issue)
 				}
 				if rtActionType(issue.Action) != c.action || issue.Action.Version() != "v1" {

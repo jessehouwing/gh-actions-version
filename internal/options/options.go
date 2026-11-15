@@ -3,16 +3,13 @@
 package options
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"github.com/jessehouwing/gh-version-action/internal/output"
-	"github.com/jessehouwing/gh-version-action/internal/remediation"
-	"github.com/jessehouwing/gh-version-action/internal/state"
-	"github.com/jessehouwing/gh-version-action/internal/version"
+	"github.com/jessehouwing/gh-actions-version/internal/output"
+	"github.com/jessehouwing/gh-actions-version/internal/remediation"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/version"
 )
 
 // IsValidPattern validates one ignore-versions pattern (Test-ValidVersionPattern).
@@ -30,55 +27,17 @@ func DefaultConfig() state.Config {
 	}
 }
 
-// ConvertToCheckLevel normalizes a check input: trimmed, lower-cased, "true" -> "error", "false" -> "none".
-// Empty input stays empty (callers apply defaults).
-func ConvertToCheckLevel(value string) string {
-	n := strings.ToLower(strings.TrimSpace(value))
-	switch n {
-	case "true":
-		return "error"
-	case "false":
-		return "none"
-	}
-	return n
-}
-
-// ParseIgnoreVersions parses ignore-versions from a comma/newline separated string, a JSON array string
-// or an already parsed []string / []any. Invalid patterns are skipped with a warning.
-func ParseIgnoreVersions(raw any, log *output.Logger) []string {
+// ParseIgnoreVersions parses ignore-versions from a comma/newline separated string. Invalid patterns
+// are skipped with a warning.
+func ParseIgnoreVersions(raw string, log *output.Logger) []string {
 	if log == nil {
 		log = output.Discard()
 	}
-	var items []string
-	switch v := raw.(type) {
-	case nil:
-		return nil
-	case []string:
-		items = v
-	case []any:
-		for _, e := range v {
-			items = append(items, fmt.Sprint(e))
-		}
-	case string:
-		trimmed := strings.TrimSpace(v)
-		parsed := false
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			var arr []any
-			if err := json.Unmarshal([]byte(trimmed), &arr); err != nil {
-				log.Annotate("warning", "Invalid JSON in ignore-versions", "Failed to parse JSON array. Treating as comma/newline-separated list.")
-			} else {
-				parsed = len(arr) > 0
-				for _, e := range arr {
-					items = append(items, fmt.Sprint(e))
-				}
-			}
-		}
-		if !parsed && trimmed != "" {
-			items = strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == '\r' || r == '\n' })
-		}
-	default:
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
 		return nil
 	}
+	items := strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == '\r' || r == '\n' })
 	var out []string
 	for _, it := range items {
 		it = strings.TrimSpace(it)
@@ -94,70 +53,7 @@ func ParseIgnoreVersions(raw any, log *output.Logger) []string {
 	return out
 }
 
-// ActionInput is the parsed action input.
-type ActionInput struct {
-	Token  string
-	Config state.Config
-}
-
-func asString(v any) (string, bool) {
-	switch t := v.(type) {
-	case nil:
-		return "", false
-	case string:
-		return t, true
-	case bool:
-		return strconv.FormatBool(t), true
-	case float64:
-		return strconv.FormatFloat(t, 'f', -1, 64), true
-	}
-	return fmt.Sprint(v), true
-}
-
-// ReadActionInput parses the action inputs JSON (the `inputs` environment variable). fallbackToken is
-// used when the token input is empty; a token that differs from envToken is masked in the log.
-func ReadActionInput(inputsJSON, fallbackToken, envToken string, log *output.Logger) (*ActionInput, error) {
-	if log == nil {
-		log = output.Discard()
-	}
-	if inputsJSON == "" {
-		return nil, errors.New("inputs environment variable is not set")
-	}
-	var in map[string]any
-	if err := json.Unmarshal([]byte(inputsJSON), &in); err != nil {
-		return nil, errors.New("failed to parse inputs JSON")
-	}
-	get := func(key, def string) string {
-		if s, ok := asString(in[key]); ok {
-			return s
-		}
-		return def
-	}
-
-	res := &ActionInput{Token: fallbackToken}
-	if tok, _ := asString(in["token"]); strings.TrimSpace(tok) != "" {
-		res.Token = tok
-		if tok != envToken {
-			log.Mask(tok)
-		}
-	}
-	cfg := DefaultConfig()
-	cfg.CheckMinorVersion = ConvertToCheckLevel(get("check-minor-version", "error"))
-	cfg.CheckReleases = ConvertToCheckLevel(get("check-releases", "error"))
-	cfg.CheckImmutability = ConvertToCheckLevel(get("check-release-immutability", "error"))
-	cfg.CheckMarketplace = ConvertToCheckLevel(get("check-marketplace", "error"))
-	cfg.IgnorePreviewReleases = strings.EqualFold(strings.TrimSpace(get("ignore-preview-releases", "true")), "true")
-	cfg.AutoFix = strings.EqualFold(strings.TrimSpace(get("auto-fix", "false")), "true")
-	cfg.FloatingVersionsUse = strings.ToLower(strings.TrimSpace(get("floating-versions-use", "tags")))
-	cfg.IgnoreVersions = ParseIgnoreVersions(in["ignore-versions"], log)
-	if len(cfg.IgnoreVersions) > 0 {
-		log.Debug("Ignoring versions: " + strings.Join(cfg.IgnoreVersions, ", "))
-	}
-	res.Config = cfg
-	return res, nil
-}
-
-// Validate returns one message per invalid value (Test-ActionInput); empty when valid.
+// Validate returns one message per invalid value; empty when valid.
 func Validate(cfg state.Config) []string {
 	var errs []string
 	check := func(name, v string) {
@@ -225,48 +121,73 @@ func (e *UsageError) Error() string { return e.Msg }
 // ExitCode is the process exit code for usage errors.
 func (e *UsageError) ExitCode() int { return 2 }
 
-// ModeFlags are the fix-mode CLI flags.
+// ModeFlags are the fix-mode selectors and modifiers of the CLI.
 type ModeFlags struct {
-	AutoFix     bool // --auto-fix
-	Check       bool // --check / --no-fix
-	Interactive bool // -i / --interactive
-	Yes         bool // --yes
-	IsTTY       bool // stdin and stdout are terminals
-	// DefaultAutoFix is the auto-fix default when no mode flag is given and not on a TTY (the auto-fix input).
-	DefaultAutoFix bool
+	Fix         bool
+	Mode        string
+	Interactive bool
+	Auto        bool
+	Manual      bool
+	Yes         bool
+	DryRun      bool
+	IsTTY       bool
 }
 
-// ResolveMode validates the flag combination and returns the remediation mode:
-//   - --interactive is mutually exclusive with --auto-fix and --check, and requires a TTY unless --yes is given
-//   - --yes turns interactive into auto-fix and cannot be combined with --check
-//   - --auto-fix and --check are mutually exclusive
-//   - with no mode flag: interactive on a TTY, otherwise auto-fix when DefaultAutoFix else report-only
+// ResolveMode validates the fix-mode selectors and returns the remediation mode.
 func ResolveMode(f ModeFlags) (remediation.Mode, error) {
 	usage := func(msg string) (remediation.Mode, error) { return remediation.ReportOnly, &UsageError{msg} }
-	switch {
-	case f.Interactive && f.AutoFix:
-		return usage("--interactive and --auto-fix are mutually exclusive")
-	case f.Interactive && f.Check:
-		return usage("--interactive and --check are mutually exclusive")
-	case f.AutoFix && f.Check:
-		return usage("--auto-fix and --check are mutually exclusive")
-	case f.Yes && f.Check:
-		return usage("--yes and --check are mutually exclusive")
-	}
-	switch {
-	case f.Check:
+	if !f.Fix {
 		return remediation.ReportOnly, nil
-	case f.AutoFix || f.Yes:
+	}
+
+	selected := 0
+	mode := f.Mode
+	if mode != "" {
+		selected++
+	}
+	if f.Interactive {
+		selected++
+		mode = "interactive"
+	}
+	if f.Auto {
+		selected++
+		mode = "auto"
+	}
+	if f.Manual {
+		selected++
+		mode = "manual"
+	}
+	if selected > 1 {
+		return usage("fix mode options are mutually exclusive")
+	}
+	if mode != "" && mode != "interactive" && mode != "auto" && mode != "manual" {
+		return usage("--mode must be interactive, auto or manual")
+	}
+	if f.DryRun && mode != "" && mode != "auto" {
+		return usage("--dry-run can only be combined with auto mode")
+	}
+	if f.DryRun {
+		return remediation.DryRun, nil
+	}
+	switch mode {
+	case "manual":
+		if f.Yes {
+			return usage("--yes cannot be used with manual mode")
+		}
+		return remediation.Manual, nil
+	case "auto":
 		return remediation.AutoFix, nil
-	case f.Interactive:
-		if !f.IsTTY {
-			return usage("--interactive requires a terminal (TTY); use --auto-fix or --check in non-interactive environments")
+	case "interactive":
+		if !f.IsTTY && !f.Yes {
+			return usage("--interactive requires a terminal (TTY); use --auto or --yes in non-interactive environments")
+		}
+		if f.Yes {
+			return remediation.AutoFix, nil
 		}
 		return remediation.Interactive, nil
-	case f.IsTTY:
-		return remediation.Interactive, nil
-	case f.DefaultAutoFix:
-		return remediation.AutoFix, nil
 	}
-	return remediation.ReportOnly, nil
+	if f.IsTTY && !f.Yes {
+		return remediation.Interactive, nil
+	}
+	return remediation.AutoFix, nil
 }

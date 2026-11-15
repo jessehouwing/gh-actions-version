@@ -3,8 +3,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/jessehouwing/gh-version-action/internal/actions"
-	"github.com/jessehouwing/gh-version-action/internal/state"
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
+	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 func TestTagShouldBeBranch(t *testing.T) {
@@ -66,7 +66,7 @@ func TestTagShouldBeBranch(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				st := state.New()
 				issue := rule(t).CreateIssue(rtTag(c.version, "abc123"), st, cfg("branches"))
-				if issue == nil || issue.Type != "wrong_ref_type" || issue.Severity != "error" || issue.Version != c.version {
+				if issue == nil || issue.Finding != "floating_ref_should_be_branch" || issue.Severity != "error" || issue.Version != c.version {
 					t.Fatalf("unexpected issue %+v", issue)
 				}
 				a, ok := issue.Action.(*actions.ConvertTagToBranchAction)
