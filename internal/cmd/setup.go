@@ -13,15 +13,15 @@ import (
 )
 
 type setupOptions struct {
-	yes, print, noIgnore, allowTagDeletion bool
-	deletionAnswered                       bool
-	floating, preview                      string
-	levels                                 []string
-	ruleLevels                             []string
-	findingLevels                          []string
-	fixes                                  []string
-	ignores                                []string
-	interactiveIgnores                     []state.IgnoreEntry
+	yes, print, force, noIgnore, allowTagDeletion bool
+	deletionAnswered, ignoresAnswered             bool
+	floating, preview, path                       string
+	levels                                        []string
+	ruleLevels                                    []string
+	findingLevels                                 []string
+	fixes                                         []string
+	ignores                                       []string
+	interactiveIgnores                            []state.IgnoreEntry
 }
 
 type setupSettings struct {
@@ -47,11 +47,17 @@ func newSetupCommand(global *flags, env Env) *cobra.Command {
 		Short: "Create a version policy",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			if global.noConfig || global.config != "" {
-				return fmt.Errorf("--config and --no-config cannot be used with setup --print")
+			if global.noConfig {
+				return fmt.Errorf("--no-config cannot be used with setup")
 			}
-			if !opts.print {
-				return fmt.Errorf("setup currently requires --print")
+			if opts.print && (global.config != "" || c.Flags().Changed("path") || opts.force) {
+				return fmt.Errorf("--print cannot be combined with --config, --path or --force")
+			}
+			if global.config != "" && c.Flags().Changed("path") {
+				return fmt.Errorf("--config and --path cannot be combined")
+			}
+			if c.Flags().Changed("path") && strings.TrimSpace(opts.path) == "" {
+				return fmt.Errorf("--path must not be empty")
 			}
 			opts.deletionAnswered = c.Flags().Changed("dangerously-allow-destructive-tag-deletion")
 			if env.IsTTY && !opts.yes {
@@ -68,12 +74,35 @@ func newSetupCommand(global *flags, env Env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = env.Stdout.Write(data)
-			return err
+			if opts.print {
+				_, err = env.Stdout.Write(data)
+				return err
+			}
+			if global.config != "" {
+				opts.path = global.config
+			}
+			if opts.path == "" && env.IsTTY && !opts.yes {
+				prompt := env.Prompter
+				if prompt == nil {
+					prompt = processPrompter(true)
+				}
+				paths := []string{"action-version.yml", ".github/action-version.yml"}
+				index, err := prompt.Select("Where should the policy be written?", paths)
+				if err != nil {
+					return fmt.Errorf("selecting policy path: %w", err)
+				}
+				if index < 0 || index >= len(paths) {
+					return fmt.Errorf("invalid policy path selection")
+				}
+				opts.path = paths[index]
+			}
+			return writeSetupPolicy(env, opts, data)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.yes, "yes", false, "Accept defaults for unanswered questions")
 	cmd.Flags().BoolVar(&opts.print, "print", false, "Print the policy instead of writing it")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "Update an existing policy without prompting")
+	cmd.Flags().StringVar(&opts.path, "path", "", "Destination policy file (default: action-version.yml)")
 	cmd.Flags().StringVar(&opts.floating, "floating-versions-use", "", "Use tags or branches for floating versions")
 	cmd.Flags().StringVar(&opts.preview, "preview-releases", "", "Include or exclude previews: included or excluded")
 	cmd.Flags().BoolVar(&opts.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow irreversible deletion of tags used by deleted immutable releases")
@@ -169,7 +198,7 @@ func buildSetupPolicy(opts setupOptions) ([]byte, error) {
 		if opts.preview == "" {
 			missing = append(missing, "--preview-releases")
 		}
-		if len(opts.ignores) == 0 && !opts.noIgnore {
+		if len(opts.ignores) == 0 && !opts.noIgnore && !opts.ignoresAnswered {
 			missing = append(missing, "--ignore-version or --no-ignore")
 		}
 		for _, concern := range policy.Concerns() {

@@ -109,7 +109,7 @@ func promptSetup(opts *setupOptions, env Env) error {
 		if err != nil {
 			return err
 		}
-		opts.noIgnore = true
+		opts.ignoresAnswered = true
 	}
 	fixes := map[string]bool{}
 	for _, value := range opts.fixes {
