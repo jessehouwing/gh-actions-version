@@ -41,11 +41,16 @@ func (a *CreateReleaseAction) Execute(ctx context.Context, st *state.State, c st
 			issue.Finding = "patch_tag_locked_by_deleted_release"
 			issue.Message = message
 		}
-		if st.Config.AllowDestructiveTagDeletion {
+		ignored := st.MatchesIgnore(a.TagName, "fix", "patch_release_required", "patch_tag_locked_by_deleted_release") ||
+			st.MatchesIgnore(a.TagName, "all", "patch_release_required", "patch_tag_locked_by_deleted_release") ||
+			st.MatchesIgnore(a.TagName, "validation", "patch_release_required", "patch_tag_locked_by_deleted_release")
+		if st.Config.AllowDestructiveTagDeletion && !ignored {
 			if NewDeleteTagAction(a.TagName).Execute(ctx, st, c) {
 				return true
 			}
 			message += " Tag deletion failed; delete it manually or add the version to ignore-versions."
+		} else if ignored {
+			message += " Tag deletion is disabled by the ignore policy."
 		} else {
 			message += " Deleting the tag is irreversible; rerun with --dangerously-allow-destructive-tag-deletion to delete it."
 		}

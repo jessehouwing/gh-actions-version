@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Issue statuses.
@@ -241,6 +242,9 @@ type State struct {
 	Host                     string
 	Config                   Config
 	Issues                   []*Issue
+	CheckedAt                time.Time
+	ActiveRule               string
+	ActiveFindings           []string
 }
 
 type SkippedCheck struct {

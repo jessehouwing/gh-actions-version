@@ -7,6 +7,24 @@ import (
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
+func TestFindingScopedAllDoesNotHideAnotherFindingOfSameRule(t *testing.T) {
+	st := state.New()
+	st.Releases = []*state.ReleaseInfo{{TagName: "v1", ID: 1, IsImmutable: true}, {TagName: "v1", ID: 2}}
+	cfg := state.Config{CheckReleases: "error", CheckImmutability: "error", IgnoreEntries: []state.IgnoreEntry{
+		{Versions: []string{"v1"}, Scope: "all", Rules: []string{"immutable_floating_release"}},
+	}}
+	for _, rule := range All() {
+		if rule.Name == "floating_version_no_release" {
+			Run(st, &cfg, []*Rule{rule})
+			if len(st.Issues) != 1 || st.Issues[0].Finding != "mutable_floating_release" {
+				t.Fatalf("findings = %+v", st.Issues)
+			}
+			return
+		}
+	}
+	t.Fatal("rule not registered")
+}
+
 func engIssue(item any) *state.Issue {
 	s := item.(string)
 	i := state.NewIssue("test_finding", state.SeverityError, "issue for "+s)

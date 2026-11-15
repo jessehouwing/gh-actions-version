@@ -251,7 +251,8 @@ func configFromReport(in report.Config) (state.Config, error) {
 		CheckImmutability: in.CheckReleaseImmutability, CheckMarketplace: in.CheckMarketplace,
 		IgnorePreviewReleases: in.IgnorePreviewReleases, FloatingVersionsUse: in.FloatingVersionsUse,
 		AllowDestructiveTagDeletion: in.AllowDestructiveTagDeletion, IgnoreVersions: append([]string{}, in.IgnoreVersions...),
-		Rules: map[string]state.RulePolicy{}, Sources: map[string]string{}}
+		IgnoreEntries: append([]state.IgnoreEntry(nil), in.IgnoreEntries...),
+		Rules:         map[string]state.RulePolicy{}, Sources: map[string]string{}}
 	for key, source := range in.Sources {
 		out.Sources[key] = source
 	}

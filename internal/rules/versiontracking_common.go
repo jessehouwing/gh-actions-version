@@ -36,7 +36,7 @@ func minorSeverity(cfg *state.Config) string {
 func eligiblePatches(st *state.State, cfg *state.Config) []*state.VersionRef {
 	var out []*state.VersionRef
 	for _, v := range st.AllRefs() {
-		if v.IsPatch && !v.IsIgnored && (!cfg.IgnorePreviewReleases || !IsPrerelease(st, v)) {
+		if v.IsPatch && !v.IsIgnored && !st.SelectionIgnored(v.Version) && (!cfg.IgnorePreviewReleases || !IsPrerelease(st, v)) {
 			out = append(out, v)
 		}
 	}

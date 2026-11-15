@@ -38,11 +38,14 @@ func ShouldBeLatestRelease(st *state.State, version string, info *state.ReleaseI
 	if info != nil && info.IsPrerelease {
 		return false
 	}
+	if st.SelectionIgnored(version) {
+		return false
+	}
 
 	found := false
 	var hMaj, hMin, hPat int
 	for _, r := range st.Releases {
-		if r.IsDraft || r.IsPrerelease || r.IsIgnored {
+		if r.IsDraft || r.IsPrerelease || r.IsIgnored || st.SelectionIgnored(r.TagName) {
 			continue
 		}
 		maj, min, pat, ok := parsePatchTag(r.TagName)

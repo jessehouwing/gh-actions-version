@@ -77,6 +77,17 @@ func (o Options) log() *output.Logger {
 // Fix handles the pending issues according to opt.Mode (port of Invoke-AutoFix plus the interactive runner).
 // In Interactive mode skipped issues stay pending.
 func Fix(ctx context.Context, st *state.State, opt Options) error {
+	defer func() {
+		issues := st.Issues[:0]
+		for _, issue := range st.Issues {
+			if st.MatchesIgnore(issue.Version, "all", issue.Rule, issue.Finding) ||
+				st.MatchesIgnore(issue.Version, "validation", issue.Rule, issue.Finding) {
+				continue
+			}
+			issues = append(issues, issue)
+		}
+		st.Issues = issues
+	}()
 	for _, i := range st.Issues {
 		if i.Status == state.StatusPending && i.ManualOnly {
 			i.Status = state.StatusManualFixRequired

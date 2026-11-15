@@ -88,6 +88,7 @@ type Config struct {
 	AutoFix                     bool                  `json:"autoFix"`
 	AllowDestructiveTagDeletion bool                  `json:"allowDestructiveTagDeletion"`
 	IgnoreVersions              []string              `json:"ignoreVersions"`
+	IgnoreEntries               []state.IgnoreEntry   `json:"ignoreEntries,omitempty"`
 	Rules                       map[string]RulePolicy `json:"rules"`
 	Sources                     map[string]string     `json:"sources"`
 }
@@ -290,6 +291,11 @@ func buildConfig(cfg state.Config) Config {
 		AutoFix: cfg.AutoFix, AllowDestructiveTagDeletion: cfg.AllowDestructiveTagDeletion,
 		IgnoreVersions: append([]string{}, cfg.IgnoreVersions...),
 		Rules:          map[string]RulePolicy{}, Sources: cloneSources(cfg.Sources),
+	}
+	for _, entry := range cfg.IgnoreEntries {
+		entry.Versions = append([]string(nil), entry.Versions...)
+		entry.Rules = append([]string(nil), entry.Rules...)
+		out.IgnoreEntries = append(out.IgnoreEntries, entry)
 	}
 	for name, policy := range cfg.Rules {
 		rule := RulePolicy{Level: policy.Level, Fix: fixValue(policy.AutoFix)}

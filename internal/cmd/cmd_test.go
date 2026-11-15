@@ -84,12 +84,106 @@ func TestImmutableTagDeletionConfig(t *testing.T) {
 	})
 }
 
-func TestStructuredIgnoresFailClosedUntilScopesAreSupported(t *testing.T) {
-	gh := ghWithPatch(t).File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\n")
-	r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto")
-	if r.code != ExitUsage || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "structured ignore") {
-		t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+func TestStructuredIgnoreScopes(t *testing.T) {
+	fixture := func(policy string) *testutil.GitHub {
+		return testutil.NewGitHub(t).Tag(c1, "v1.0.0").Tag(c2, "v1.0.1", "v1", "v1.0").
+			File("action-version.yml", policy)
 	}
+	t.Run("selection applies only to the specified rule", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: selection\n    rules: [major_tag_tracks_highest_patch]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("exit %d: %s", r.code, r.all())
+		}
+		findings := r.json(t)["findings"].([]any)
+		var major, minor bool
+		for _, raw := range findings {
+			f := raw.(map[string]any)
+			if f["finding"] == "major_tag_wrong_target" {
+				major = f["expectedSha"] == c1
+			}
+			minor = minor || f["finding"] == "minor_tag_wrong_target"
+		}
+		if !major || minor {
+			t.Fatalf("unexpected findings: %v", findings)
+		}
+	})
+	t.Run("validation hides findings without changing selection", func(t *testing.T) {
+		base := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1").Tag(c2, "v1.0.1", "v1.0")
+		control := newEnv(t, base).runRaw("verify", "-R", "o/r", "--output=json", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if len(control.json(t)["findings"].([]any)) != 1 {
+			t.Fatalf("control did not produce expected finding: %s", control.all())
+		}
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1").Tag(c2, "v1.0.1", "v1.0").
+			File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: validation\n    rules: [major_tag_wrong_target]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		for _, raw := range r.json(t)["findings"].([]any) {
+			if raw.(map[string]any)["finding"] == "major_tag_wrong_target" {
+				t.Fatal("validation ignore did not suppress finding")
+			}
+		}
+	})
+	t.Run("all scope suppresses and excludes a patch only for its rule", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: all\n    rules: [major_tag_tracks_highest_patch]\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--rule=major_tag_tracks_highest_patch", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		findings := r.json(t)["findings"].([]any)
+		if len(findings) != 1 || findings[0].(map[string]any)["expectedSha"] != c1 {
+			t.Fatalf("all scope did not exclude target: %s", r.all())
+		}
+	})
+	t.Run("selection does not suppress validation", func(t *testing.T) {
+		gh := fixture("ignore:\n  - versions: [v1.0.1]\n    scope: selection\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--output=json", "--rule=patch_release_required", "--level=marketplace=none")
+		found := false
+		for _, raw := range r.json(t)["findings"].([]any) {
+			f := raw.(map[string]any)
+			found = found || f["version"] == "v1.0.1" && f["finding"] == "release_missing"
+		}
+		if !found {
+			t.Fatalf("selection suppressed validation: %s", r.all())
+		}
+	})
+	t.Run("fix scope and expiry protect automatic fixes", func(t *testing.T) {
+		for _, tc := range []struct {
+			policy string
+			writes bool
+		}{
+			{"ignore:\n  - versions: [v1]\n    scope: fix\n", false},
+			{"ignore:\n  - versions: [v1]\n    scope: fix\n    until: 2000-01-01\n", true},
+		} {
+			gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", tc.policy)
+			r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+			if (len(gh.Writes()) != 0) != tc.writes {
+				t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+			}
+		}
+	})
+	t.Run("saved findings retain manual fix policy", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--output=json")
+		if r.code != ExitValidation || len(replay.Requests()) != 0 {
+			t.Fatalf("replay exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		}
+		if len(r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)) != 1 {
+			t.Fatal("recorded ignore entry lost on replay")
+		}
+	})
+	t.Run("fix scope protects a finding discovered during execution", func(t *testing.T) {
+		const error422 = `{"message":"Validation Failed","errors":[{"resource":"Release","code":"custom","field":"tag_name","message":"tag_name was used by an immutable release"}]}`
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1").
+			File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n    scope: fix\n    rules: [patch_tag_locked_by_deleted_release]\n")
+		gh.Fail("POST", "/releases", 422, error422, 1)
+		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--dangerously-allow-destructive-tag-deletion", "--rule=patch_release_required")
+		if gh.TagSha("v1.0.0") == "" || !strings.Contains(r.all(), "ignore policy") {
+			t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+		}
+	})
 }
 
 func (r result) json(t *testing.T) map[string]any {

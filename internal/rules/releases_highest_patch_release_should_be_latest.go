@@ -27,7 +27,7 @@ func init() {
 			var expected *state.ReleaseInfo
 			var eMaj, eMin, ePat int
 			for _, r := range st.Releases {
-				if r.IsDraft || r.IsPrerelease || r.IsIgnored {
+				if r.IsDraft || r.IsPrerelease || r.IsIgnored || st.SelectionIgnored(r.TagName) {
 					continue
 				}
 				maj, min, pat, ok := parsePatchTag(r.TagName)

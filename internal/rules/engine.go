@@ -3,6 +3,7 @@ package rules
 
 import (
 	"sort"
+	"time"
 
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
@@ -56,13 +57,19 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 		rs = All()
 	}
 	var added []*state.Issue
+	checkedAt := st.CheckedAt
+	if checkedAt.IsZero() {
+		checkedAt = time.Now().UTC()
+		st.CheckedAt = checkedAt
+	}
 	for _, r := range rs {
 		r.validate()
-		for _, item := range r.Condition(st, cfg) {
-			if r.Check(item, st, cfg) {
+		view := ruleView(st, cfg, r, checkedAt)
+		for _, item := range r.Condition(view, cfg) {
+			if r.Check(item, view, cfg) {
 				continue
 			}
-			issue := r.CreateIssue(item, st, cfg)
+			issue := r.CreateIssue(item, view, cfg)
 			if issue == nil {
 				continue
 			}
@@ -77,6 +84,13 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 				panic("rule " + r.Name + " created undeclared finding " + issue.Finding)
 			}
 			issue.Rule = r.Name
+			if view.MatchesIgnore(issue.Version, "all", r.Name, issue.Finding) ||
+				view.MatchesIgnore(issue.Version, "validation", r.Name, issue.Finding) {
+				continue
+			}
+			if view.MatchesIgnore(issue.Version, "fix", r.Name, issue.Finding) {
+				issue.ManualOnly = true
+			}
 			if p, ok := cfg.Rules[r.Name]; ok {
 				level, autoFix := p.Level, p.AutoFix
 				if findingPolicy, ok := p.Findings[issue.Finding]; ok {
@@ -104,6 +118,37 @@ func Run(st *state.State, cfg *state.Config, rs []*Rule) []*state.Issue {
 	return added
 }
 
+func ruleView(st *state.State, cfg *state.Config, rule *Rule, checkedAt time.Time) *state.State {
+	view := *st
+	view.CheckedAt = checkedAt
+	view.Config = *cfg
+	view.ActiveRule = rule.Name
+	if len(rule.Findings) == 1 {
+		view.ActiveFindings = []string{rule.Findings[0].ID}
+	} else if rule.Name == "patch_release_required" {
+		view.ActiveFindings = []string{"release_missing"}
+	} else {
+		view.ActiveFindings = nil
+	}
+	refs := func(in []*state.VersionRef) []*state.VersionRef {
+		out := make([]*state.VersionRef, 0, len(in))
+		for _, ref := range in {
+			copy := *ref
+			copy.IsIgnored = copy.IsIgnored || view.MatchesIgnore(copy.Version, "all", rule.Name, view.ActiveFindings...)
+			out = append(out, &copy)
+		}
+		return out
+	}
+	view.Tags, view.Branches = refs(st.Tags), refs(st.Branches)
+	view.Releases = make([]*state.ReleaseInfo, 0, len(st.Releases))
+	for _, release := range st.Releases {
+		copy := *release
+		copy.IsIgnored = copy.IsIgnored || view.MatchesIgnore(copy.TagName, "all", rule.Name, view.ActiveFindings...)
+		view.Releases = append(view.Releases, &copy)
+	}
+	return &view
+}
+
 // IsPrerelease reports whether the release for ref is a prerelease (Release API only).
 func IsPrerelease(st *state.State, v *state.VersionRef) bool {
 	r := st.FindRelease(v.Version)
@@ -113,7 +158,7 @@ func IsPrerelease(st *state.State, v *state.VersionRef) bool {
 func highest(st *state.State, pred func(*state.VersionRef) bool, excludePre bool) *state.VersionRef {
 	var best *state.VersionRef
 	for _, v := range st.AllRefs() {
-		if !v.IsPatch || v.IsIgnored || !pred(v) || (excludePre && IsPrerelease(st, v)) {
+		if !v.IsPatch || v.IsIgnored || st.SelectionIgnored(v.Version) || !pred(v) || (excludePre && IsPrerelease(st, v)) {
 			continue
 		}
 		if best == nil || less(best, v) {
@@ -152,7 +197,7 @@ func HighestMinorForMajor(st *state.State, major int, excludePre bool) *state.Ve
 	}
 	var best *state.VersionRef
 	for _, v := range st.AllRefs() {
-		if v.IsIgnored || v.Major != major || !v.IsMinor || (excludePre && IsPrerelease(st, v)) {
+		if v.IsIgnored || st.SelectionIgnored(v.Version) || v.Major != major || !v.IsMinor || (excludePre && IsPrerelease(st, v)) {
 			continue
 		}
 		if best == nil || v.Minor > best.Minor {
