@@ -59,7 +59,7 @@ Default: `error`.
 
 ### Other settings that influence this rule
 
-- `--ignore-versions v1.2.3,v2.*` / `ignore-versions` in the config file: matching versions are ignored by all rules. The flag wins.
+- `--ignore-version v1.2.3 --ignore-version 'v2.*'` adds one-off ignores to the config; `--no-ignore` clears configured ignores first.
 
 ## Required Permissions
 
@@ -99,7 +99,7 @@ Using GitHub Web UI:
 Immutable releases **cannot be deleted**. You have two options:
 
 1. **Add to ignore-versions** (recommended):
-   - CLI: `--ignore-versions v1,v1.0,latest`
+   - CLI: `--ignore-version v1 --ignore-version v1.0`
    - Config file: `ignore-versions: [v1, v1.0, latest]`
 
 2. **Contact GitHub Support** to request deletion (only for exceptional cases)

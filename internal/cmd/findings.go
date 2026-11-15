@@ -68,6 +68,10 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	recordedState := &state.State{Config: cfg, CheckedAt: saved.GeneratedAt}
+	if err := applyIgnoreFlags(&cfg, r.f); err != nil {
+		return nil, nil, nil, err
+	}
 	if r.f.changed["dangerously-allow-destructive-tag-deletion"] {
 		cfg.AllowDestructiveTagDeletion = r.f.allowTagDeletion
 		cfg.Sources["permanently-delete-immutable-tags"] = "flag"
@@ -111,11 +115,6 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	overrides, err := parseLevelOverrides(r.f.levels, r.f.ruleLevels, r.f.findingLevels)
 	if err != nil {
 		return nil, nil, nil, err
-	}
-	extraIgnored := options.ParseIgnoreVersions(r.f.ignoreVersions, r.log)
-	cfg.IgnoreVersions = append(cfg.IgnoreVersions, extraIgnored...)
-	if r.f.changed["ignore-versions"] {
-		cfg.Sources["ignore-versions"] = "flag"
 	}
 	for concern, settings := range overrides.Concerns {
 		switch concern {
@@ -164,7 +163,7 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 		if !knownFinding(finding.Rule, finding.Finding) || (finding.Severity != state.SeverityError && finding.Severity != state.SeverityWarning) {
 			return nil, nil, nil, fmt.Errorf("invalid finding %q/%q", finding.Rule, finding.Finding)
 		}
-		if version.ShouldBeIgnored(finding.Version, extraIgnored) {
+		if version.ShouldBeIgnored(finding.Version, r.f.ignoreVersions) {
 			continue
 		}
 		concern, _ := policy.ConcernForRule(finding.Rule)
@@ -184,6 +183,14 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 		issue := &state.Issue{Rule: finding.Rule, Finding: finding.Finding, Severity: level, Version: finding.Version,
 			Message: finding.Message, CurrentSha: finding.CurrentSHA, ExpectedSha: finding.ExpectedSHA,
 			Status: state.StatusPending, ManualOnly: !finding.AutoFixable}
+		if r.f.noIgnore && finding.Action != nil && recordedState.MatchesIgnore(finding.Version, "fix", finding.Rule, finding.Finding) {
+			p := cfg.Rules[finding.Rule]
+			autoFix := p.AutoFix
+			if override := p.Findings[finding.Finding].AutoFix; override != nil {
+				autoFix = override
+			}
+			issue.ManualOnly = autoFix != nil && !*autoFix
+		}
 		if finding.Action != nil {
 			if finding.Action.Kind != "enable-immutable-releases" && finding.Action.Name != finding.Version {
 				return nil, nil, nil, fmt.Errorf("action for %s/%s targets a different version", finding.Rule, finding.Finding)

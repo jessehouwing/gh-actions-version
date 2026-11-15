@@ -99,7 +99,7 @@ for `--from`; pass `--no-verify-after=false` to request it.
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
 Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),
-`--ignore-versions` (supports `v1.*`), and `--max-wait`. See `gh actions-version --help`.
+`--ignore-version` (repeatable; supports `v1.*`), `--no-ignore`, and `--max-wait`. See `gh actions-version --help`.
 
 Deleting a tag used by a deleted immutable release is irreversible. It is denied by default; explicitly set
 `permanently-delete-immutable-tags: dangerously-allow` in the policy or pass
@@ -154,7 +154,7 @@ or can be set to `none`.
 
 ## Limitations
 
-- A tag used by a deleted immutable release cannot be reused; use `--ignore-versions` or a new patch version.
+- A tag used by a deleted immutable release cannot be reused; use `--ignore-version` or a new patch version.
 - Tag rulesets can block tag deletion; the tool names the ruleset and prints manual commands.
 - Auto-fix never rewrites published immutable releases.
 

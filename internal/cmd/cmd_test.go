@@ -173,6 +173,24 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 		if len(r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)) != 1 {
 			t.Fatal("recorded ignore entry lost on replay")
 		}
+		replay = testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore")
+		if r.code != ExitOK || replay.TagSha("v1") != c1 {
+			t.Fatalf("no-ignore replay exit %d: %s", r.code, r.all())
+		}
+	})
+	t.Run("no-ignore preserves recorded manual rule policy", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "findings.json")
+		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0").File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\nrules:\n  major_tag_missing:\n    fix: manual\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--level=releases=none", "--level=immutability=none", "--level=marketplace=none")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
+		r = newEnv(t, replay).runRaw("fix", "--from", path, "--mode=auto", "--no-ignore")
+		if r.code != ExitValidation || len(replay.Writes()) != 0 {
+			t.Fatalf("manual policy lost: %s", r.all())
+		}
 	})
 	t.Run("fix scope protects a finding discovered during execution", func(t *testing.T) {
 		const error422 = `{"message":"Validation Failed","errors":[{"resource":"Release","code":"custom","field":"tag_name","message":"tag_name was used by an immutable release"}]}`
@@ -355,7 +373,7 @@ func TestParameterValidation(t *testing.T) {
 			"--fetch-releases", "--level", "--rule-level", "--finding-level",
 			"--mode", "--auto", "--manual", "--dry-run", "--no-verify-after",
 			"--fail-on", "--rule", "--skip-rule", "--finding",
-			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-versions", "--max-wait", "--output", "-o", "--group-by", "--json-fields", "--jq", "--template"} {
+			"--preview-releases", "--dangerously-allow-destructive-tag-deletion", "--floating-versions-use", "--ignore-version", "--no-ignore", "--max-wait", "--output", "-o", "--group-by", "--json-fields", "--jq", "--template"} {
 			if !strings.Contains(r.out, f) {
 				t.Errorf("--help does not list %s", f)
 			}
@@ -912,29 +930,45 @@ func TestReleaseChecks(t *testing.T) {
 }
 
 func TestIgnoreVersions(t *testing.T) {
-	cases := map[string]struct {
-		value string
-		code  int
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  int
 	}{
-		"Should skip validation for versions in ignore-versions list":                  {"v1.0.0", 0},
-		"Should support wildcard patterns in ignore-versions":                          {"v1.*", 0},
-		"Should handle multiple comma-separated versions in ignore-versions":           {"v1.0.0,v1.0,v1", 0},
-		"Should silently skip invalid ignore-versions patterns but process valid ones": {"invalid,v1.0.0", 0},
-		"Should handle empty ignore-versions gracefully":                               {"", 1},
-		"Should handle ignore-versions with extra whitespace and commas":               {" v1.0.0 , , ", 0},
-		"Should support newline-separated ignore-versions":                             {"v1.0.0\nv1.1.0", 0},
-		"Should support mixed newline and comma separators":                            {"v2.0.0,\nv1.0.0", 0},
-		"Should not ignore versions that do not match":                                 {"v2.0.0", 1},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			gh := ghWithPatch(t)
-			r := newEnv(t, gh).run(args("--check", "--ignore-versions="+c.value)...)
-			if r.code != c.code {
-				t.Errorf("exit %d, want %d\n%s", r.code, c.code, r.all())
+		{"exact", []string{"--ignore-version=v1.0.0"}, 0},
+		{"wildcard", []string{"--ignore-version=v1.*"}, 0},
+		{"repeatable", []string{"--ignore-version=v2", "--ignore-version=v1.0.0"}, 0},
+		{"invalid", []string{"--ignore-version=invalid"}, 2},
+		{"comma list rejected", []string{"--ignore-version=v1,v2"}, 2},
+		{"removed flag", []string{"--ignore-versions=v1"}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newEnv(t, ghWithPatch(t)).run(args(append([]string{"--check"}, tc.flags...)...)...)
+			if r.code != tc.want {
+				t.Errorf("exit %d, want %d\n%s", r.code, tc.want, r.all())
 			}
 		})
 	}
+	t.Run("flags add to config; no-ignore clears config first", func(t *testing.T) {
+		gh := ghWithPatch(t).File("action-version.yml", "ignore:\n  - versions: [v1.0.0]\n")
+		r := newEnv(t, gh).run(args("--check")...)
+		if r.code != ExitOK {
+			t.Fatalf("file: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--ignore-version=v2", "--output=json")...)
+		entries := r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)
+		if len(entries) != 2 {
+			t.Fatalf("flag must add to file entries: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--no-ignore")...)
+		if r.code != ExitValidation {
+			t.Fatalf("no-ignore: %s", r.all())
+		}
+		r = newEnv(t, gh).run(args("--check", "--no-ignore", "--ignore-version=v1.0.0")...)
+		if r.code != ExitOK {
+			t.Fatalf("no-ignore and flag: %s", r.all())
+		}
+	})
 }
 
 func TestVersionScoping(t *testing.T) {
@@ -1103,7 +1137,7 @@ func TestJSONOutput(t *testing.T) {
 func TestVerifySave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "findings.json")
 	e := newEnv(t, ghWithPatch(t))
-	args := []string{"verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--ignore-versions=v3.*", "v1"}
+	args := []string{"verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--ignore-version=v3.*", "v1"}
 	r := e.runRaw(append(args, "--output=json")...)
 	if r.code != ExitValidation {
 		t.Fatalf("exit %d: %s", r.code, r.all())
@@ -1524,7 +1558,7 @@ func TestGitHubActions(t *testing.T) {
 		gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
 		e := newEnv(t, gh)
 		e.vars["GITHUB_ACTIONS"] = "true"
-		r := e.run(args("--check", "--ignore-versions=::set-env name=X::y")...)
+		r := e.run(args("--check", "--ignore-version=::set-env name=X::y")...)
 		if strings.Contains(r.all(), "\n::set-env") {
 			t.Errorf("unescaped workflow command:\n%s", r.all())
 		}

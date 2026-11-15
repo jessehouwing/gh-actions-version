@@ -53,7 +53,8 @@ type flags struct {
 	previewReleases                                  string
 	allowTagDeletion                                 bool
 	floatingUse                                      string
-	ignoreVersions                                   string
+	ignoreVersions                                   []string
+	noIgnore                                         bool
 	maxWait                                          time.Duration
 	config                                           string
 	mode                                             string
@@ -167,7 +168,8 @@ func addCommandFlags(fl *pflag.FlagSet, f *flags) {
 	fl.StringVar(&f.previewReleases, "preview-releases", "", "Include or exclude prereleases when picking the latest patch: included or excluded")
 	fl.BoolVar(&f.allowTagDeletion, "dangerously-allow-destructive-tag-deletion", false, "Allow deleting a tag whose immutable release was deleted; this cannot be undone")
 	fl.StringVar(&f.floatingUse, "floating-versions-use", "tags", "Use tags or branches for floating versions")
-	fl.StringVar(&f.ignoreVersions, "ignore-versions", "", "Comma separated versions to skip; wildcards like v1.* are supported")
+	fl.StringArrayVar(&f.ignoreVersions, "ignore-version", nil, "Ignore a version pattern for this run (repeatable)")
+	fl.BoolVar(&f.noIgnore, "no-ignore", false, "Disable configured ignores before applying --ignore-version")
 	fl.StringSliceVar(&f.jsonFields, "json-fields", nil, "Select JSON fields (available: "+strings.Join(jsonFields, ", ")+")")
 	fl.StringVarP(&f.jq, "jq", "q", "", "Filter the JSON output with a jq expression")
 	fl.StringVarP(&f.template, "template", "t", "", "Format the JSON output with a Go template")
@@ -788,14 +790,36 @@ func (r *run) buildConfig(p *policy.File) error {
 	if pin.FloatingVersionsUse = f.changed["floating-versions-use"]; pin.FloatingVersionsUse {
 		cfg.FloatingVersionsUse = strings.ToLower(strings.TrimSpace(f.floatingUse))
 	}
-	if pin.IgnoreVersions = f.changed["ignore-versions"]; pin.IgnoreVersions {
-		cfg.IgnoreVersions = options.ParseIgnoreVersions(f.ignoreVersions, r.log)
-	}
 	p.Apply(&cfg, pin)
+	if err := applyIgnoreFlags(&cfg, f); err != nil {
+		return err
+	}
 	if errs := options.Validate(cfg); len(errs) > 0 {
 		return errors.New(strings.Join(errs, "\n"))
 	}
 	r.cfg = cfg
+	return nil
+}
+
+func applyIgnoreFlags(cfg *state.Config, f *flags) error {
+	for _, pattern := range f.ignoreVersions {
+		if !version.IsValidPattern(pattern) {
+			return fmt.Errorf("--ignore-version: invalid version pattern %q", pattern)
+		}
+	}
+	if f.noIgnore {
+		cfg.IgnoreVersions = nil
+		cfg.IgnoreEntries = nil
+		cfg.Sources["ignore"] = "flag"
+		cfg.Sources["ignore-versions"] = "flag"
+	}
+	for _, pattern := range f.ignoreVersions {
+		cfg.IgnoreVersions = append(cfg.IgnoreVersions, pattern)
+		cfg.IgnoreEntries = append(cfg.IgnoreEntries, state.IgnoreEntry{Versions: []string{pattern}, Scope: "all"})
+	}
+	if len(f.ignoreVersions) != 0 {
+		cfg.Sources["ignore-versions"] = "flag"
+	}
 	return nil
 }
 
