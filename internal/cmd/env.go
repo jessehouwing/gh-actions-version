@@ -101,6 +101,10 @@ func (g goghPrompter) Confirm(message string, def bool) (bool, error) {
 	return g.p.Confirm(message, def)
 }
 
+func (g goghPrompter) Input(message, def string) (string, error) {
+	return g.p.Input(message, def)
+}
+
 // processPrompter prompts on the real terminal; prompts go to stderr when stdout carries JSON.
 func processPrompter(jsonMode bool) Prompter {
 	out := os.Stdout

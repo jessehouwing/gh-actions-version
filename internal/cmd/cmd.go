@@ -132,7 +132,7 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	addCommandFlags(fix.Flags(), &f)
 	addFixFlags(fix.Flags(), &f)
 	fix.Flags().StringVar(&f.from, "from", "", "Read findings from a file, or - for stdin")
-	root.AddCommand(verify, fix)
+	root.AddCommand(verify, fix, newIgnoreCommand(&f, env, &code))
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(env.Stderr, "Error:", err)
