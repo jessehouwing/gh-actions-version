@@ -447,6 +447,7 @@ func TestLoad(t *testing.T) {
 		default:
 			jsonResp(w, 404, map[string]any{"message": "nf"})
 		}
+
 	})
 	cfg := state.Config{CheckMarketplace: "error", IgnoreVersions: []string{"v1.0.0"}}
 	s, err := Load(ctx(), h.c, cfg)
@@ -479,6 +480,25 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("%v %v", s2.Marketplace, err)
 		}
 	})
+}
+
+func TestLoadFailsOnMarketplaceMetadataError(t *testing.T) {
+	h := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/git/") || strings.HasSuffix(r.URL.Path, "/branches"):
+			jsonResp(w, 200, []any{})
+		case strings.HasSuffix(r.URL.Path, "/graphql"):
+			jsonResp(w, 200, releasesPage(nil, false, ""))
+		case strings.HasSuffix(r.URL.Path, "/contents/action.yaml"):
+			jsonResp(w, 403, map[string]any{"message": "metadata denied"})
+		default:
+			jsonResp(w, 404, map[string]any{"message": "unexpected request"})
+		}
+	})
+	s, err := Load(ctx(), h.c, state.Config{CheckMarketplace: "error"})
+	if err == nil || s != nil || !strings.Contains(err.Error(), "metadata denied") {
+		t.Fatalf("state=%+v error=%v", s, err)
+	}
 }
 
 func b64(s string) string {

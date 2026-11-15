@@ -138,6 +138,7 @@ func TestSetupDoesNotOverwriteConcurrentEdit(t *testing.T) {
 	if err := os.WriteFile(path, []byte("preview: exclude\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	var out bytes.Buffer
 	env := Env{Dir: dir, Stdout: &out, Stderr: &out, IsTTY: true, Prompter: &concurrentEditPrompter{path: path}}
 	if code := Run(context.Background(), []string{"setup", "--yes"}, env); code != ExitUsage || !strings.Contains(out.String(), "changed while setup was running") {
@@ -146,5 +147,33 @@ func TestSetupDoesNotOverwriteConcurrentEdit(t *testing.T) {
 	b, err := os.ReadFile(path)
 	if err != nil || string(b) != "preview: include # concurrent\n" {
 		t.Fatalf("concurrent edit lost: %s %v", b, err)
+	}
+}
+
+func TestSetupRejectsAnchorsAndAliasesInManagedFields(t *testing.T) {
+	for _, tc := range []struct {
+		name, content string
+	}{
+		{"scalar anchor", "preview: &preview include\n"},
+		{"scalar alias", "rules:\n  major_tag_missing:\n    level: &level warning\n  minor_tag_missing:\n    level: *level\n"},
+		{"nested anchor", "rules:\n  major_tag_missing:\n    level: &level warning\n"},
+		{"nested alias", "concerns:\n  major:\n    level: &level warning\n  minor:\n    level: *level\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "action-version.yml")
+			if err := os.WriteFile(path, []byte(tc.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			code := Run(context.Background(), []string{"setup", "--yes", "--force"}, Env{Dir: dir, Stdout: &out, Stderr: &out})
+			if code != ExitUsage || !strings.Contains(out.String(), "aliases or anchors") {
+				t.Fatalf("exit %d: %s", code, out.String())
+			}
+			content, err := os.ReadFile(path)
+			if err != nil || string(content) != tc.content {
+				t.Fatalf("original file changed: %q, %v", content, err)
+			}
+		})
 	}
 }

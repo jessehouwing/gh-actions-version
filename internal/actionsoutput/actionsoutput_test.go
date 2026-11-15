@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/jessehouwing/gh-actions-version/internal/report"
 )
@@ -141,5 +142,45 @@ func TestRenderReturnsStepFileErrors(t *testing.T) {
 	dir := t.TempDir()
 	if err := Render(&bytes.Buffer{}, filepath.Join(dir, "missing", "summary.md"), "", report.Report{}, 0); err == nil {
 		t.Fatal("expected an error for an unwritable step summary")
+	}
+}
+
+func TestSummaryAppendBoundaries(t *testing.T) {
+	const note = "Summary truncated to fit the 1 MiB"
+	for _, tc := range []struct {
+		name     string
+		existing int
+		content  string
+		wantNote bool
+	}{
+		{"partially full", maxSummarySize - 100, strings.Repeat("x", 200), true},
+		{"full", maxSummarySize, "ignored", false},
+		{"UTF-8 boundary", maxSummarySize - 2, "€", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "summary")
+			prefix := strings.Repeat("a", tc.existing)
+			if err := os.WriteFile(path, []byte(prefix), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := appendCapped(path, tc.content); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || len(got) > maxSummarySize || !utf8.Valid(got) ||
+				!strings.HasPrefix(string(got), prefix) || strings.Contains(string(got), note) != tc.wantNote {
+				t.Fatalf("size=%d valid=%t note=%t err=%v", len(got), utf8.Valid(got), strings.Contains(string(got), note), err)
+			}
+			if tc.name == "full" && len(got) != tc.existing {
+				t.Fatal("full summary was modified")
+			}
+		})
+	}
+}
+
+func TestRenderReturnsOutputFileError(t *testing.T) {
+	outputs := filepath.Join(t.TempDir(), "missing", "outputs")
+	if err := Render(&bytes.Buffer{}, "", outputs, report.Report{}, 0); err == nil {
+		t.Fatal("expected an error for an unwritable output file")
 	}
 }
