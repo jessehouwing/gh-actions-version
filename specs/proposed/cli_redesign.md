@@ -67,9 +67,10 @@ Questions, in order:
 3. Releases: require a release for every patch? Require immutable releases?
 4. Marketplace checks: on or off.
 5. Prerelease handling: ignore previews when choosing the latest patch.
-6. Versions to ignore.
-7. Per-concern fix policy: automatic or manual only.
-8. Where to write: repository root or `.github/`.
+6. Permanently delete tags whose immutable release was deleted? Default deny; deletion is irreversible.
+7. Versions to ignore.
+8. Per-concern fix policy: automatic or manual only.
+9. Where to write: repository root or `.github/`.
 
 Flags:
 
@@ -79,6 +80,9 @@ Flags:
 | `--path PATH` | Destination (default `action-version.yml`; `.github/action-version.yml` also accepted). |
 | `--force` | Overwrite an existing file (default: update in place and keep comments where possible). |
 | `--print` | Write to stdout instead of a file. |
+| `--dangerously-allow-destructive-tag-deletion` | Opt into irreversible deletion of tags used by deleted immutable releases. |
+| `--fix-policy CONCERN=auto\|manual` | Pre-answer a concern's fix policy; repeatable. |
+| `--no-ignore` | Pre-answer with no ignored versions. |
 | Policy flags above | Pre-answer the matching question. |
 
 Output: the written path and a diff summary. Exit `2` when a file exists and neither `--force` nor an
