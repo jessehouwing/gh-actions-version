@@ -1,7 +1,7 @@
 # Output redesign
 
 Status: implemented through Phase 3.10; ignored-version details are deferred to Phase 5. Companion to
-`proposed/cli_redesign.md`, `rule_refactoring.md`, and `ignored_versions.md`.
+`cli_redesign.md`, `rule_refactoring.md`, and `ignored_versions.md`.
 
 ## Problem
 
@@ -103,7 +103,7 @@ Every report finding carries `rule`, `finding`, `concern`, `severity`, `version`
 - Findings are grouped consistently with the console report: also available as `groups[]`
   (`rule`, `finding`, `versions[]`, `count`).
 - Selection with `--json-fields`, filtering with `--jq`, templating with `--template`
-  (see `proposed/cli_redesign.md`).
+  (see `cli_redesign.md`).
 
 ## Actions
 

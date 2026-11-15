@@ -1,6 +1,6 @@
 # Implementation plan for the proposed specs
 
-Status: proposed. Covers `../rule_refactoring.md`, `cli_redesign.md`, `../output_redesign.md` and `../ignored_versions.md`.
+Status: proposed. Covers `../rule_refactoring.md`, `../cli_redesign.md`, `../output_redesign.md` and `../ignored_versions.md`.
 
 ## Principles
 
@@ -105,7 +105,7 @@ Checkpoint: review stop. Smoke run against `actions/checkout`; JSON shows rule/f
 
 ## Phase 2: subcommand CLI skeleton
 
-Spec: `cli_redesign.md`. Goal: new command surface, wired to the **existing** pipeline and renderers. Output
+Spec: `../cli_redesign.md`. Goal: new command surface, wired to the **existing** pipeline and renderers. Output
 format redesign is Phase 3.
 
 | PR | Branch | Content | Tests |
@@ -143,7 +143,7 @@ validates; actions summary rendered in a scratch workflow run.
 
 ## Phase 4: findings file (`verify --save`, `fix --from`)
 
-Spec: `cli_redesign.md` (findings file section).
+Spec: `../cli_redesign.md` (findings file section).
 
 | PR | Branch | Content | Tests |
 |---|---|---|---|

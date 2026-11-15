@@ -1,6 +1,6 @@
-# Proposed: subcommand-based CLI (`setup`, `verify`, `fix`)
+# Subcommand-based CLI (`setup`, `verify`, `fix`)
 
-Status: proposed; Phase 2 decisions recorded, implementation pending.
+Status: implemented.
 
 ## Goals
 
@@ -78,19 +78,21 @@ Flags:
 |---|---|
 | `--yes` | Accept defaults for every unanswered question (non-interactive). |
 | `--path PATH` | Destination (default `action-version.yml`; `.github/action-version.yml` also accepted). |
-| `--force` | Overwrite an existing file (default: update in place and keep comments where possible). |
+| `--force` | Update an existing file without confirmation, preserving comments and unrelated settings. |
 | `--print` | Write to stdout instead of a file. |
 | `--dangerously-allow-destructive-tag-deletion` | Opt into irreversible deletion of tags used by deleted immutable releases. |
 | `--fix-policy CONCERN=auto\|manual` | Pre-answer a concern's fix policy; repeatable. |
-| `--no-ignore` | Pre-answer with no ignored versions. |
+| `--no-ignore` | Pre-answer with no ignored versions and clear existing ignores. |
 | Policy flags above | Pre-answer the matching question. |
 
 Output: the written path and a diff summary. Exit `2` when a file exists and neither `--force` nor an
-interactive confirmation was given.
+interactive confirmation was given. Existing ignores are retained unless `--no-ignore` is specified; added
+patterns are updated or added to the existing policy. `--config` selects the destination as an alternative
+to `--path`. `--print` cannot be combined with either destination flag or `--force`.
 
 ## `ignore`
 
-Edits `action-version.yml` offline; see `../ignored_versions.md` for flags, scopes and behavior.
+Edits `action-version.yml` offline; see `ignored_versions.md` for flags, scopes and behavior.
 
 ## `verify`
 

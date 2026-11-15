@@ -16,6 +16,7 @@ gh extension upgrade actions-version
 
 ```sh
 cd my-action-repo
+gh actions-version setup           # configure and write action-version.yml
 gh actions-version verify          # report problems (read-only)
 gh actions-version fix --mode auto      # fix them
 gh actions-version verify -R owner/repo # run against another repository
@@ -34,6 +35,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 
 | Command or flag | Behavior |
 |---|---|
+| `setup` | Configure and write a local policy; `--yes` accepts defaults, `--print` writes YAML to stdout. |
 | `verify [versions...]` | Report only; exit 1 when errors meet `--fail-on` (default: `error`). |
 | `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
 | `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
@@ -98,7 +100,7 @@ for `--from`; pass `--no-verify-after=false` to request it.
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
-Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),
+Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`),
 `--ignore-version` (repeatable; supports `v1.*`), `--no-ignore`, and `--max-wait`. See `gh actions-version --help`.
 
 Deleting a tag used by a deleted immutable release is irreversible. It is denied by default; explicitly set
@@ -139,7 +141,31 @@ rules:
 
 Precedence: command-line flag > `action-version.yml` > built-in default. The built-in file is
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
-The GitHub Action runs this CLI, so it reads the file too; inputs that are explicitly set are passed as flags and win over it.
+
+### Setup
+
+`gh actions-version setup` asks about floating versions, releases, Marketplace checks, preview releases,
+immutable-tag deletion, ignored versions and per-concern fix policies. It is local and needs no token.
+Previews default to excluded. Deleting a tag used by a deleted immutable release is irreversible and
+defaults to denied; enabling it requires an explicit prompt or `--dangerously-allow-destructive-tag-deletion`.
+
+```sh
+gh actions-version setup --yes --print
+gh actions-version setup --yes --path .github/action-version.yml
+gh actions-version setup --yes --preview-releases=included --fix-policy releases=manual
+```
+
+`--yes` accepts defaults for unanswered questions. `--floating-versions-use`, `--preview-releases`,
+`--level`, `--rule-level`, `--finding-level`, repeatable `--fix-policy CONCERN=auto|manual`,
+`--ignore-version`, and `--no-ignore` pre-answer their questions. Without a terminal, use `--yes`
+or provide all answers; irreversible deletion remains denied unless explicitly enabled. `--path` or
+`--config` selects the destination; the default is `action-version.yml` at the root, and the interactive
+wizard can select `.github/`. `--print` emits YAML only and cannot be combined with a path or `--force`.
+
+An existing file requires terminal confirmation or `--force`; even with `--yes`, overwrite is not
+automatic. Updates preserve comments and unrelated settings. Existing ignores remain unless explicitly
+cleared with `--no-ignore`; new ignores are added or updated. The command reports the path and changed
+line counts. Invalid existing policies and concurrent changes are rejected without overwriting.
 
 ### Ignored versions
 

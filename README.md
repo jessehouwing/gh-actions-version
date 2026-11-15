@@ -16,6 +16,7 @@ gh extension upgrade actions-version
 
 ```sh
 cd my-action-repo
+gh actions-version setup           # configure and write action-version.yml
 gh actions-version verify          # report problems (read-only)
 gh actions-version fix --mode auto      # fix them
 gh actions-version verify -R owner/repo # run against another repository
@@ -34,6 +35,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 
 | Command or flag | Behavior |
 |---|---|
+| `setup` | Configure a local policy interactively; `--yes` accepts defaults. |
 | `verify [versions...]` | Report only; exit 1 when errors meet `--fail-on` (default: `error`). |
 | `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
 | `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
@@ -60,7 +62,7 @@ when the repository may have changed; see [saved findings](docs/cli.md#verify-no
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
-Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),
+Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`),
 `--ignore-version` (repeatable; supports `v1.*`), `--no-ignore`, and `--max-wait`. See `gh actions-version --help`.
 
 Deleting a tag used by a deleted immutable release is irreversible. It is denied by default; explicitly set
@@ -101,6 +103,12 @@ rules:
 
 Precedence: command-line flag > `action-version.yml` > built-in default. The built-in file is
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
+
+`setup` asks about floating versions, releases, preview handling, irreversible tag deletion, ignores,
+and fix policies. It runs locally without a token. Use `setup --yes --print` to review defaults or
+`setup --yes --path .github/action-version.yml` to write them without prompts. Existing files require
+confirmation or `--force`; updates preserve comments and unrelated settings. Existing ignores are retained
+unless `--no-ignore` is supplied. Preview releases default to excluded and destructive tag deletion to denied.
 
 ### Ignored versions
 

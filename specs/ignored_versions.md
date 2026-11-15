@@ -1,6 +1,6 @@
 # Specifying ignored versions and releases
 
-Status: implemented. Companion to `proposed/cli_redesign.md` and `rule_refactoring.md`.
+Status: implemented. Companion to `cli_redesign.md` and `rule_refactoring.md`.
 
 ## Problem
 
