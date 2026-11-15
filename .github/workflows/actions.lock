@@ -10,14 +10,14 @@ workflows:
         - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/ci.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v5.6.0'
+        - 'actions/setup-go@v7.0.0'
     '.github/workflows/copilot-setup-steps.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v5.6.0'
+        - 'actions/setup-go@v7.0.0'
         - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/release.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v5.6.0'
+        - 'actions/setup-go@v7.0.0'
         - 'cli/gh-extension-precompile@v2.2.0'
     '.github/workflows/scorecard.yml':
         - 'actions/checkout@v7.0.1'
@@ -53,9 +53,9 @@ dependencies:
         commit: 'sha1-4a3601121dd01d1626a1e23e37211e3254c1c06c'
         owner_id: 44036562
         repo_id: 192624594
-    'actions/setup-go@v5.6.0':
-        ref: 'v5.6.0'
-        commit: 'sha1-40f1582b2485089dde7abd97c1529aa768e1baff'
+    'actions/setup-go@v7.0.0':
+        ref: 'v7.0.0'
+        commit: 'sha1-b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
         owner_id: 44036562
         repo_id: 192624594
     'actions/upload-artifact@v7.0.2':
