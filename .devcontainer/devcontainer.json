@@ -7,8 +7,9 @@
 		},
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/devcontainers-extra/features/act:1": {},
-		"ghcr.io/devcontainers-extra/features/actionlint:1": {}
+		"ghcr.io/devcontainers/features/python:1": {}
 	},
+	"postCreateCommand": "pipx install zizmor",
 	"customizations": {
 		"vscode": {
 			"extensions": [
