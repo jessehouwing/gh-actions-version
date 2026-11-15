@@ -59,7 +59,7 @@ Rule | Current type | Proposed finding
 `marketplace_publication_required` | `marketplace_not_published` | `marketplace_not_published`
 
 New: `patch_tag_locked_by_deleted_release` under `patch_release_required`. Detected only after a 422 on release
-creation; its fix deletes the tag and stays behind `--dangerously-allow-destructive-tag-deletion`.
+creation; its fix deletes the tag and requires `permanently-delete-immutable-tags: dangerously-allow` or `--dangerously-allow-destructive-tag-deletion`.
 
 ## Options
 
@@ -94,6 +94,6 @@ Add the findings table to each rule page and keep config at rule level.
 - **Finding model:** Option A. Keep the existing rules and declare their findings explicitly.
 - **Finding identity:** Every issue carries its owning rule and finding; JSON emits `rule` and `finding`, with no legacy `type`.
 - **Configuration:** Finding overrides win over rule settings, which win over concern settings. Unknown finding IDs are errors.
-- **Burned tags:** Detect only after release creation returns the matching HTTP 422. Deleting the tag is gated by `--dangerously-allow-destructive-tag-deletion`.
+- **Burned tags:** Detect only after release creation returns the matching HTTP 422. Deleting the tag requires `permanently-delete-immutable-tags: dangerously-allow` or `--dangerously-allow-destructive-tag-deletion`.
 - **Audit log:** No audit-log lookup.
 - **Compatibility:** Finding IDs are renamed without legacy aliases.

@@ -37,7 +37,8 @@ func TestDefaultsMatchBuiltInConfig(t *testing.T) {
 	Default().Apply(&got, Pinned{})
 	if got.CheckMinorVersion != want.CheckMinorVersion || got.CheckReleases != want.CheckReleases ||
 		got.CheckImmutability != want.CheckImmutability || got.CheckMarketplace != want.CheckMarketplace ||
-		got.IgnorePreviewReleases != want.IgnorePreviewReleases || got.FloatingVersionsUse != want.FloatingVersionsUse {
+		got.IgnorePreviewReleases != want.IgnorePreviewReleases || got.FloatingVersionsUse != want.FloatingVersionsUse ||
+		got.AllowDestructiveTagDeletion != want.AllowDestructiveTagDeletion {
 		t.Errorf("defaults differ: %+v vs %+v", got, want)
 	}
 }
@@ -133,18 +134,40 @@ func TestPreviewPolicy(t *testing.T) {
 	}
 }
 
+func TestImmutableTagDeletionPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		allow bool
+	}{{"deny", false}, {"dangerously-allow", true}} {
+		t.Run(tc.value, func(t *testing.T) {
+			over, err := Parse([]byte("permanently-delete-immutable-tags: " + tc.value + "\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			over.MarkSource("file:action-version.yml")
+			cfg := options.DefaultConfig()
+			Merge(Default(), over).Apply(&cfg, Pinned{})
+			if cfg.AllowDestructiveTagDeletion != tc.allow || cfg.Sources["permanently-delete-immutable-tags"] != "file:action-version.yml" {
+				t.Fatalf("effective config = %+v", cfg)
+			}
+		})
+	}
+}
+
 func TestParseRejectsInvalid(t *testing.T) {
 	for name, y := range map[string]string{
-		"unknown key":     "bogus: 1",
-		"unknown concern": "concerns:\n  nope:\n    level: error",
-		"unknown rule":    "rules:\n  nope:\n    level: error",
-		"unknown finding": "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
-		"bad level":       "concerns:\n  minor:\n    level: loud",
-		"bad floating":    "floating-versions-use: both",
-		"bad preview":     "preview: previews",
-		"old preview key": "ignore-preview-releases: false",
-		"old autofix key": "concerns:\n  minor:\n    autofix: false",
-		"bad fix":         "concerns:\n  minor:\n    fix: never",
+		"unknown key":      "bogus: 1",
+		"unknown concern":  "concerns:\n  nope:\n    level: error",
+		"unknown rule":     "rules:\n  nope:\n    level: error",
+		"unknown finding":  "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
+		"bad level":        "concerns:\n  minor:\n    level: loud",
+		"bad floating":     "floating-versions-use: both",
+		"bad preview":      "preview: previews",
+		"bad deletion":     "permanently-delete-immutable-tags: allow",
+		"boolean deletion": "permanently-delete-immutable-tags: true",
+		"old preview key":  "ignore-preview-releases: false",
+		"old autofix key":  "concerns:\n  minor:\n    autofix: false",
+		"bad fix":          "concerns:\n  minor:\n    fix: never",
 	} {
 		if _, err := Parse([]byte(y)); err == nil {
 			t.Errorf("%s: expected an error", name)

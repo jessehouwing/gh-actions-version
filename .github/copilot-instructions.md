@@ -27,7 +27,7 @@ A Go `gh` CLI extension (`gh actions-version`) plus a composite GitHub Action (`
 - Config precedence: CLI flag > `action-version.yml` > built-in default. Boolean flags are opt-in (no `=false` to change a default).
 - Tokens come from go-gh (`auth.TokenForHost`); there is no `--token` flag. Reuse go-gh (`term`, `auth`, REST client) instead of reimplementing.
 - Every rule must belong to exactly one concern in `internal/policy/policy.go` (`concernRules`); a test enforces this.
-- Deleting a tag whose immutable release was deleted requires `--dangerously-allow-destructive-tag-deletion`.
+- Deleting a tag whose immutable release was deleted requires `permanently-delete-immutable-tags: dangerously-allow` or `--dangerously-allow-destructive-tag-deletion`.
 - GraphQL queries must have a test verifying that all fields the code relies on are queried.
 - Action inputs that override `action-version.yml` default to empty in `action.yaml`; only set inputs become flags.
 

@@ -39,13 +39,14 @@ type Settings struct {
 
 // File is the content of an action-version.yml.
 type File struct {
-	Version             int                 `yaml:"version"`
-	FloatingVersionsUse string              `yaml:"floating-versions-use"`
-	Preview             string              `yaml:"preview"`
-	IgnoreVersions      []string            `yaml:"ignore-versions"`
-	Concerns            map[string]Settings `yaml:"concerns"`
-	Rules               map[string]Settings `yaml:"rules"`
-	Sources             map[string]string   `yaml:"-"`
+	Version                        int                 `yaml:"version"`
+	FloatingVersionsUse            string              `yaml:"floating-versions-use"`
+	Preview                        string              `yaml:"preview"`
+	PermanentlyDeleteImmutableTags string              `yaml:"permanently-delete-immutable-tags"`
+	IgnoreVersions                 []string            `yaml:"ignore-versions"`
+	Concerns                       map[string]Settings `yaml:"concerns"`
+	Rules                          map[string]Settings `yaml:"rules"`
+	Sources                        map[string]string   `yaml:"-"`
 }
 
 // concernRules lists the rules of every concern.
@@ -124,6 +125,9 @@ func (f *File) validate() error {
 	if f.Preview != "" && f.Preview != "include" && f.Preview != "exclude" {
 		errs = append(errs, fmt.Sprintf("preview: %q is not include or exclude", f.Preview))
 	}
+	if f.PermanentlyDeleteImmutableTags != "" && f.PermanentlyDeleteImmutableTags != "deny" && f.PermanentlyDeleteImmutableTags != "dangerously-allow" {
+		errs = append(errs, fmt.Sprintf("permanently-delete-immutable-tags: %q is not deny or dangerously-allow", f.PermanentlyDeleteImmutableTags))
+	}
 	for _, p := range f.IgnoreVersions {
 		if !version.IsValidPattern(p) {
 			errs = append(errs, fmt.Sprintf("ignore-versions: %q is not vX, vX.Y, vX.Y.Z or a wildcard like v1.*", p))
@@ -189,6 +193,7 @@ func (f *File) MarkSource(source string) {
 	}
 	mark("floating-versions-use", f.FloatingVersionsUse)
 	mark("preview", f.Preview)
+	mark("permanently-delete-immutable-tags", f.PermanentlyDeleteImmutableTags)
 	if f.IgnoreVersions != nil {
 		f.Sources["ignore-versions"] = source
 	}
@@ -234,19 +239,23 @@ func Default() *File {
 // Merge layers over on top of base; settings that over leaves unset are taken from base.
 func Merge(base, over *File) *File {
 	out := &File{
-		Version:             base.Version,
-		FloatingVersionsUse: base.FloatingVersionsUse,
-		Preview:             base.Preview,
-		IgnoreVersions:      base.IgnoreVersions,
-		Concerns:            mergeSettings(base.Concerns, over.Concerns),
-		Rules:               mergeSettings(base.Rules, over.Rules),
-		Sources:             mergeSources(base.Sources, over.Sources),
+		Version:                        base.Version,
+		FloatingVersionsUse:            base.FloatingVersionsUse,
+		Preview:                        base.Preview,
+		PermanentlyDeleteImmutableTags: base.PermanentlyDeleteImmutableTags,
+		IgnoreVersions:                 base.IgnoreVersions,
+		Concerns:                       mergeSettings(base.Concerns, over.Concerns),
+		Rules:                          mergeSettings(base.Rules, over.Rules),
+		Sources:                        mergeSources(base.Sources, over.Sources),
 	}
 	if over.FloatingVersionsUse != "" {
 		out.FloatingVersionsUse = over.FloatingVersionsUse
 	}
 	if over.Preview != "" {
 		out.Preview = over.Preview
+	}
+	if over.PermanentlyDeleteImmutableTags != "" {
+		out.PermanentlyDeleteImmutableTags = over.PermanentlyDeleteImmutableTags
 	}
 	if over.IgnoreVersions != nil {
 		out.IgnoreVersions = over.IgnoreVersions
@@ -340,7 +349,7 @@ func LoadFrom(ctx context.Context, read Reader, path string) (*File, string, err
 
 // Pinned names the settings already fixed by command line flags; the policy must not change them.
 type Pinned struct {
-	FloatingVersionsUse, IgnorePreviewReleases, IgnoreVersions bool
+	FloatingVersionsUse, IgnorePreviewReleases, IgnoreVersions, AllowDestructiveTagDeletion bool
 	// Levels holds concern levels explicitly set by the command line.
 	Levels map[string]bool
 }
@@ -362,6 +371,12 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 	}
 	if pin.IgnorePreviewReleases {
 		cfg.Sources["preview"] = "flag"
+	}
+	if !pin.AllowDestructiveTagDeletion && f.PermanentlyDeleteImmutableTags != "" {
+		cfg.AllowDestructiveTagDeletion = f.PermanentlyDeleteImmutableTags == "dangerously-allow"
+	}
+	if pin.AllowDestructiveTagDeletion {
+		cfg.Sources["permanently-delete-immutable-tags"] = "flag"
 	}
 	if !pin.IgnoreVersions && f.IgnoreVersions != nil {
 		cfg.IgnoreVersions = append([]string(nil), f.IgnoreVersions...)

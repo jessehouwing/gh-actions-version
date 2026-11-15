@@ -75,7 +75,9 @@ Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-l
 Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),
 `--ignore-versions` (supports `v1.*`), and `--max-wait`. See `gh actions-version --help`.
 
-`--dangerously-allow-destructive-tag-deletion` is needed only when a tag was used by an immutable release that has since been deleted: such a tag can't be republished, and deleting it is irreversible. Without the flag the issue is reported as a manual fix with the `git push origin :refs/tags/<tag>` command. Other tag deletions are not affected.
+Deleting a tag used by a deleted immutable release is irreversible. It is denied by default; explicitly set
+`permanently-delete-immutable-tags: dangerously-allow` in the policy or pass
+`--dangerously-allow-destructive-tag-deletion` to permit it. Other tag deletions are not affected.
 
 Exit codes: `0` success, `1` qualifying findings remain, `2` usage or runtime error, `3` fixes applied but qualifying findings remain.
 
@@ -101,6 +103,7 @@ concern or per rule:
 version: 1
 floating-versions-use: tags
 preview: include
+permanently-delete-immutable-tags: deny
 concerns:
   minor: { level: warning }
   releases: { fix: manual }

@@ -140,7 +140,6 @@ No findings.
     }
   },
   "sources": {
-    "allow-destructive-tag-deletion": "default",
     "concerns.immutability.fix": "default",
     "concerns.immutability.level": "default",
     "concerns.latest.fix": "default",
@@ -159,6 +158,7 @@ No findings.
     "concerns.releases.level": "default",
     "floating-versions-use": "default",
     "ignore-versions": "default",
+    "permanently-delete-immutable-tags": "default",
     "preview": "default",
     "rules.action_metadata_required.findings.marketplace_metadata_missing.fix": "default",
     "rules.action_metadata_required.findings.marketplace_metadata_missing.level": "flag",

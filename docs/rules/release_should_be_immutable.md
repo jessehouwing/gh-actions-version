@@ -71,7 +71,7 @@ When you run `fix --mode auto`, this rule uses `RepublishReleaseAction` which:
 
 **Important:** Enabling the setting requires repository admin permissions, which the default Actions `GITHUB_TOKEN` usually lacks. If it cannot be enabled, the issue is marked as "manual_fix_required" with the `gh api -X PUT` command to run, and the release is not republished (it would stay mutable).
 
-**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422. Because the release was most likely deleted for security reasons, auto-fix **deletes the tag** so it can no longer be referenced, but only when `--dangerously-allow-destructive-tag-deletion` is set; otherwise the issue is a **manual_fix_required** with the command to delete the tag yourself. If the tag cannot be deleted (e.g. a tag ruleset blocks it), the issue is marked as **manual_fix_required**; the message and manual instructions name the ruleset(s) to bypass or disable and give the command to delete the tag remotely (`git push origin :refs/tags/<tag>`).
+**Note:** If the tag was previously used by a deleted immutable release, GitHub will return HTTP 422. Deleting the tag is irreversible and requires `permanently-delete-immutable-tags: dangerously-allow` in the policy or `--dangerously-allow-destructive-tag-deletion`. Otherwise the issue is **manual_fix_required** with a command to delete the tag yourself. If a tag ruleset blocks deletion, the issue is also **manual_fix_required**; the message and manual instructions name the ruleset(s) and give the remote deletion command (`git push origin :refs/tags/<tag>`).
 
 ## Manual Remediation
 

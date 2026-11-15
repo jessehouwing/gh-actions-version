@@ -248,7 +248,7 @@ func (a *RepublishReleaseAction) Execute(ctx context.Context, st *state.State, c
 	if !st.Config.AllowDestructiveTagDeletion {
 		a.TagDeletionFailed = true
 		a.markAsManualFixRequired(st, "release_not_immutable", fmt.Sprintf("Release %s cannot be republished because this tag was previously used by an immutable release that was deleted. Deleting the tag is irreversible, so it was not done automatically; rerun with --dangerously-allow-destructive-tag-deletion or delete the tag manually.", a.TagName))
-		outf("::warning::Release %s was previously deleted; the tag was not deleted because --dangerously-allow-destructive-tag-deletion is not set", a.TagName)
+		outf("::warning::Release %s was previously deleted; the tag was not deleted because destructive tag deletion is not allowed", a.TagName)
 		return false
 	}
 	outf("Release %s was previously deleted; deleting tag so it can no longer be referenced", a.TagName)

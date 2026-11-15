@@ -77,7 +77,7 @@ When you run `fix --mode auto`, this rule uses `CreateReleaseAction` which:
 2. If the immutability level is not `none`, publishes the release immediately (making it immutable)
 3. If the tag doesn't exist yet, GitHub's API will create it automatically
 
-**Note:** If release creation returns HTTP 422 because this tag was used by a deleted immutable release, the issue is reclassified as `patch_tag_locked_by_deleted_release`. The default fix does not delete the tag. Deleting it is irreversible and only happens when `--dangerously-allow-destructive-tag-deletion` is explicitly enabled. Without that option, the finding requires manual attention.
+**Note:** If release creation returns HTTP 422 because this tag was used by a deleted immutable release, the issue is reclassified as `patch_tag_locked_by_deleted_release`. The default fix does not delete the tag. Deletion is irreversible and requires `permanently-delete-immutable-tags: dangerously-allow` in the policy or `--dangerously-allow-destructive-tag-deletion`. Otherwise, the finding requires manual attention.
 
 Add the affected version to `ignore-versions` so floating versions and `latest` fall back to the previous version that still has a valid release. The finding message includes the ready-to-paste updated value; publish a new patch (or minor) release so floating versions and `latest` can advance to a valid release.
 

@@ -42,6 +42,48 @@ func TestParseLevelOverridesTracksFlagSources(t *testing.T) {
 	}
 }
 
+func TestImmutableTagDeletionConfig(t *testing.T) {
+	const error422 = `{"message":"Validation Failed","errors":[{"resource":"Release","code":"custom","field":"tag_name","message":"tag_name was used by an immutable release"}]}`
+	for _, tc := range []struct {
+		name, config, flag, source string
+		allow                      bool
+	}{
+		{"default deny", "", "", "default", false},
+		{"file deny", "deny", "", "file:action-version.yml", false},
+		{"file allows", "dangerously-allow", "", "file:action-version.yml", true},
+		{"no config denies", "dangerously-allow", "--no-config", "default", false},
+		{"flag overrides deny", "deny", "--dangerously-allow-destructive-tag-deletion", "flag", true},
+		{"explicit false overrides file", "dangerously-allow", "--dangerously-allow-destructive-tag-deletion=false", "flag", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gh := testutil.NewGitHub(t).Tag(c1, "v1.0.0", "v1.0", "v1")
+			if tc.config != "" {
+				gh.File("action-version.yml", "permanently-delete-immutable-tags: "+tc.config+"\n")
+			}
+			gh.Fail("POST", "/releases", 422, error422, 1)
+			args := []string{"fix", "-R", "o/r", "--mode=auto", "--no-verify-after", "--level=minor=none", "--level=immutability=none", "--level=marketplace=none", "--output=json"}
+			if tc.flag != "" {
+				args = append(args, tc.flag)
+			}
+			result := newEnv(t, gh).runRaw(args...)
+			config := result.json(t)["config"].(map[string]any)
+			if config["allowDestructiveTagDeletion"] != tc.allow || config["sources"].(map[string]any)["permanently-delete-immutable-tags"] != tc.source {
+				t.Fatalf("config = %v", config)
+			}
+			if deleted := gh.TagSha("v1.0.0") == ""; deleted != tc.allow {
+				t.Fatalf("deleted=%t, want %t; exit=%d, output=%s", deleted, tc.allow, result.code, result.all())
+			}
+		})
+	}
+	t.Run("invalid policy is rejected", func(t *testing.T) {
+		gh := testutil.NewGitHub(t).File("action-version.yml", "permanently-delete-immutable-tags: allow\n")
+		result := newEnv(t, gh).runRaw("verify", "-R", "o/r")
+		if result.code != ExitUsage || !strings.Contains(result.all(), "permanently-delete-immutable-tags") {
+			t.Fatalf("exit=%d, output=%s", result.code, result.all())
+		}
+	})
+}
+
 func (r result) json(t *testing.T) map[string]any {
 	t.Helper()
 	var m map[string]any

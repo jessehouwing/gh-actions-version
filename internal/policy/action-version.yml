@@ -22,6 +22,10 @@ floating-versions-use: tags
 # Whether releases marked as prerelease can be selected as the latest patch for a floating ref.
 preview: exclude
 
+# A tag used by a deleted immutable release cannot be republished. Deleting it is irreversible;
+# allow this only deliberately. Allowed: deny, dangerously-allow.
+permanently-delete-immutable-tags: deny
+
 # Versions that are never validated or changed. Supports exact versions and wildcards (v1.*, v1.0.*).
 ignore-versions: []
 
@@ -64,8 +68,8 @@ concerns:
     fix: auto
   # The repository setting 'Release immutability' is enabled and patch releases are published and
   # immutable. Override with --level immutability=LEVEL.
-  # Republishing a release whose tag was used by a deleted immutable release also needs
-  # --dangerously-allow-destructive-tag-deletion, whatever the fix setting.
+  # Deleting a tag used by a deleted immutable release also requires
+  # permanently-delete-immutable-tags: dangerously-allow (or the CLI flag), whatever the fix setting.
   immutability:
     level: error
     fix: auto

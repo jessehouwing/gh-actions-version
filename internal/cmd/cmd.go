@@ -744,6 +744,7 @@ func (r *run) buildConfig(p *policy.File) error {
 	}
 	p = policy.Merge(p, overrides)
 	pin := policy.Pinned{}
+	pin.AllowDestructiveTagDeletion = f.changed["dangerously-allow-destructive-tag-deletion"]
 	if pin.IgnorePreviewReleases = f.changed["preview-releases"]; pin.IgnorePreviewReleases {
 		switch strings.ToLower(strings.TrimSpace(f.previewReleases)) {
 		case "included":
@@ -761,13 +762,6 @@ func (r *run) buildConfig(p *policy.File) error {
 		cfg.IgnoreVersions = options.ParseIgnoreVersions(f.ignoreVersions, r.log)
 	}
 	p.Apply(&cfg, pin)
-	if cfg.Sources == nil {
-		cfg.Sources = map[string]string{}
-	}
-	cfg.Sources["allow-destructive-tag-deletion"] = "default"
-	if f.allowTagDeletion {
-		cfg.Sources["allow-destructive-tag-deletion"] = "flag"
-	}
 	if errs := options.Validate(cfg); len(errs) > 0 {
 		return errors.New(strings.Join(errs, "\n"))
 	}
