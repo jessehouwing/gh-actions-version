@@ -156,22 +156,55 @@ func TestImmutableTagDeletionPolicy(t *testing.T) {
 
 func TestParseRejectsInvalid(t *testing.T) {
 	for name, y := range map[string]string{
-		"unknown key":      "bogus: 1",
-		"unknown concern":  "concerns:\n  nope:\n    level: error",
-		"unknown rule":     "rules:\n  nope:\n    level: error",
-		"unknown finding":  "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
-		"bad level":        "concerns:\n  minor:\n    level: loud",
-		"bad floating":     "floating-versions-use: both",
-		"bad preview":      "preview: previews",
-		"bad deletion":     "permanently-delete-immutable-tags: allow",
-		"boolean deletion": "permanently-delete-immutable-tags: true",
-		"old preview key":  "ignore-preview-releases: false",
-		"old autofix key":  "concerns:\n  minor:\n    autofix: false",
-		"bad fix":          "concerns:\n  minor:\n    fix: never",
+		"unknown key":        "bogus: 1",
+		"unknown concern":    "concerns:\n  nope:\n    level: error",
+		"unknown rule":       "rules:\n  nope:\n    level: error",
+		"unknown finding":    "rules:\n  major_tag_missing:\n    findings:\n      not_a_finding:\n        level: warning",
+		"bad level":          "concerns:\n  minor:\n    level: loud",
+		"bad floating":       "floating-versions-use: both",
+		"bad preview":        "preview: previews",
+		"bad deletion":       "permanently-delete-immutable-tags: allow",
+		"boolean deletion":   "permanently-delete-immutable-tags: true",
+		"old preview key":    "ignore-preview-releases: false",
+		"old autofix key":    "concerns:\n  minor:\n    autofix: false",
+		"bad fix":            "concerns:\n  minor:\n    fix: never",
+		"ignore unknown key": "ignore:\n  - versions: [v1]\n    nope: x",
+		"ignore no versions": "ignore:\n  - reason: test",
+		"ignore bad pattern": "ignore:\n  - versions: ['v1.2.3-beta']",
+		"ignore bad scope":   "ignore:\n  - versions: [v1]\n    scope: forever",
+		"ignore bad rule":    "ignore:\n  - versions: [v1]\n    rules: [does_not_exist]",
+		"ignore bad date":    "ignore:\n  - versions: [v1]\n    until: 2027-02-29",
 	} {
 		if _, err := Parse([]byte(y)); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+func TestStructuredIgnorePolicy(t *testing.T) {
+	p, err := Parse([]byte(`ignore-versions: [v0.*]
+ignore:
+  - versions: [v1.2.3, v1.3.*]
+    scope: selection
+    reason: yanked
+    rules: [major_tag_missing, release_missing]
+    until: 2028-02-29
+  - versions: [v2]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.MarkSource("file:action-version.yml")
+	cfg := options.DefaultConfig()
+	Merge(Default(), p).Apply(&cfg, Pinned{})
+	if len(cfg.IgnoreEntries) != 3 || cfg.IgnoreEntries[0].Versions[0] != "v0.*" || cfg.IgnoreEntries[0].Scope != "all" {
+		t.Fatalf("simple ignore = %+v", cfg.IgnoreEntries)
+	}
+	if e := cfg.IgnoreEntries[1]; e.Scope != "selection" || e.Reason != "yanked" || e.Until != "2028-02-29" || len(e.Rules) != 2 {
+		t.Fatalf("structured ignore = %+v", e)
+	}
+	if cfg.IgnoreEntries[2].Scope != "all" || cfg.Sources["ignore"] != "file:action-version.yml" {
+		t.Fatalf("default scope/source = %+v", cfg)
 	}
 }
 

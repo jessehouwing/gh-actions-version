@@ -84,6 +84,14 @@ func TestImmutableTagDeletionConfig(t *testing.T) {
 	})
 }
 
+func TestStructuredIgnoresFailClosedUntilScopesAreSupported(t *testing.T) {
+	gh := ghWithPatch(t).File("action-version.yml", "ignore:\n  - versions: [v1]\n    scope: fix\n")
+	r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--mode=auto")
+	if r.code != ExitUsage || len(gh.Writes()) != 0 || !strings.Contains(r.all(), "structured ignore") {
+		t.Fatalf("exit %d writes=%v: %s", r.code, gh.Writes(), r.all())
+	}
+}
+
 func (r result) json(t *testing.T) map[string]any {
 	t.Helper()
 	var m map[string]any

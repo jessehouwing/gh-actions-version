@@ -12,6 +12,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -44,6 +45,7 @@ type File struct {
 	Preview                        string              `yaml:"preview"`
 	PermanentlyDeleteImmutableTags string              `yaml:"permanently-delete-immutable-tags"`
 	IgnoreVersions                 []string            `yaml:"ignore-versions"`
+	Ignore                         []state.IgnoreEntry `yaml:"ignore"`
 	Concerns                       map[string]Settings `yaml:"concerns"`
 	Rules                          map[string]Settings `yaml:"rules"`
 	Sources                        map[string]string   `yaml:"-"`
@@ -152,8 +154,42 @@ func (f *File) validate() error {
 		}
 	}
 	known := map[string]*rules.Rule{}
+	knownIDs := map[string]bool{}
 	for _, r := range rules.All() {
 		known[r.Name] = r
+		knownIDs[r.Name] = true
+		for _, finding := range r.Findings {
+			knownIDs[finding.ID] = true
+		}
+	}
+	for i := range f.Ignore {
+		entry := &f.Ignore[i]
+		if len(entry.Versions) == 0 {
+			errs = append(errs, fmt.Sprintf("ignore[%d]: versions must not be empty", i))
+		}
+		for _, pattern := range entry.Versions {
+			if !version.IsValidPattern(pattern) {
+				errs = append(errs, fmt.Sprintf("ignore[%d]: invalid version pattern %q", i, pattern))
+			}
+		}
+		if entry.Scope == "" {
+			entry.Scope = "all"
+		}
+		switch entry.Scope {
+		case "all", "selection", "validation", "fix":
+		default:
+			errs = append(errs, fmt.Sprintf("ignore[%d]: invalid scope %q", i, entry.Scope))
+		}
+		for _, id := range entry.Rules {
+			if !knownIDs[id] {
+				errs = append(errs, fmt.Sprintf("ignore[%d]: unknown rule or finding %q", i, id))
+			}
+		}
+		if entry.Until != "" {
+			if _, err := time.Parse("2006-01-02", entry.Until); err != nil {
+				errs = append(errs, fmt.Sprintf("ignore[%d]: invalid until date %q", i, entry.Until))
+			}
+		}
 	}
 	for _, name := range sortedKeys(f.Rules) {
 		r, ok := known[name]
@@ -196,6 +232,9 @@ func (f *File) MarkSource(source string) {
 	mark("permanently-delete-immutable-tags", f.PermanentlyDeleteImmutableTags)
 	if f.IgnoreVersions != nil {
 		f.Sources["ignore-versions"] = source
+	}
+	if f.Ignore != nil {
+		f.Sources["ignore"] = source
 	}
 	for concern, settings := range f.Concerns {
 		markSettingsSources(f.Sources, "concerns."+concern, settings, source)
@@ -244,6 +283,7 @@ func Merge(base, over *File) *File {
 		Preview:                        base.Preview,
 		PermanentlyDeleteImmutableTags: base.PermanentlyDeleteImmutableTags,
 		IgnoreVersions:                 base.IgnoreVersions,
+		Ignore:                         base.Ignore,
 		Concerns:                       mergeSettings(base.Concerns, over.Concerns),
 		Rules:                          mergeSettings(base.Rules, over.Rules),
 		Sources:                        mergeSources(base.Sources, over.Sources),
@@ -259,6 +299,9 @@ func Merge(base, over *File) *File {
 	}
 	if over.IgnoreVersions != nil {
 		out.IgnoreVersions = over.IgnoreVersions
+	}
+	if over.Ignore != nil {
+		out.Ignore = over.Ignore
 	}
 	return out
 }
@@ -383,6 +426,15 @@ func (f *File) Apply(cfg *state.Config, pin Pinned) {
 	}
 	if pin.IgnoreVersions {
 		cfg.Sources["ignore-versions"] = "flag"
+	}
+	cfg.IgnoreEntries = make([]state.IgnoreEntry, 0, len(cfg.IgnoreVersions)+len(f.Ignore))
+	for _, pattern := range cfg.IgnoreVersions {
+		cfg.IgnoreEntries = append(cfg.IgnoreEntries, state.IgnoreEntry{Versions: []string{pattern}, Scope: "all"})
+	}
+	for _, entry := range f.Ignore {
+		entry.Versions = append([]string(nil), entry.Versions...)
+		entry.Rules = append([]string(nil), entry.Rules...)
+		cfg.IgnoreEntries = append(cfg.IgnoreEntries, entry)
 	}
 
 	cfg.Rules = map[string]state.RulePolicy{}

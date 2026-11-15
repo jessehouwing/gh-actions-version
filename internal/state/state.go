@@ -199,10 +199,19 @@ type Config struct {
 	// AllowDestructiveTagDeletion permits deleting a tag whose immutable release was deleted (irreversible).
 	AllowDestructiveTagDeletion bool
 	IgnoreVersions              []string
+	IgnoreEntries               []IgnoreEntry
 	// Sources maps effective policy paths to flag, file:<path>, or default.
 	Sources map[string]string
 	// Rules holds the per-rule level/fix policy from action-version.yml, keyed by rule name.
 	Rules map[string]RulePolicy
+}
+
+type IgnoreEntry struct {
+	Versions []string `yaml:"versions" json:"versions"`
+	Reason   string   `yaml:"reason,omitempty" json:"reason,omitempty"`
+	Scope    string   `yaml:"scope,omitempty" json:"scope"`
+	Rules    []string `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Until    string   `yaml:"until,omitempty" json:"until,omitempty"`
 }
 
 // RulePolicy overrides how the issues of one rule are reported and fixed. Empty fields change nothing.

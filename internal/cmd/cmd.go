@@ -817,6 +817,9 @@ func (r *run) loadPolicy(read policy.Reader) error {
 	if err != nil {
 		return err
 	}
+	if len(p.Ignore) != 0 {
+		return errors.New("structured ignore entries are not supported by this version")
+	}
 	if path != "" {
 		r.log.Infof("Using the version policy from %s", path)
 	} else if r.f.noConfig {
