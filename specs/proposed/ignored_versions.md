@@ -1,6 +1,6 @@
 # Proposed: specifying ignored versions and releases
 
-Status: proposed, nothing implemented. Companion to `cli_redesign.md` and `../rule_refactoring.md`.
+Status: proposed. Companion to `cli_redesign.md` and `../rule_refactoring.md`.
 
 ## Problem
 
@@ -16,7 +16,7 @@ rule, with no reason, no scope and no expiry. That is too coarse for the cases i
 ## Goals
 
 - One clear place and syntax to say "this version/release is not subject to rule X".
-- Every ignore says why, and can be reviewed and removed.
+- Every ignore can record why and can be reviewed and removed.
 - Works in `action-version.yml` and on the command line, with the usual precedence (flag > file > default).
 - Existing behavior (ignore everything about a version) stays the default for the simple form.
 
@@ -48,7 +48,7 @@ ignore:
   - versions: [v2.4.0]
     reason: Broken release, yanked.
     scope: selection
-    rules: [immutable_releases_enabled]   # optional: restrict to rules or findings
+    rules: [release_should_be_immutable]  # optional: restrict to rules or findings
     until: 2027-01-01                    # optional: ignore expires, then it is reported again
 ```
 
@@ -57,9 +57,9 @@ Keys:
 | Key | Required | Meaning |
 |---|---|---|
 | `versions` | yes | One or more version patterns. |
-| `reason` | recommended; required when `scope` is not `all` | Free text, shown in the output and job summary. |
+| `reason` | recommended | Free text, shown in the output and job summary. |
 | `scope` | no, default `all` | What the ignore does, see below. |
-| `rules` | no | Limit the ignore to these rules (or `rule/finding` once findings are explicit). Default: all rules the scope covers. |
+| `rules` | no | Limit the ignore to these rule or finding IDs. Default: all rules the scope covers. |
 | `until` | no | ISO date. After it, the entry is inert and an `ignore_expired` warning is reported. |
 
 ### Scopes
@@ -97,8 +97,7 @@ gh actions-version ignore --remove 'v0.*'
   `--config PATH` overrides.
 - Preserves comments and layout; refuses to run when the file does not parse.
 - Adding a pattern that already exists updates that entry instead of appending a duplicate.
-- Without `--reason` it prompts on a terminal. Reason is required for every scope other than `all`; without a
-  terminal a missing reason exits `2`.
+- Without `--reason` it prompts on a terminal; the reason is optional, including without a terminal.
 - Local and offline: needs no API access, no token and no `-R`.
 - `--list` prints entries with their reason, scope and expiry; `--remove` deletes matching entries.
 
@@ -137,11 +136,10 @@ This replaces the current suggestion that extends `ignore-versions`, which hides
 
 The `setup` wizard asks for ignored versions (versions, scope, reason) and writes them with the same code as `ignore`.
 
-## Open questions
+## Decisions
 
-- Is a separate `scope` for `selection` vs `validation` worth the complexity, or are `all` and `selection`
-  enough?
-- Should `until` exist, or is `ignore_unused` enough to keep the list clean?
-- Should `reason` be required for every non-`all` entry, or only recommended?
-- Keep the one-off `--ignore-version` flag, or make `ignore` the only way in?
-- Should ignores be allowed to target a single rule/finding, or is that left to `rules.<rule>.level: none`?
+- Support all four scopes, expiry dates, and restriction to rule or finding IDs.
+- Reasons are recommended but optional for every scope.
+- Keep repeatable `--ignore-version` for one-off overrides and add `--no-ignore` for auditing.
+- Expired and unused entries are warnings under the `config` concern, from the
+  `ignore_entries_valid` rule (`ignore_expired` and `ignore_unused` findings).
