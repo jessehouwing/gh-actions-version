@@ -9,14 +9,14 @@ workflows:
         - 'jessehouwing/actions-dependency-submission@v2.0.2'
         - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/ci.yml':
-        - 'actions/checkout@v4.4.0'
+        - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v5.6.0'
     '.github/workflows/copilot-setup-steps.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v5.6.0'
         - 'step-security/harden-runner@v2.22.4'
     '.github/workflows/release.yml':
-        - 'actions/checkout@v4.4.0'
+        - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v5.6.0'
         - 'cli/gh-extension-precompile@v2.2.0'
     '.github/workflows/scorecard.yml':
@@ -38,11 +38,6 @@ dependencies:
         commit: 'sha1-59d89421af93a897026c735860bf21b6eb4f7b26'
         owner_id: 44036562
         repo_id: 760701061
-    'actions/checkout@v4.4.0':
-        ref: 'v4.4.0'
-        commit: 'sha1-11d5960a326750d5838078e36cf38b85af677262'
-        owner_id: 44036562
-        repo_id: 197814629
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
