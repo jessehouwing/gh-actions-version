@@ -75,6 +75,10 @@ func buildFindingsReport(st *state.State, r *run, code int, versions []string) (
 		if issue.Action == nil {
 			continue
 		}
+		if manual, ok := issue.Action.(savedManualAction); ok {
+			out.Findings[i].Action = manual.serialized
+			continue
+		}
 		action, err := actions.Serialize(st, issue.Action)
 		if err != nil {
 			return report.Report{}, fmt.Errorf("serialize %s/%s: %w", issue.Rule, issue.Finding, err)

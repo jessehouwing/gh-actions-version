@@ -58,6 +58,7 @@ type flags struct {
 	config                                           string
 	mode                                             string
 	save                                             string
+	from                                             string
 	levels, ruleLevels, findingLevels                []string
 	ruleFilter, skipRule, findingFilter              []string
 	failOn                                           string
@@ -129,6 +130,7 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 	verify.Flags().StringVar(&f.save, "save", "", "Write the complete findings file to this path")
 	addCommandFlags(fix.Flags(), &f)
 	addFixFlags(fix.Flags(), &f)
+	fix.Flags().StringVar(&f.from, "from", "", "Read findings from a file, or - for stdin")
 	root.AddCommand(verify, fix)
 
 	if err := root.Execute(); err != nil {
@@ -407,6 +409,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if f.changed["save"] && strings.TrimSpace(f.save) == "" {
 		return usageError(log, "--save requires a path")
 	}
+	if f.changed["from"] && strings.TrimSpace(f.from) == "" {
+		return usageError(log, "--from requires a path or -")
+	}
 	if err := validateFilters(f); err != nil {
 		return usageError(log, err.Error())
 	}
@@ -432,7 +437,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		client state.Client
 		apiC   *api.Client
 	)
-	if f.local {
+	if f.from != "" {
+		st, client, apiC, err = r.loadFindings()
+	} else if f.local {
 		st, client, apiC, err = r.loadLocal()
 	} else {
 		st, client, apiC, err = r.loadRemote()
@@ -445,10 +452,12 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		options.WriteRepositoryDebugInfo(st, r.token != "", log)
 	}
 
-	registeredRules := rules.All()
-	ruleStage := r.progress.Start(fmt.Sprintf("Running %d rules", len(registeredRules)))
-	rules.Run(st, &st.Config, registeredRules)
-	ruleStage.Done(fmt.Sprintf("%d/%d rules", len(registeredRules), len(registeredRules)))
+	if f.from == "" {
+		registeredRules := rules.All()
+		ruleStage := r.progress.Start(fmt.Sprintf("Running %d rules", len(registeredRules)))
+		rules.Run(st, &st.Config, registeredRules)
+		ruleStage.Done(fmt.Sprintf("%d/%d rules", len(registeredRules), len(registeredRules)))
+	}
 	if len(versions) > 0 {
 		scopeIssues(st, versions)
 	}
@@ -475,7 +484,7 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if mode != remediation.ReportOnly {
 		fixStage.Done(fmt.Sprintf("%d fixed, %d failed", st.FixedCount(), st.FailedCount()))
 	}
-	if !f.noVerifyAfter && (mode == remediation.AutoFix || mode == remediation.Interactive) {
+	if !f.noVerifyAfter && (f.from == "" || f.changed["no-verify-after"]) && (mode == remediation.AutoFix || mode == remediation.Interactive) {
 		st, err = r.reverify(st, apiC, versions)
 		if err != nil {
 			return r.fail(err)

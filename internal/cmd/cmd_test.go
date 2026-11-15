@@ -125,6 +125,7 @@ type testEnv struct {
 	dir      string
 	cfgToken string // token known to gh's config (returned when no variable is set)
 	refresh  func(ctx context.Context, host string, scopes []string) error
+	stdin    string
 	stdout   strings.Builder
 	stderr   strings.Builder
 }
@@ -171,6 +172,7 @@ func (e *testEnv) run(args ...string) result {
 func (e *testEnv) runRaw(args ...string) result {
 	env := Env{
 		Stdout: &e.stdout, Stderr: &e.stderr, IsTTY: e.tty, Dir: e.dir, Prompter: e.prompter,
+		Stdin:  strings.NewReader(e.stdin),
 		Getenv: func(k string) string { return e.vars[k] },
 		Token: func(string) (string, string) {
 			for _, k := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
@@ -1043,6 +1045,126 @@ func TestVerifySave(t *testing.T) {
 	if r.code != ExitUsage {
 		t.Fatalf("write failure exit %d: %s", r.code, r.all())
 	}
+}
+
+func TestFixFrom(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "findings.json")
+	verify := newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", path, "--level=releases=none", "--level=immutability=none", "--level=marketplace=none", "--quiet")
+	if verify.code != ExitValidation {
+		t.Fatalf("verify: %s", verify.all())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("manual from stdin is offline and narrows", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(data)
+		r := e.runRaw("fix", "--from=-", "--mode=manual", "--rule=major_tag_missing", "--verbose")
+		if r.code != ExitValidation || !strings.Contains(r.all(), "generated") || !strings.Contains(r.out, "refs/tags/v1") || strings.Contains(r.out, "refs/tags/v1.0") {
+			t.Fatalf("exit %d: %s", r.code, r.all())
+		}
+		if got := gh.Requests(); len(got) != 0 {
+			t.Fatalf("manual made requests: %v", got)
+		}
+	})
+	t.Run("auto performs no reads before first action", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--rule=major_tag_missing")
+		requests := gh.Requests()
+		if r.code != ExitOK || len(requests) != 1 || !strings.HasPrefix(requests[0], "POST ") || gh.TagSha("v1") != c1 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
+		}
+	})
+	t.Run("recorded manual policy prevents auto fixes", func(t *testing.T) {
+		policyPath := filepath.Join(t.TempDir(), "manual.json")
+		gh := ghWithPatch(t).File("action-version.yml", "rules:\n  major_tag_missing:\n    fix: manual\n")
+		r := newEnv(t, gh).runRaw("verify", "-R", "o/r", "--save", policyPath, "--quiet")
+		if r.code != ExitValidation {
+			t.Fatalf("verify exit %d: %s", r.code, r.all())
+		}
+		replay := ghWithPatch(t)
+		r = newEnv(t, replay).runRaw("fix", "--from", policyPath, "--mode=auto", "--rule=major_tag_missing")
+		if r.code != ExitValidation || len(replay.Requests()) != 0 || replay.TagSha("v1") != "" {
+			t.Fatalf("exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		}
+	})
+	t.Run("level override narrows saved findings", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--level=major=none", "--level=minor=none")
+		if r.code != ExitOK || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+	})
+	t.Run("tampered action cannot escape version scope", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		finding := saved["findings"].([]any)[0].(map[string]any)
+		finding["action"].(map[string]any)["name"] = "v999"
+		bad, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(bad)
+		r := e.runRaw("fix", "--from=-", "--mode=auto")
+		if r.code != ExitUsage || len(gh.Requests()) != 0 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+	})
+	t.Run("actions requiring reload stay manual in JSON output", func(t *testing.T) {
+		var saved map[string]any
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		finding := saved["findings"].([]any)[0].(map[string]any)
+		finding["action"] = map[string]any{"kind": "publish-release", "name": finding["version"], "requiresReload": "release ID unavailable; rerun verify"}
+		bad, err := json.Marshal(saved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh := ghWithPatch(t)
+		e := newEnv(t, gh)
+		e.stdin = string(bad)
+		r := e.runRaw("fix", "--from=-", "--mode=auto", "--rule=major_tag_missing", "--output=json")
+		if r.code != ExitValidation || len(gh.Requests()) != 0 || !strings.Contains(r.err, "rerun verify") {
+			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		}
+		if r.json(t)["findings"].([]any)[0].(map[string]any)["action"].(map[string]any)["requiresReload"] == "" {
+			t.Fatal("reload requirement was not preserved")
+		}
+	})
+	t.Run("explicit reverify reloads after the action", func(t *testing.T) {
+		gh := ghWithPatch(t)
+		r := newEnv(t, gh).runRaw("fix", "--from", path, "--mode=auto", "--rule=major_tag_missing", "--no-verify-after=false")
+		requests := gh.Requests()
+		if r.code != ExitOK || len(requests) < 2 || !strings.HasPrefix(requests[0], "POST ") || !strings.HasPrefix(requests[1], "GET ") {
+			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
+		}
+	})
+	t.Run("rejects mismatch and incomplete data without requests", func(t *testing.T) {
+		for _, tc := range []struct{ file, repo string }{
+			{string(data), "other/repo"},
+			{`{"schemaVersion":2}`, ""},
+			{`{"schemaVersion":1}`, ""},
+		} {
+			gh := ghWithPatch(t)
+			e := newEnv(t, gh)
+			e.stdin = tc.file
+			args := []string{"fix", "--from=-", "--mode=auto"}
+			if tc.repo != "" {
+				args = append(args, "-R", tc.repo)
+			}
+			r := e.runRaw(args...)
+			if r.code != ExitUsage || len(gh.Requests()) != 0 {
+				t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+			}
+		}
+	})
 }
 
 func TestOutputSelection(t *testing.T) {
