@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -56,6 +57,7 @@ type flags struct {
 	maxWait                                          time.Duration
 	config                                           string
 	mode                                             string
+	save                                             string
 	levels, ruleLevels, findingLevels                []string
 	ruleFilter, skipRule, findingFilter              []string
 	failOn                                           string
@@ -124,6 +126,7 @@ Exit codes: 0 ok, 1 validation errors remaining, 2 usage, authentication or rate
 		},
 	}
 	addCommandFlags(verify.Flags(), &f)
+	verify.Flags().StringVar(&f.save, "save", "", "Write the complete findings file to this path")
 	addCommandFlags(fix.Flags(), &f)
 	addFixFlags(fix.Flags(), &f)
 	root.AddCommand(verify, fix)
@@ -401,6 +404,9 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 	if f.changed["config"] && strings.TrimSpace(f.config) == "" {
 		return usageError(log, "--config requires a path")
 	}
+	if f.changed["save"] && strings.TrimSpace(f.save) == "" {
+		return usageError(log, "--save requires a path")
+	}
 	if err := validateFilters(f); err != nil {
 		return usageError(log, err.Error())
 	}
@@ -506,9 +512,24 @@ func execute(ctx context.Context, f *flags, versions []string, env Env) int {
 		}
 	}
 
-	if jsonMode {
-		if err := writeJSON(env, f, fields, buildReport(st, r, code)); err != nil {
-			return usageError(log, err.Error())
+	if jsonMode || f.save != "" {
+		data, err := buildFindingsReport(st, r, code, versions)
+		if err != nil {
+			return r.fail(err)
+		}
+		if f.save != "" {
+			content, err := json.MarshalIndent(data, "", "  ")
+			if err != nil {
+				return r.fail(err)
+			}
+			if err := os.WriteFile(f.save, append(content, '\n'), 0o600); err != nil {
+				return r.fail(fmt.Errorf("save findings: %w", err))
+			}
+		}
+		if jsonMode {
+			if err := writeJSON(env, f, fields, data); err != nil {
+				return usageError(log, err.Error())
+			}
 		}
 	}
 	return code

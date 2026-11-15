@@ -883,7 +883,7 @@ func TestJSONOutput(t *testing.T) {
 			t.Fatalf("exit %d\n%s", r.code, r.all())
 		}
 		m := r.json(t)
-		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
+		for _, k := range []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"} {
 			if _, ok := m[k]; !ok {
 				t.Errorf("missing field %s", k)
 			}
@@ -911,8 +911,8 @@ func TestJSONOutput(t *testing.T) {
 		if _, ok := i["type"]; ok {
 			t.Errorf("finding contains removed type field: %v", i)
 		}
-		if _, ok := i["action"]; ok {
-			t.Errorf("finding contains removed action field: %v", i)
+		if action, ok := i["action"].(map[string]any); !ok || action["kind"] == "" {
+			t.Errorf("finding is missing serialized action: %v", i)
 		}
 		if len(i["manualCommands"].([]any)) == 0 {
 			t.Errorf("finding has no manual commands: %v", i)
@@ -994,6 +994,55 @@ func TestJSONOutput(t *testing.T) {
 			t.Errorf("exit %d out %q", r.code, r.out)
 		}
 	})
+}
+
+func TestVerifySave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "findings.json")
+	e := newEnv(t, ghWithPatch(t))
+	args := []string{"verify", "-R", "o/r", "--save", path, "--rule=major_tag_missing", "--ignore-versions=v3.*", "v1"}
+	r := e.runRaw(append(args, "--output=json")...)
+	if r.code != ExitValidation {
+		t.Fatalf("exit %d: %s", r.code, r.all())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]any
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	var stdout map[string]any
+	if err := json.Unmarshal([]byte(r.out), &stdout); err != nil {
+		t.Fatal(err)
+	}
+	savedJSON, _ := json.Marshal(saved)
+	stdoutJSON, _ := json.Marshal(stdout)
+	if string(savedJSON) != string(stdoutJSON) {
+		t.Fatalf("saved report differs from stdout")
+	}
+	filters := saved["filters"].(map[string]any)
+	if filters["rules"].([]any)[0] != "major_tag_missing" || filters["versions"].([]any)[0] != "v1" || filters["ignored"].([]any)[0] != "v3.*" {
+		t.Fatalf("filters = %v", filters)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, saved["generatedAt"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved["refs"].(map[string]any)["tags"].([]any)) == 0 {
+		t.Fatal("saved report has no tags")
+	}
+	consolePath := filepath.Join(t.TempDir(), "console.json")
+	r = newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", consolePath, "--output=console")
+	if r.code != ExitValidation || !strings.Contains(r.out, "[ERROR]") {
+		t.Fatalf("exit %d: %s", r.code, r.all())
+	}
+	if _, err := os.Stat(consolePath); err != nil {
+		t.Fatal(err)
+	}
+	r = newEnv(t, ghWithPatch(t)).runRaw("verify", "-R", "o/r", "--save", t.TempDir(), "--output=console")
+	if r.code != ExitUsage {
+		t.Fatalf("write failure exit %d: %s", r.code, r.all())
+	}
 }
 
 func TestOutputSelection(t *testing.T) {

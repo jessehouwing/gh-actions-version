@@ -111,8 +111,9 @@ func TestManualConsoleGolden(t *testing.T) {
 }
 
 var (
-	goldenMarkerPattern   = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`)
-	goldenDurationPattern = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:ns|µs|ms|s)\b`)
+	goldenMarkerPattern    = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`)
+	goldenDurationPattern  = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:ns|µs|ms|s)\b`)
+	goldenTimestampPattern = regexp.MustCompile(`"generatedAt":"[^"]+"`)
 )
 
 func normalizeGolden(value, host, tempDir string) string {
@@ -122,5 +123,6 @@ func normalizeGolden(value, host, tempDir string) string {
 	value = strings.ReplaceAll(value, filepath.ToSlash(tempDir), "<TEMP_DIR>")
 	value = goldenMarkerPattern.ReplaceAllString(value, "<MARKER>")
 	value = goldenDurationPattern.ReplaceAllString(value, "<DURATION>")
+	value = goldenTimestampPattern.ReplaceAllString(value, `"generatedAt":"<TIMESTAMP>"`)
 	return value
 }

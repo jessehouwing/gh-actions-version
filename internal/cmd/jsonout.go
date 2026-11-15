@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/jq"
 	"github.com/cli/go-gh/v2/pkg/jsonpretty"
 	"github.com/cli/go-gh/v2/pkg/template"
 	"github.com/cli/go-gh/v2/pkg/term"
 
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
 	"github.com/jessehouwing/gh-actions-version/internal/report"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // jsonFields are the top-level fields of the JSON report.
-var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
+var jsonFields = []string{"schemaVersion", "repository", "mode", "local", "config", "filters", "generatedAt", "refs", "findings", "groups", "skipped", "fixes", "summary", "timings", "exitCode"}
 
 func parseJSONFields(in []string) ([]string, error) {
 	var out []string
@@ -45,6 +47,41 @@ func buildReport(st *state.State, r *run, code int) report.Report {
 	out.Local = r.f.local
 	out.ExitCode = code
 	return out
+}
+
+func buildFindingsReport(st *state.State, r *run, code int, versions []string) (report.Report, error) {
+	out := buildReport(st, r, code)
+	out.GeneratedAt = time.Now().UTC()
+	out.Filters = report.Filters{
+		Rules: append([]string{}, r.f.ruleFilter...), SkipRule: append([]string{}, r.f.skipRule...),
+		Findings: append([]string{}, r.f.findingFilter...), Versions: append([]string{}, versions...),
+		Ignored: append([]string{}, st.Config.IgnoreVersions...),
+	}
+	out.Refs = report.Refs{Tags: []report.Ref{}, Branches: []report.Ref{}, Releases: []report.Release{}}
+	for _, ref := range st.Tags {
+		out.Refs.Tags = append(out.Refs.Tags, report.Ref{Name: ref.Version, Ref: ref.Ref, SHA: ref.Sha, Ignored: ref.IsIgnored})
+	}
+	for _, ref := range st.Branches {
+		out.Refs.Branches = append(out.Refs.Branches, report.Ref{Name: ref.Version, Ref: ref.Ref, SHA: ref.Sha, Ignored: ref.IsIgnored})
+	}
+	for _, release := range st.Releases {
+		out.Refs.Releases = append(out.Refs.Releases, report.Release{
+			TagName: release.TagName, SHA: release.Sha, ID: release.ID, Draft: release.IsDraft,
+			Prerelease: release.IsPrerelease, Immutable: release.IsImmutable, Ignored: release.IsIgnored,
+			Latest: release.IsLatest, HTMLURL: release.HtmlUrl,
+		})
+	}
+	for i, issue := range st.Issues {
+		if issue.Action == nil {
+			continue
+		}
+		action, err := actions.Serialize(st, issue.Action)
+		if err != nil {
+			return report.Report{}, fmt.Errorf("serialize %s/%s: %w", issue.Rule, issue.Finding, err)
+		}
+		out.Findings[i].Action = &action
+	}
+	return out, nil
 }
 
 // writeJSON prints the report (optionally restricted to fields) through --jq, --template or as

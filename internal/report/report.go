@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/jessehouwing/gh-actions-version/internal/actions"
 	"github.com/jessehouwing/gh-actions-version/internal/policy"
 	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
@@ -25,6 +26,9 @@ type Report struct {
 	Mode          string            `json:"mode"`
 	Local         bool              `json:"local"`
 	Config        Config            `json:"config"`
+	Filters       Filters           `json:"filters"`
+	GeneratedAt   time.Time         `json:"generatedAt"`
+	Refs          Refs              `json:"refs"`
 	Findings      []Finding         `json:"findings"`
 	Groups        []Group           `json:"groups"`
 	Skipped       []SkippedCheck    `json:"skipped"`
@@ -32,6 +36,39 @@ type Report struct {
 	Summary       Summary           `json:"summary"`
 	Timings       map[string]string `json:"timings"`
 	ExitCode      int               `json:"exitCode"`
+}
+
+type Filters struct {
+	Rules    []string `json:"rules"`
+	SkipRule []string `json:"skipRules"`
+	Findings []string `json:"findings"`
+	Versions []string `json:"versions"`
+	Ignored  []string `json:"ignored"`
+}
+
+type Refs struct {
+	Tags     []Ref     `json:"tags"`
+	Branches []Ref     `json:"branches"`
+	Releases []Release `json:"releases"`
+}
+
+type Ref struct {
+	Name    string `json:"name"`
+	Ref     string `json:"ref"`
+	SHA     string `json:"sha"`
+	Ignored bool   `json:"ignored"`
+}
+
+type Release struct {
+	TagName    string `json:"tagName"`
+	SHA        string `json:"sha"`
+	ID         int64  `json:"id"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+	Immutable  bool   `json:"immutable"`
+	Ignored    bool   `json:"ignored"`
+	Latest     bool   `json:"latest"`
+	HTMLURL    string `json:"htmlUrl"`
 }
 
 type Repository struct {
@@ -67,17 +104,20 @@ type FindingPolicy struct {
 }
 
 type Finding struct {
-	Rule        string   `json:"rule"`
-	Finding     string   `json:"finding"`
-	Concern     string   `json:"concern"`
-	Severity    string   `json:"severity"`
-	Version     string   `json:"version"`
-	Message     string   `json:"message"`
-	Cause       string   `json:"cause,omitempty"`
-	Docs        string   `json:"docs"`
-	AutoFixable bool     `json:"autoFixable"`
-	Manual      []string `json:"manualCommands"`
-	Status      string   `json:"status"`
+	Rule        string                    `json:"rule"`
+	Finding     string                    `json:"finding"`
+	Concern     string                    `json:"concern"`
+	Severity    string                    `json:"severity"`
+	Version     string                    `json:"version"`
+	Message     string                    `json:"message"`
+	Cause       string                    `json:"cause,omitempty"`
+	Docs        string                    `json:"docs"`
+	AutoFixable bool                      `json:"autoFixable"`
+	Manual      []string                  `json:"manualCommands"`
+	Status      string                    `json:"status"`
+	CurrentSHA  string                    `json:"currentSha,omitempty"`
+	ExpectedSHA string                    `json:"expectedSha,omitempty"`
+	Action      *actions.SerializedAction `json:"action,omitempty"`
 }
 
 type Group struct {
@@ -160,6 +200,7 @@ func Build(st *state.State, options BuildOptions) Report {
 			Rule: issue.Rule, Finding: issue.Finding, Concern: concern, Severity: issue.Severity,
 			Version: issue.Version, Message: issue.Message, Docs: fmt.Sprintf("%s%s/docs/rules/%s.md", docsURL, version, issue.Rule),
 			Cause: causeFor(st, issue), AutoFixable: issue.IsAutoFixable(), Manual: manual, Status: issue.Status,
+			CurrentSHA: issue.CurrentSha, ExpectedSHA: issue.ExpectedSha,
 		}
 		out.Findings = append(out.Findings, finding)
 		addToGroup(versionGroups, "version", issue.Version, "", "", finding)
