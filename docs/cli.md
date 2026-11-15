@@ -143,7 +143,7 @@ rules:
 ```
 
 Precedence: command-line flag > `action-version.yml` > built-in default. The built-in file is
-[`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
+[`internal/policy/action-version.yml`](../internal/policy/action-version.yml) and documents every key.
 
 ### Setup
 
@@ -210,6 +210,8 @@ or can be set to `none`.
 
 ## Use in GitHub Actions
 
+`gh` is preinstalled on GitHub-hosted runners:
+
 ```yaml
 permissions:
   contents: write
@@ -235,4 +237,4 @@ See [migration](migration.md), [troubleshooting](troubleshooting.md) and the [ru
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](../LICENSE).

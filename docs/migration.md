@@ -37,4 +37,3 @@ gh actions-version verify
 1. Publish the first `gh-actions-version` release.
 2. Add a deprecation notice to the old README pointing here.
 3. Keep the PowerShell Action receiving only security fixes for one major version, then archive it.
-4. Behavior differences are tracked in [test-parity.md](test-parity.md).
