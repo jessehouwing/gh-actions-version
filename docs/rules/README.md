@@ -6,6 +6,8 @@ One page per validation rule. Levels and auto-fix are configured per concern or 
 
 | Finding | Rule | Summary |
 |---|---|---|
+| `ignore_expired` | [`ignore_entries_valid`](./ignore_entries_valid.md) | An ignore entry has expired |
+| `ignore_unused` | [`ignore_entries_valid`](./ignore_entries_valid.md) | An ignore entry matches no version |
 | `latest_branch_wrong_target` | [`latest_branch_tracks_global_highest`](./latest_branch_tracks_global_highest.md) | The latest branch points to the wrong patch version |
 | `latest_tag_wrong_target` | [`latest_tag_tracks_global_highest`](./latest_tag_tracks_global_highest.md) | The latest tag points to the wrong patch version |
 | `marketplace_metadata_missing` | [`action_metadata_required`](./action_metadata_required.md) | Required GitHub Marketplace metadata is missing |
@@ -33,6 +35,10 @@ One page per validation rule. Levels and auto-fix are configured per concern or 
 | `minor_tag_missing` | [`minor_tag_missing`](./minor_tag_missing.md) | A minor version tag is missing |
 | `minor_tag_wrong_target` | [`minor_tag_tracks_highest_patch`](./minor_tag_tracks_highest_patch.md) | A minor version tag points to the wrong patch version |
 | `patch_tag_missing` | [`patch_tag_missing`](./patch_tag_missing.md) | A patch version tag is missing |
+
+## config
+
+- [ignore_entries_valid](./ignore_entries_valid.md)
 
 ## latest
 

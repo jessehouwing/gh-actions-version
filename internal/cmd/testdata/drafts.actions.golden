@@ -23,8 +23,8 @@ Loading releases: 1 releases (<DURATION>)
 ::group::Reading repository settings
 Reading repository settings: settings read (<DURATION>)
 ::endgroup::
-::group::Running 25 rules
-Running 25 rules: 25/25 rules (<DURATION>)
+::group::Running 26 rules
+Running 26 rules: 26/26 rules (<DURATION>)
 ::endgroup::
 ::group::release_should_be_published
 ::error title=release_should_be_published/release_is_draft::Release <tag> is still in draft status and should be published%0AVersions: v1.0.0
@@ -84,6 +84,10 @@ Running 25 rules: 25/25 rules (<DURATION>)
     },
     "highest_patch_release_should_be_latest": {
       "fix": "auto"
+    },
+    "ignore_entries_valid": {
+      "level": "warning",
+      "fix": "manual"
     },
     "immutable_releases_enabled": {
       "fix": "auto"
@@ -146,6 +150,8 @@ Running 25 rules: 25/25 rules (<DURATION>)
     }
   },
   "sources": {
+    "concerns.config.fix": "default",
+    "concerns.config.level": "default",
     "concerns.immutability.fix": "default",
     "concerns.immutability.level": "default",
     "concerns.latest.fix": "default",
@@ -200,6 +206,12 @@ Running 25 rules: 25/25 rules (<DURATION>)
     "rules.highest_patch_release_should_be_latest.findings.latest_release_wrong.level": "default",
     "rules.highest_patch_release_should_be_latest.fix": "default",
     "rules.highest_patch_release_should_be_latest.level": "default",
+    "rules.ignore_entries_valid.findings.ignore_expired.fix": "default",
+    "rules.ignore_entries_valid.findings.ignore_expired.level": "default",
+    "rules.ignore_entries_valid.findings.ignore_unused.fix": "default",
+    "rules.ignore_entries_valid.findings.ignore_unused.level": "default",
+    "rules.ignore_entries_valid.fix": "default",
+    "rules.ignore_entries_valid.level": "default",
     "rules.immutable_releases_enabled.findings.immutable_releases_disabled.fix": "default",
     "rules.immutable_releases_enabled.findings.immutable_releases_disabled.level": "default",
     "rules.immutable_releases_enabled.fix": "default",

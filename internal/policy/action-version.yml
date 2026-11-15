@@ -40,6 +40,10 @@ ignore-versions: []
 #
 # Without a file every concern reports errors and may be fixed automatically.
 concerns:
+  # Ignore entries that expired or no longer match a version.
+  config:
+    level: warning
+    fix: manual
   # vN must exist for every major with a patch release and point at its latest patch.
   major:
     level: error

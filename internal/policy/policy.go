@@ -53,6 +53,7 @@ type File struct {
 
 // concernRules lists the rules of every concern.
 var concernRules = map[string][]string{
+	"config": {"ignore_entries_valid"},
 	"major":  {"major_tag_missing", "major_branch_missing", "major_tag_tracks_highest_patch", "major_branch_tracks_highest_patch"},
 	"minor":  {"minor_tag_missing", "minor_branch_missing", "minor_tag_tracks_highest_patch", "minor_branch_tracks_highest_patch"},
 	"patch":  {"patch_tag_missing"},
