@@ -570,6 +570,7 @@ func (r *run) reverify(previous *state.State, apiC *api.Client, versions []strin
 				return nil, err
 			}
 			verified.Owner, verified.Repo, verified.Host = apiC.Repo.Owner, apiC.Repo.Name, apiC.Repo.Host
+			verified.RepoID, verified.OwnerID = apiC.RepoID, apiC.OwnerID
 		}
 	} else {
 		if apiC == nil {
@@ -932,6 +933,7 @@ func (r *run) loadLocal() (*state.State, state.Client, *api.Client, error) {
 			return nil, nil, nil, err
 		}
 		st.Owner, st.Repo, st.Host = repo.Owner, repo.Name, repo.Host
+		st.RepoID, st.OwnerID = apiC.RepoID, apiC.OwnerID
 		st.Config.CheckReleases, st.Config.CheckImmutability = r.cfg.CheckReleases, r.cfg.CheckImmutability
 	}
 	return st, localgit.New(dir), apiC, nil

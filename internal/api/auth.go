@@ -112,6 +112,26 @@ type AuthError struct {
 
 func (e *AuthError) Error() string { return e.Message }
 
+// LoadRepositoryIDs reads the numeric repository and owner IDs into the client.
+func LoadRepositoryIDs(ctx context.Context, c *Client) error {
+	resp, err := c.request(ctx, http.MethodGet, c.repoPath(""), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var raw struct {
+		ID    int64 `json:"id"`
+		Owner struct {
+			ID int64 `json:"id"`
+		} `json:"owner"`
+	}
+	if err := decodeJSON(resp.Body, &raw); err != nil {
+		return wrap("reading repository", err)
+	}
+	c.RepoID, c.OwnerID = raw.ID, raw.Owner.ID
+	return nil
+}
+
 // CheckAuth verifies the token against the repository before any API work, using one cheap
 // call (GET /repos/{owner}/{repo}), which returns both X-OAuth-Scopes and the permissions
 // object. Classic/OAuth tokens are checked by scope; fine-grained, App and GITHUB_TOKEN
@@ -137,6 +157,10 @@ func CheckAuth(ctx context.Context, c *Client, mode Mode) (*AuthResult, error) {
 	}
 	defer resp.Body.Close()
 	var raw struct {
+		ID    int64 `json:"id"`
+		Owner struct {
+			ID int64 `json:"id"`
+		} `json:"owner"`
 		Private     bool `json:"private"`
 		Permissions *struct {
 			Admin    bool `json:"admin"`
@@ -150,6 +174,7 @@ func CheckAuth(ctx context.Context, c *Client, mode Mode) (*AuthResult, error) {
 		return nil, wrap("reading repository", err)
 	}
 	res.Private = raw.Private
+	c.RepoID, c.OwnerID = raw.ID, raw.Owner.ID
 	if raw.Permissions != nil {
 		p := RepoPermissions(*raw.Permissions)
 		res.Permissions = &p

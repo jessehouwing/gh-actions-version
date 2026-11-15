@@ -306,7 +306,7 @@ func releasesPage(nodes []map[string]any, more bool, cursor string) map[string]a
 
 func TestGetReleases(t *testing.T) {
 	t.Run("Should query all required GraphQL fields", func(t *testing.T) {
-		for _, f := range []string{"databaseId", "tagName", "isPrerelease", "isDraft", "immutable", "isLatest", "rateLimit", "cost", "remaining", "resetAt"} {
+		for _, f := range []string{"databaseId", "tagName", "isPrerelease", "isDraft", "immutable", "isLatest", "url", "tagCommit", "oid", "rateLimit", "cost", "remaining", "resetAt"} {
 			if !strings.Contains(ReleasesQuery, f) {
 				t.Errorf("query is missing %s", f)
 			}

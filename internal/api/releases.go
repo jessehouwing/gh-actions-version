@@ -35,6 +35,10 @@ const ReleasesQuery = `query($owner: String!, $name: String!, $first: Int!, $aft
         isDraft
         immutable
         isLatest
+        url
+        tagCommit {
+          oid
+        }
       }
     }
   }
@@ -63,14 +67,22 @@ type releaseNode struct {
 	IsDraft      bool   `json:"isDraft"`
 	Immutable    bool   `json:"immutable"`
 	IsLatest     bool   `json:"isLatest"`
+	URL          string `json:"url"`
+	TagCommit    *struct {
+		Oid string `json:"oid"`
+	} `json:"tagCommit"`
 }
 
 // toReleaseInfo maps a GraphQL node to the domain object.
 func toReleaseInfo(n releaseNode) *state.ReleaseInfo {
-	return &state.ReleaseInfo{
+	info := &state.ReleaseInfo{
 		TagName: n.TagName, ID: n.DatabaseID, IsDraft: n.IsDraft, IsPrerelease: n.IsPrerelease,
-		IsImmutable: n.Immutable, IsLatest: n.IsLatest,
+		IsImmutable: n.Immutable, IsLatest: n.IsLatest, HtmlUrl: n.URL,
 	}
+	if n.TagCommit != nil {
+		info.Sha = n.TagCommit.Oid
+	}
+	return info
 }
 
 // GetReleases lists all releases via GraphQL (Get-GitHubRelease).

@@ -171,8 +171,8 @@ func TestStructuredIgnoreScopes(t *testing.T) {
 		}
 		replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0")
 		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--output=json")
-		if r.code != ExitValidation || len(replay.Requests()) != 0 {
-			t.Fatalf("replay exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		if r.code != ExitValidation || len(repoReads(replay)) != 0 {
+			t.Fatalf("replay exit %d requests=%v: %s", r.code, repoReads(replay), r.all())
 		}
 		if len(r.json(t)["config"].(map[string]any)["ignoreEntries"].([]any)) != 1 {
 			t.Fatal("recorded ignore entry lost on replay")
@@ -1329,7 +1329,7 @@ func TestFixFrom(t *testing.T) {
 	t.Run("auto performs no reads before first action", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing")
-		requests := gh.Requests()
+		requests := repoReads(gh)
 		if r.code != ExitOK || len(requests) != 1 || !strings.HasPrefix(requests[0], "POST ") || gh.TagSha("v1") != c1 {
 			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
 		}
@@ -1343,15 +1343,15 @@ func TestFixFrom(t *testing.T) {
 		}
 		replay := ghWithPatch(t)
 		r = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", policyPath, "--mode=auto", "--rule=major_tag_missing")
-		if r.code != ExitValidation || len(replay.Requests()) != 0 || replay.TagSha("v1") != "" {
-			t.Fatalf("exit %d requests=%v: %s", r.code, replay.Requests(), r.all())
+		if r.code != ExitValidation || len(repoReads(replay)) != 0 || replay.TagSha("v1") != "" {
+			t.Fatalf("exit %d requests=%v: %s", r.code, repoReads(replay), r.all())
 		}
 	})
 	t.Run("level override narrows saved findings", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--level=major=none", "--level=minor=none")
-		if r.code != ExitOK || len(gh.Requests()) != 0 {
-			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		if r.code != ExitOK || len(repoReads(gh)) != 0 {
+			t.Fatalf("exit %d requests=%v: %s", r.code, repoReads(gh), r.all())
 		}
 	})
 	t.Run("tampered action cannot escape version scope", func(t *testing.T) {
@@ -1388,8 +1388,8 @@ func TestFixFrom(t *testing.T) {
 		e := newEnv(t, gh)
 		e.stdin = string(bad)
 		r := e.runRaw("fix", "-R", "o/r", "--from=-", "--mode=auto", "--rule=major_tag_missing", "--output=json")
-		if r.code != ExitValidation || len(gh.Requests()) != 0 || !strings.Contains(r.err, "rerun verify") {
-			t.Fatalf("exit %d requests=%v: %s", r.code, gh.Requests(), r.all())
+		if r.code != ExitValidation || len(repoReads(gh)) != 0 || !strings.Contains(r.err, "rerun verify") {
+			t.Fatalf("exit %d requests=%v: %s", r.code, repoReads(gh), r.all())
 		}
 		if r.json(t)["findings"].([]any)[0].(map[string]any)["action"].(map[string]any)["requiresReload"] == "" {
 			t.Fatal("reload requirement was not preserved")
@@ -1398,7 +1398,7 @@ func TestFixFrom(t *testing.T) {
 	t.Run("explicit reverify reloads after the action", func(t *testing.T) {
 		gh := ghWithPatch(t)
 		r := newEnv(t, gh).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--rule=major_tag_missing", "--no-verify-after=false")
-		requests := gh.Requests()
+		requests := repoReads(gh)
 		if r.code != ExitOK || len(requests) < 2 || !strings.HasPrefix(requests[0], "POST ") || !strings.HasPrefix(requests[1], "GET ") {
 			t.Fatalf("exit %d requests=%v: %s", r.code, requests, r.all())
 		}
@@ -1812,4 +1812,15 @@ func TestLocalMode(t *testing.T) {
 			t.Errorf("exit %d\n%s", r.code, r.all())
 		}
 	})
+}
+
+// repoReads returns the recorded requests without the repository ID check that precedes applying saved findings.
+func repoReads(gh *testutil.GitHub) []string {
+	var out []string
+	for _, r := range gh.Requests() {
+		if r != "GET /repos/o/r" {
+			out = append(out, r)
+		}
+	}
+	return out
 }
