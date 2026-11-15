@@ -3,6 +3,7 @@ module github.com/jessehouwing/gh-actions-version
 go 1.27.0
 
 require (
+	github.com/briandowns/spinner v1.23.2
 	github.com/cli/go-gh/v2 v2.17.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
@@ -27,6 +28,7 @@ require (
 	github.com/cli/shurcooL-graphql v0.0.4 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/fatih/color v1.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/henvic/httpretty v0.2.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect

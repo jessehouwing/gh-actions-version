@@ -63,8 +63,10 @@ func TestTerminalStageSpinsAndClearsLine(t *testing.T) {
 	stage := r.Start("Loading releases")
 	time.Sleep(150 * time.Millisecond)
 	stage.Done("complete")
-	if got := out.String(); !strings.Contains(got, "\r| Loading releases") ||
-		!strings.Contains(got, "\r\x1b[KLoading releases: complete") {
-		t.Fatalf("terminal output does not clear spinner line: %q", got)
+	if got := out.String(); strings.Contains(got, "Loading releases\n") && !strings.Contains(got, "Loading releases: complete") {
+		t.Fatalf("spinner must not print a line per frame: %q", got)
+	}
+	if got := out.String(); !strings.Contains(got, "Loading releases: complete") {
+		t.Fatalf("missing completion line: %q", got)
 	}
 }

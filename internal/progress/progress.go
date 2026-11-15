@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/briandowns/spinner"
 )
 
 type Stage interface {
@@ -29,14 +31,14 @@ type Reporter struct {
 	options Options
 	mu      sync.Mutex
 	timings map[string]time.Duration
+	active  *stage
 }
 
 type stage struct {
 	reporter *Reporter
 	name     string
 	started  time.Time
-	stop     chan struct{}
-	done     chan struct{}
+	spin     *spinner.Spinner
 	mu       sync.Mutex
 	current  string
 	finished bool
@@ -57,7 +59,7 @@ func New(options Options) *Reporter {
 }
 
 func (r *Reporter) Start(name string) Stage {
-	s := &stage{reporter: r, name: name, started: time.Now(), stop: make(chan struct{}), done: make(chan struct{}), silent: r.options.Quiet}
+	s := &stage{reporter: r, name: name, started: time.Now(), silent: r.options.Quiet}
 	if s.silent {
 		return s
 	}
@@ -65,7 +67,7 @@ func (r *Reporter) Start(name string) Stage {
 	case r.options.Actions:
 		r.write("::group::" + escape(name))
 	case r.options.TTY && !r.options.NoProgress:
-		go s.spin()
+		s.startSpinner()
 	default:
 		r.write(name + "...")
 	}
@@ -87,10 +89,14 @@ func (r *Reporter) Message(message string) {
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.options.TTY && !r.options.NoProgress && !r.options.Actions {
-		_, _ = fmt.Fprint(r.options.Writer, "\r\x1b[K")
+	active := r.active
+	r.mu.Unlock()
+	if active != nil {
+		active.spin.Stop()
+		defer active.spin.Restart()
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.options.Actions {
 		message = escape(message)
 	}
@@ -109,6 +115,9 @@ func (s *stage) Update(message string) {
 		return
 	}
 	r := s.reporter
+	if s.spin != nil {
+		s.setSpinnerText(message)
+	}
 	if r.options.Actions || !r.options.TTY || r.options.NoProgress {
 		if r.options.Actions {
 			r.write(escape(message))
@@ -123,13 +132,17 @@ func (s *stage) Done(result string) {
 		s.mu.Lock()
 		s.finished = true
 		s.mu.Unlock()
-		close(s.stop)
 		elapsed := time.Since(s.started)
 		s.reporter.mu.Lock()
 		s.reporter.timings[s.name] += elapsed
 		s.reporter.mu.Unlock()
-		if !s.silent && s.reporter.options.TTY && !s.reporter.options.NoProgress && !s.reporter.options.Actions {
-			<-s.done
+		if s.spin != nil {
+			s.spin.Stop()
+			s.reporter.mu.Lock()
+			if s.reporter.active == s {
+				s.reporter.active = nil
+			}
+			s.reporter.mu.Unlock()
 		}
 		if s.silent {
 			return
@@ -145,39 +158,31 @@ func (s *stage) Done(result string) {
 			s.reporter.write(escape(message))
 			s.reporter.write("::endgroup::")
 		case s.reporter.options.TTY && !s.reporter.options.NoProgress:
-			s.reporter.write("\r\x1b[K" + message)
+			s.reporter.write(message)
 		default:
 			s.reporter.write(message)
 		}
 	})
 }
 
-func (s *stage) spin() {
-	defer close(s.done)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	frames := []string{"|", "/", "-", "\\"}
-	frame := 0
-	for {
-		select {
-		case <-s.stop:
-			return
-		case <-ticker.C:
-			s.mu.Lock()
-			current := s.current
-			finished := s.finished
-			s.mu.Unlock()
-			if finished {
-				return
-			}
-			message := s.name
-			if current != "" {
-				message += " " + current
-			}
-			s.reporter.write("\r" + frames[frame%len(frames)] + " " + message)
-			frame++
-		}
+func (s *stage) startSpinner() {
+	sp := spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(s.reporter.options.Writer))
+	sp.Suffix = " " + s.name
+	s.spin = sp
+	s.reporter.mu.Lock()
+	s.reporter.active = s
+	s.reporter.mu.Unlock()
+	sp.Start()
+}
+
+func (s *stage) setSpinnerText(message string) {
+	text := s.name
+	if message != "" {
+		text += " " + message
 	}
+	s.spin.Lock()
+	s.spin.Suffix = " " + text
+	s.spin.Unlock()
 }
 
 func (r *Reporter) write(message string) {
