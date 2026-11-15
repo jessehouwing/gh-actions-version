@@ -1,8 +1,8 @@
-# Copilot Instructions for actions-semver-checker
+# Copilot Instructions for gh-actions-version
 
 ## Project Overview
 
-A Go `gh` CLI extension (`gh actions-version`) plus a composite GitHub Action (`action.yaml`) that installs and runs it. It validates semantic version tags/branches/releases: floating versions (`v1`, `v1.0`) must point to the latest patch, and patch releases must be published and immutable ([GitHub's immutable release strategy](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases)).
+A Go `gh` CLI extension (`gh actions-version`) that validates the setup of a GitHub Action repository (this repository is not itself an action). It validates semantic version tags/branches/releases: floating versions (`v1`, `v1.0`) must point to the latest patch, and patch releases must be published and immutable ([GitHub's immutable release strategy](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases)).
 
 **Prerelease status comes only from the GitHub Release API (`prerelease` field)**, never from tag suffixes. Tags such as `v1.0.0-beta` are not supported.
 
@@ -29,7 +29,6 @@ A Go `gh` CLI extension (`gh actions-version`) plus a composite GitHub Action (`
 - Every rule must belong to exactly one concern in `internal/policy/policy.go` (`concernRules`); a test enforces this.
 - Deleting a tag whose immutable release was deleted requires `permanently-delete-immutable-tags: dangerously-allow` or `--dangerously-allow-destructive-tag-deletion`.
 - GraphQL queries must have a test verifying that all fields the code relies on are queried.
-- Action inputs that override `action-version.yml` default to empty in `action.yaml`; only set inputs become flags.
 
 ## Build and test
 

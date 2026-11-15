@@ -13,4 +13,4 @@ currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-Please [report any vulnerability found throught GitHub's Private Vulnerability Reporting](https://github.com/jessehouwing/actions-semver-checker/security/advisories/new).
+Please [report any vulnerability found throught GitHub's Private Vulnerability Reporting](https://github.com/jessehouwing/gh-actions-version/security/advisories/new).

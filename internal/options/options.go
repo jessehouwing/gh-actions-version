@@ -106,7 +106,7 @@ func CheckAutoFixRequirement(token string, autoFix bool, log *output.Logger) boo
 		return true
 	}
 	if token == "" {
-		log.Annotate("error", "Auto-fix requires token", "Auto-fix mode is enabled but no GitHub token is available. Please provide a token via the 'token' input or ensure GITHUB_TOKEN is available.\n\nExample:\n  - uses: jessehouwing/actions-semver-checker@v2\n    with:\n      auto-fix: true\n      token: ${{ secrets.GITHUB_TOKEN }}")
+		log.Annotate("error", "Auto-fix requires token", "Auto-fix mode is enabled but no GitHub token is available. Run 'gh auth login', or set GH_TOKEN or GITHUB_TOKEN (for example env: GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} in a workflow).")
 		return false
 	}
 	log.Debug("Auto-fix mode enabled with token")
