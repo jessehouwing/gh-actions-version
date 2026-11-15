@@ -38,6 +38,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
 | `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
 | `fix --mode manual` | Print remediation instructions without changing anything. |
+| `verify --save FILE` / `fix --from FILE` | Save findings and apply them later without a preliminary reload. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
 | `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
 | `--group-by version\|rule\|concern` | Group console findings by version (default), rule, or concern. |
@@ -55,8 +56,9 @@ rule, or concern grouping. The summary includes finding counts, skipped checks, 
 ### JSON
 
 JSON emits a `schemaVersion: 1` report with repository details, effective configuration and its sources,
-findings, groups, skipped checks, fixes, summary, timings, and exit code. Use `--json-fields` to select top-level
-fields, `--jq` to filter, or `--template` to format the report; each implies JSON output.
+filters, generation time, refs, serialized actions, findings, groups, skipped checks, fixes, summary, timings,
+and exit code. Use `--json-fields` to select top-level fields, `--jq` to filter, or `--template` to format the
+report; each implies JSON output.
 
 ### GitHub Actions
 
@@ -69,6 +71,30 @@ When `GITHUB_ACTIONS=true`, the renderer writes the report to `$GITHUB_STEP_SUMM
 effective configuration; manual commands are included only for `fix --mode manual`, and long summaries are
 capped at 1 MiB. Step outputs are `errors`, `warnings`, `fixed`, `remaining`, and `result` (`success` or
 `failure`). The GitHub token is registered with `::add-mask::`.
+
+## Verify now, fix later
+
+```sh
+gh actions-version verify -R owner/repo --save findings.json
+gh actions-version fix --from findings.json --mode manual
+gh actions-version fix --from findings.json --mode auto
+```
+
+`--save` writes the complete findings file regardless of output format or JSON field selection.
+An unfiltered `verify -o json > findings.json` produces the same kind of file. `fix --from -` reads
+it from stdin. If `-R` is supplied to `fix`, it must match the recorded repository. A file created
+with `--local` must be replayed with `--local` in the intended local clone.
+
+The file records the effective policy, filters, refs, and action parameters. `--rule`, `--skip-rule`,
+`--finding`, and version arguments can narrow the saved findings but cannot add findings that were
+not saved. Explicit policy flags can override recorded settings; `--config` and `--no-config` cannot
+be used with `--from`. Actions missing required release IDs are marked as requiring a new `verify`
+and are not automatically applied.
+
+Manual mode makes no API calls. Auto and interactive modes make no API calls until an action runs.
+There is **no staleness check**: updates and deletions act on the saved data. Review the file and
+re-run `verify` if the repository may have changed. Re-verification after fixing is disabled by default
+for `--from`; pass `--no-verify-after=false` to request it.
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.

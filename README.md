@@ -38,12 +38,24 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `fix --mode auto` | Apply fixes (needs write access); exit 3 if fixes were applied but qualifying findings remain. |
 | `fix --mode interactive` / `fix -i` | Review and confirm each fix on a terminal; `fix --yes` accepts every prompt. |
 | `fix --mode manual` | Print remediation instructions without changing anything. |
+| `verify --save FILE` / `fix --from FILE` | Save findings for review and apply them later. |
 | `--local` / `--local-only` | Read refs from the local git clone instead of the API; `--fetch-releases` also fetches releases. |
 | `-o, --output console\|json\|actions` | Select output format; defaults to `actions` in GitHub Actions and `console` elsewhere. |
 | `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
 
 Every rule is documented in [docs/rules](docs/rules/README.md).
 See [CLI output formats](docs/cli.md#output-formats) for details on console, JSON, and GitHub Actions reports.
+
+### Verify now, fix later
+
+```sh
+gh actions-version verify -R owner/repo --save findings.json
+gh actions-version fix --from findings.json --mode manual
+gh actions-version fix --from findings.json --mode auto
+```
+
+The saved file is trusted and is not checked for staleness before fixes are applied. Re-run `verify`
+when the repository may have changed; see [saved findings](docs/cli.md#verify-now-fix-later).
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
