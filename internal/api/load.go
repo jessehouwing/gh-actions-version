@@ -49,6 +49,7 @@ func Load(ctx context.Context, c *Client, cfg state.Config) (*state.State, error
 	c.SetIgnoreVersions(cfg.IgnoreVersions)
 	st := state.New()
 	st.Owner, st.Repo, st.Host, st.Config = c.Repo.Owner, c.Repo.Name, c.Repo.Host, cfg
+	st.RepoID, st.OwnerID = c.RepoID, c.OwnerID
 
 	tags, err := c.GetTags(ctx, "")
 	if err != nil {

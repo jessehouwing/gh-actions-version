@@ -349,7 +349,7 @@ func (g *GitHub) rest(w http.ResponseWriter, req *http.Request, path string, bod
 
 	switch {
 	case path == "" && method == "GET":
-		r := map[string]any{"private": g.Private, "full_name": Owner + "/" + Repo}
+		r := map[string]any{"id": 1001, "owner": map[string]any{"id": 2002}, "private": g.Private, "full_name": Owner + "/" + Repo}
 		if g.perms != nil {
 			r["permissions"] = map[string]bool{"admin": g.perms.Admin, "maintain": g.perms.Maintain, "push": g.perms.Push, "triage": g.perms.Triage, "pull": g.perms.Pull}
 		}
@@ -528,7 +528,12 @@ func (g *GitHub) graphql(w http.ResponseWriter, body []byte) {
 	if strings.Contains(req.Query, "releases(") {
 		nodes := []map[string]any{}
 		for _, r := range g.releases {
-			nodes = append(nodes, map[string]any{"databaseId": r.ID, "tagName": r.Tag, "isPrerelease": r.Prerelease, "isDraft": r.Draft, "immutable": r.Immutable, "isLatest": r.Latest})
+			node := map[string]any{"databaseId": r.ID, "tagName": r.Tag, "isPrerelease": r.Prerelease, "isDraft": r.Draft, "immutable": r.Immutable, "isLatest": r.Latest,
+				"url": "https://github.com/" + Owner + "/" + Repo + "/releases/tag/" + r.Tag}
+			if sha, ok := g.tags[r.Tag]; ok {
+				node["tagCommit"] = map[string]any{"oid": sha}
+			}
+			nodes = append(nodes, node)
 		}
 		g.reply(w, 200, map[string]any{"data": map[string]any{"rateLimit": rate, "repository": map[string]any{"releases": map[string]any{
 			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""}, "nodes": nodes}}}})

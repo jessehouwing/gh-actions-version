@@ -90,7 +90,9 @@ type Release struct {
 
 type Repository struct {
 	Host          string `json:"host"`
+	OwnerID       int64  `json:"owner_id,omitempty"`
 	Owner         string `json:"owner"`
+	RepositoryID  int64  `json:"repository_id,omitempty"`
 	Name          string `json:"name"`
 	NameWithOwner string `json:"nameWithOwner"`
 }
@@ -184,7 +186,7 @@ func Build(st *state.State, options BuildOptions) Report {
 	out := Report{
 		SchemaVersion: SchemaVersion,
 		Repository: Repository{
-			Host: st.Host, Owner: st.Owner, Name: st.Repo, NameWithOwner: st.Owner + "/" + st.Repo,
+			Host: st.Host, OwnerID: st.OwnerID, Owner: st.Owner, RepositoryID: st.RepoID, Name: st.Repo, NameWithOwner: st.Owner + "/" + st.Repo,
 		},
 		Mode:     options.Mode,
 		Config:   buildConfig(st.Config),

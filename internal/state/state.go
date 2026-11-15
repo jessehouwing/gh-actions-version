@@ -238,6 +238,8 @@ type State struct {
 	// ImmutableReleasesEnabled is the repository's 'Release immutability' setting; nil when unknown.
 	ImmutableReleasesEnabled *bool
 	Owner                    string
+	OwnerID                  int64
+	RepoID                   int64
 	Repo                     string
 	Host                     string
 	Config                   Config

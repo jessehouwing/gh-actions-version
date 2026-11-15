@@ -70,6 +70,9 @@ type Options struct {
 type Client struct {
 	Repo      Repo
 	Transport *Transport
+	// RepoID and OwnerID are the numeric IDs reported by GET /repos/{owner}/{repo}; zero until read.
+	RepoID  int64
+	OwnerID int64
 
 	rest      *ghapi.RESTClient
 	gql       *ghapi.GraphQLClient

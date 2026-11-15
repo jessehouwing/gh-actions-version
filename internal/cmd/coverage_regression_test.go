@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -143,7 +144,7 @@ func TestSavedReportRealEnterpriseHostResolution(t *testing.T) {
 				if len(transport.auth) != 0 || len(gh.Requests()) != 0 {
 					t.Fatalf("mismatch made requests: %v", gh.Requests())
 				}
-			} else if len(transport.auth) != 1 || transport.auth[0] != "token synthetic-enterprise-token" || gh.TagSha("v1") != c1 {
+			} else if len(transport.auth) == 0 || slices.ContainsFunc(transport.auth, func(a string) bool { return a != "token synthetic-enterprise-token" }) || gh.TagSha("v1") != c1 {
 				t.Fatalf("credentials or replay incorrect: auth=%v writes=%v", transport.auth, gh.Writes())
 			}
 		})
@@ -221,7 +222,7 @@ func TestSavedReportRestoresReplayStateAndPolicies(t *testing.T) {
 	}
 	replay := testutil.NewGitHub(t).Tag(c1, "v1.0.0").Tag(c2, "v1.1.0").Branch(c1, "v1")
 	res = newEnv(t, replay).runRaw("fix", "-R", "o/r", "--from", path, "--mode=auto", "--finding-level=major_branch_wrong_target=none")
-	if res.code != ExitOK || len(replay.Requests()) != 0 || replay.BranchSha("v1") != c1 {
+	if res.code != ExitOK || len(replay.Writes()) != 0 || replay.BranchSha("v1") != c1 {
 		t.Fatalf("override failed: exit %d requests=%v: %s", res.code, replay.Requests(), res.all())
 	}
 	replay = testutil.NewGitHub(t).Tag(c1, "v1.0.0").Tag(c2, "v1.1.0").Branch(c1, "v1")

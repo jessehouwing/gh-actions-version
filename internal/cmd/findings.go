@@ -97,6 +97,7 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	cfg.AutoFix = r.mode == remediation.AutoFix || r.mode == remediation.Interactive
 	st := state.New()
 	st.Host, st.Owner, st.Repo, st.Config = repo.Host, repo.Owner, repo.Name, cfg
+	st.RepoID, st.OwnerID = saved.Repository.RepositoryID, saved.Repository.OwnerID
 	for _, entry := range saved.Refs.Tags {
 		ref := state.NewVersionRef(entry.Name, entry.Ref, entry.SHA, state.TypeTag)
 		ref.IsIgnored = version.IsIgnored(entry.Name, cfg.IgnoreVersions)
@@ -236,6 +237,14 @@ func (r *run) loadFindings() (*state.State, state.Client, *api.Client, error) {
 	}
 	if r.token == "" {
 		return nil, nil, nil, fmt.Errorf("fixing requires a GitHub token")
+	}
+	if saved.Repository.RepositoryID != 0 || saved.Repository.OwnerID != 0 {
+		if err := api.LoadRepositoryIDs(r.ctx, c); err != nil {
+			return nil, nil, nil, fmt.Errorf("cannot verify findings repository ID: %w", err)
+		}
+		if c.RepoID != saved.Repository.RepositoryID || c.OwnerID != saved.Repository.OwnerID {
+			return nil, nil, nil, fmt.Errorf("repository ID of %s does not match the findings file (the repository was deleted, renamed or transferred); regenerate the findings", repo)
+		}
 	}
 	return st, c, c, nil
 }
