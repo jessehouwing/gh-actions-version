@@ -43,6 +43,7 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `--json-fields a,b,c`, `--jq` / `-q`, `--template` / `-t` | Select or format JSON output; `--jq` and `--template` imply JSON. |
 
 Every rule is documented in [docs/rules](docs/rules/README.md).
+See [CLI output formats](docs/cli.md#output-formats) for details on console, JSON, and GitHub Actions reports.
 
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.

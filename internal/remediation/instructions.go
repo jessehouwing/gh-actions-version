@@ -144,34 +144,6 @@ func WriteManualInstructions(st *state.State, log *output.Logger, groupByType bo
 	log.EndGroup()
 }
 
-// WriteManualInstructionsToStepSummary appends the manual instructions to GITHUB_STEP_SUMMARY
-// (port of Write-ManualInstructionsToStepSummary). It does nothing when the variable is unset.
-func WriteManualInstructionsToStepSummary(st *state.State) {
-	issues := manualIssues(st)
-	if len(issues) == 0 {
-		return
-	}
-	var b strings.Builder
-	b.WriteString("## Manual Remediation Required\n\n")
-	if setup := setupLines(st, issues); setup != nil {
-		b.WriteString("### Setup\nClone the repository and fetch all tags and branches:\n```bash\n")
-		b.WriteString(strings.Join(setup, "\n"))
-		b.WriteString("\n```\n\n### Remediation Steps\n\n")
-	}
-	for _, i := range issues {
-		emoji := "⚠️"
-		if i.Status == state.StatusFailed {
-			emoji = "❌"
-		}
-		fmt.Fprintf(&b, "%s **%s:** %s\n", emoji, i.Version, i.Message)
-		if cmds, lang := commandsFor(st, i); len(cmds) > 0 {
-			b.WriteString("```" + lang + "\n" + strings.Join(cmds, "\n") + "\n```\n")
-		}
-		b.WriteString("\n")
-	}
-	output.AppendStepSummary(b.String())
-}
-
 // WriteUnresolvedIssues logs every unresolved issue as an annotation by severity (port of Write-UnresolvedIssue).
 func WriteUnresolvedIssues(st *state.State, log *output.Logger) {
 	for _, i := range st.Issues {

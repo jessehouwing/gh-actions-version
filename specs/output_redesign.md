@@ -1,7 +1,7 @@
-# Proposed: output redesign
+# Output redesign
 
-Status: proposed, nothing implemented. Companion to `cli_redesign.md`, `../rule_refactoring.md` and
-`ignored_versions.md`.
+Status: implemented through Phase 3.10; ignored-version details are deferred to Phase 5. Companion to
+`proposed/cli_redesign.md`, `rule_refactoring.md`, and `proposed/ignored_versions.md`.
 
 ## Problem
 
@@ -88,14 +88,13 @@ Rules:
 - Wording reflects the mode: `verify` says "finding", `fix` says "failed fix", "manual step"; never "manual fix
   required" for something no one tried to fix.
 - Severity colors on a terminal; `NO_COLOR` and `--no-color` honored.
-- Ignored versions are summarized with their reasons (see `ignored_versions.md`).
+- Ignored versions are summarized with their reasons (see `proposed/ignored_versions.md`).
 
 ## Findings in every format
 
-Every finding carries the same fields: `rule`, `finding`, `severity`, `version`, `message`, `cause` (optional),
-`docs` (URL), `autoFixable`, `manual` (commands, JSON only in `verify`), `ignored` (with reason, when applicable).
-The docs URL is pinned to the CLI version, with `main` used for dev builds. Renaming finding IDs is covered by
-`../rule_refactoring.md`.
+Every report finding carries `rule`, `finding`, `concern`, `severity`, `version`, `message`, `cause` (optional),
+`docs` (URL), `autoFixable`, `manualCommands`, and `status`. The docs URL is pinned to the CLI version, with
+`main` used for dev builds. Ignored-version details are added in Phase 5.
 
 ## JSON
 
@@ -103,16 +102,17 @@ The docs URL is pinned to the CLI version, with `main` used for dev builds. Rena
   `skipped[]` (checks skipped and why), `fixes[]` (in `fix`), `summary`, and `timings` per stage.
 - Findings are grouped consistently with the console report: also available as `groups[]`
   (`rule`, `finding`, `versions[]`, `count`).
-- Selection with `--json-fields`, filtering with `--jq`, templating with `--template` (see `cli_redesign.md`).
+- Selection with `--json-fields`, filtering with `--jq`, templating with `--template`
+  (see `proposed/cli_redesign.md`).
 
 ## Actions
 
 - Findings: `::error` / `::warning` / `::notice` with `title=<rule>/<finding>`; grouped by `::group::` per rule.
   A finding for many versions is one annotation listing the versions (annotations are limited to 10 per step
   per type, so detail goes to the summary).
-- Job summary (`$GITHUB_STEP_SUMMARY`): result line, counts, findings table grouped like the console report,
-  skipped checks, ignored versions with reasons,   executed fixes, effective configuration; manual commands in fenced
-    blocks only for `fix --mode manual`. Truncated with a note before the 1 MiB limit.
+- Job summary (`$GITHUB_STEP_SUMMARY`): result line, counts, findings table, skipped checks, executed fixes,
+  effective configuration; manual commands in fenced blocks only for `fix --mode manual`. Truncated with a note
+  before the 1 MiB limit. Ignored-version details are added in Phase 5.
 - Step outputs (`$GITHUB_OUTPUT`): `errors`, `warnings`, `fixed`, `remaining`, `result`.
 - Secrets are never printed; tokens are registered with `::add-mask::`.
 

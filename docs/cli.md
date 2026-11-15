@@ -45,6 +45,31 @@ Prerelease status comes only from the GitHub Release API, never from tag suffixe
 | `--no-progress` | Use plain progress lines instead of a terminal spinner. |
 | `--quiet` | Suppress progress and informational output; findings, warnings, and errors remain visible. `-q` is reserved for `--jq`. |
 
+## Output formats
+
+### Console
+
+The default outside GitHub Actions. Findings are grouped by version by default; `--group-by` selects version,
+rule, or concern grouping. The summary includes finding counts, skipped checks, and documentation links.
+
+### JSON
+
+JSON emits a `schemaVersion: 1` report with repository details, effective configuration and its sources,
+findings, groups, skipped checks, fixes, summary, timings, and exit code. Use `--json-fields` to select top-level
+fields, `--jq` to filter, or `--template` to format the report; each implies JSON output.
+
+### GitHub Actions
+
+Use `--output=actions` to emit workflow-command annotations to stdout. Unresolved findings are grouped by rule,
+with annotation titles in `rule/finding` form; each finding group lists its versions. Annotations are limited to
+10 per severity, while the step summary retains all findings.
+
+When `GITHUB_ACTIONS=true`, the renderer writes the report to `$GITHUB_STEP_SUMMARY` and counts to
+`$GITHUB_OUTPUT` when those paths are provided. The summary includes findings, skipped checks, fixes, and
+effective configuration; manual commands are included only for `fix --mode manual`, and long summaries are
+capped at 1 MiB. Step outputs are `errors`, `warnings`, `fixed`, `remaining`, and `result` (`success` or
+`failure`). The GitHub token is registered with `::add-mask::`.
+
 Policy options: `--level CONCERN=LEVEL`, `--rule-level RULE=LEVEL`, `--finding-level FINDING=LEVEL`
 (`error`, `warning`, `none`); filters: `--rule`, `--skip-rule`, `--finding`; `--fail-on error|warning|never`.
 Other options include `--preview-releases=included|excluded`, `--floating-versions-use` (`tags`, `branches`, `both`),

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -137,19 +135,6 @@ func TestUnfixableReleaseRemediation(t *testing.T) {
 		cmds := a.ManualCommands(st)
 		if a.ManualCommandsLanguage() != "yaml" || !regexp.MustCompile(`ignore-versions:\s*"v1\.\*,v6\.3\.0"`).MatchString(strings.Join(cmds, "\n")) {
 			t.Fatalf("lang %s cmds %v", a.ManualCommandsLanguage(), cmds)
-		}
-	})
-	t.Run("Renders the snippet inside a fenced ```yaml block (not ```bash) in the GitHub Actions job summary", func(t *testing.T) {
-		st, a, _ := setup()
-		actions.Out = &bytes.Buffer{}
-		a.Execute(context.Background(), st, &fakeClient{createRelease: state.ReleaseResult{Unfixable: true}})
-		p := filepath.Join(t.TempDir(), "step-summary.md")
-		t.Setenv("GITHUB_STEP_SUMMARY", p)
-		WriteManualInstructionsToStepSummary(st)
-		raw, _ := os.ReadFile(p)
-		s := string(raw)
-		if !regexp.MustCompile("(?s)```yaml.*?ignore-versions:\\s*\"v1\\.\\*,v6\\.3\\.0\".*?```").MatchString(s) {
-			t.Fatalf("summary: %s", s)
 		}
 	})
 }
@@ -353,21 +338,6 @@ func TestManualInstructions(t *testing.T) {
 		WriteManualInstructions(newState(), log, false)
 		if out.Len() != 0 {
 			t.Fatal(out.String())
-		}
-	})
-	t.Run("step summary does nothing without GITHUB_STEP_SUMMARY", func(t *testing.T) {
-		t.Setenv("GITHUB_STEP_SUMMARY", "")
-		WriteManualInstructionsToStepSummary(mk())
-	})
-	t.Run("step summary marks failed issues with a cross", func(t *testing.T) {
-		st := mk()
-		st.Issues[0].Status = state.StatusFailed
-		p := filepath.Join(t.TempDir(), "s.md")
-		t.Setenv("GITHUB_STEP_SUMMARY", p)
-		WriteManualInstructionsToStepSummary(st)
-		raw, _ := os.ReadFile(p)
-		if !strings.Contains(string(raw), "❌ **v2.0.0:**") || !strings.Contains(string(raw), "## Manual Remediation Required") {
-			t.Fatal(string(raw))
 		}
 	})
 }

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/term"
-	"github.com/jessehouwing/gh-actions-version/internal/state"
 )
 
 // Logger writes messages either as GitHub Actions workflow commands or as plain text.
@@ -26,8 +25,6 @@ type Logger struct {
 	Quiet bool
 	// Color enables ANSI colors in plain mode.
 	Color bool
-	// ErrorCount counts errors written without a State (port of $global:returnCode = 1).
-	ErrorCount int
 }
 
 // New returns a Logger for out. Actions annotations are used only when GITHUB_ACTIONS=true;
@@ -182,9 +179,6 @@ func (l *Logger) SafeLines(lines []string) {
 	}
 }
 
-// SafeInfo writes untrusted text without a prefix.
-func (l *Logger) SafeInfo(msg string) { l.Safe(msg, "") }
-
 // Mask hides secret in the Actions log. It is a no-op outside Actions.
 func (l *Logger) Mask(secret string) {
 	if l.Actions && secret != "" {
@@ -214,51 +208,10 @@ func (l *Logger) EndGroup() {
 	}
 }
 
-// IssueError writes an error and tracks it in st as an error issue; without st it increments ErrorCount
-// (port of Write-ActionsError).
-func (l *Logger) IssueError(msg string, st *state.State) {
-	l.Error(msg)
-	if st != nil {
-		st.AddIssue(state.NewIssue("error", state.SeverityError, msg))
-		return
-	}
-	l.ErrorCount++
-}
-
-// Message writes msg according to severity: "error" (tracked), "warning", or nothing for "none"
-// (port of Write-ActionsMessage).
-func (l *Logger) Message(msg, severity string, st *state.State) {
-	switch severity {
-	case state.SeverityError:
-		l.IssueError(msg, st)
-	case state.SeverityWarning:
-		l.Warning(msg)
-	}
-}
-
 func newMarker() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	b[6] = b[6]&0x0f | 0x40
 	b[8] = b[8]&0x3f | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-// AppendStepSummary appends text to the file named by GITHUB_STEP_SUMMARY. It returns false when the
-// variable is unset or the file cannot be written.
-func AppendStepSummary(text string) bool {
-	path := os.Getenv("GITHUB_STEP_SUMMARY")
-	if path == "" {
-		return false
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	if !strings.HasSuffix(text, "\n") {
-		text += "\n"
-	}
-	_, err = f.WriteString(text)
-	return err == nil
 }
