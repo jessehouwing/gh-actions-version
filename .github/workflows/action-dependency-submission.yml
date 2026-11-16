@@ -24,9 +24,16 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v7.0.1
+      - name: Require actions lockfile
+        run: |
+          if [ ! -f .github/workflows/actions.lock ]; then
+            echo "::error::Missing .github/workflows/actions.lock"
+            exit 1
+          fi
       - uses: jessehouwing/actions-dependency-submission@v2.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          actions-lock-version: v0.4.1
       - uses: actions/dependency-review-action@v5.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:
