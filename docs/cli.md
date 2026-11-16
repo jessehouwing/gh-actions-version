@@ -149,6 +149,10 @@ Precedence: command-line flag > `action-version.yml` > built-in default. The bui
 
 `gh actions-version setup` asks about floating versions, releases, Marketplace checks, preview releases,
 immutable-tag deletion, ignored versions and per-concern fix policies. It is local and needs no token.
+Questions are grouped into sections with explanations of the choices. Fix policies can be set to all
+manual, all auto, or fine-tuned by concern, with major, minor and patch versions kept together.
+Auto makes supported fixes eligible when you later run `fix`; manual provides instructions instead.
+Bulk choices apply only to unanswered concerns and preserve explicit `--fix-policy` flags.
 Previews default to excluded. Deleting a tag used by a deleted immutable release is irreversible and
 defaults to denied; enabling it requires an explicit prompt or `--dangerously-allow-destructive-tag-deletion`.
 

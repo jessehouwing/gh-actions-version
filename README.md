@@ -106,7 +106,9 @@ Precedence: command-line flag > `action-version.yml` > built-in default. The bui
 [`internal/policy/action-version.yml`](internal/policy/action-version.yml) and documents every key.
 
 `setup` asks about floating versions, releases, preview handling, irreversible tag deletion, ignores,
-and fix policies. It runs locally without a token. Use `setup --yes --print` to review defaults or
+and fix policies in explained, grouped sections. Choose all-manual or all-auto fixes, or fine-tune
+each concern; explicit `--fix-policy` answers are preserved. It runs locally without a token.
+Use `setup --yes --print` to review defaults or
 `setup --yes --path .github/action-version.yml` to write them without prompts. Existing files require
 confirmation or `--force`; updates preserve comments and unrelated settings. Existing ignores are retained
 unless `--no-ignore` is supplied. Preview releases default to excluded and destructive tag deletion to denied.
