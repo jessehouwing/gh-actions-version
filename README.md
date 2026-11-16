@@ -12,6 +12,22 @@ gh extension install jessehouwing/gh-actions-version
 gh extension upgrade actions-version
 ```
 
+For an immutable release, you can verify an asset and its build provenance before installing. For example,
+replace `<tag>` with the release tag:
+
+```sh
+tag="<tag>"
+gh release verify "$tag" -R jessehouwing/gh-actions-version
+gh release download "$tag" -R jessehouwing/gh-actions-version -p linux-amd64
+gh release verify-asset "$tag" linux-amd64 -R jessehouwing/gh-actions-version
+gh attestation verify linux-amd64 -R jessehouwing/gh-actions-version
+gh extension install jessehouwing/gh-actions-version --pin "$tag"
+```
+
+The existing releases through `v0.0.3` are not immutable. `gh extension install` and `upgrade` do not
+perform these verification steps automatically; installation downloads the asset again, so pinning an
+immutable release is important.
+
 ## Quickstart
 
 ```sh

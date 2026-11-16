@@ -3,16 +3,18 @@ name: release
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
+permissions: {}
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
@@ -23,3 +25,8 @@ jobs:
           go_version_file: go.mod
           go_build_options: "-ldflags=-s -w -X=github.com/jessehouwing/gh-actions-version/internal/cmd.Version=${{ github.ref_name }}"
           generate_attestations: true
+          draft_release: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
